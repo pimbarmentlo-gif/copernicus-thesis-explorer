@@ -1,0 +1,102 @@
+source,target,weight
+thesis::Liu_2024,sdg::3,2
+thesis::Liu_2024,method::mixed methods research,1
+thesis::Liu_2024,country::united states,1
+thesis::vanDriel_2025,sdg::8,2
+thesis::vanDriel_2025,method::qualitative empirical research,1
+thesis::vanDriel_2025,country::netherlands,1
+thesis::Ghisai_2025,sdg::12,2
+thesis::Ghisai_2025,method::quantitative empirical research,1
+thesis::Ghisai_2025,country::netherlands,1
+thesis::Gresnigt_2025,sdg::7,2
+thesis::Gresnigt_2025,method::qualitative empirical research,1
+thesis::Gresnigt_2025,country::netherlands,1
+thesis::Venhuizen_2025,sdg::7,2
+thesis::Venhuizen_2025,method::quantitative empirical research,1
+thesis::Venhuizen_2025,country::netherlands,1
+thesis::Colomé_2025,sdg::12,2
+thesis::Colomé_2025,method::qualitative empirical research,1
+thesis::Colomé_2025,country::global,1
+thesis::deMoor_2025,sdg::12,2
+thesis::deMoor_2025,method::qualitative empirical research,1
+thesis::deMoor_2025,country::netherlands,1
+thesis::Sustainable Business Models in the Circular Economy: A Case Study of the Dutch Textile Industry,sdg::12,2
+thesis::Sustainable Business Models in the Circular Economy: A Case Study of the Dutch Textile Industry,method::qualitative empirical research,1
+thesis::Sustainable Business Models in the Circular Economy: A Case Study of the Dutch Textile Industry,country::netherlands,1
+thesis::Falcone_2025,sdg::12,2
+thesis::Falcone_2025,method::mixed methods research,1
+thesis::Falcone_2025,country::global,1
+thesis::Soltys_2025,sdg::7,2
+thesis::Soltys_2025,method::qualitative empirical research,1
+thesis::Soltys_2025,country::european union,1
+thesis::Baauw_2025,sdg::12,2
+thesis::Baauw_2025,method::qualitative empirical research,1
+thesis::Baauw_2025,country::netherlands,1
+thesis::Meerstad_2025,sdg::9,2
+thesis::Meerstad_2025,method::mixed methods research,1
+thesis::Schutter_2025,sdg::8,2
+thesis::Schutter_2025,method::quantitative empirical research,1
+thesis::Schutter_2025,country::global,1
+thesis::Kolk_2025,sdg::14,2
+thesis::Kolk_2025,method::qualitative empirical research,1
+thesis::Kolk_2025,country::netherlands,1
+thesis::Hofman_2025,sdg::7,2
+thesis::Hofman_2025,method::qualitative empirical research,1
+thesis::Hofman_2025,country::netherlands,1
+thesis::Wijngaarden_2025,sdg::8,2
+thesis::Wijngaarden_2025,method::qualitative empirical research,1
+thesis::Wijngaarden_2025,"country::northern circuit, tanzania",1
+thesis::Breuer_2025,sdg::12,2
+thesis::Breuer_2025,method::qualitative empirical research,1
+thesis::Breuer_2025,country::western europe,1
+thesis::Heyn_2025,sdg::7,2
+thesis::Heyn_2025,method::qualitative empirical research,1
+thesis::Heyn_2025,country::sub-saharan africa,1
+"thesis::Understanding Mental Models of Plastic Circularity: A Study of Coastal Residents in Attica, Greece",sdg::12,2
+"thesis::Understanding Mental Models of Plastic Circularity: A Study of Coastal Residents in Attica, Greece",method::qualitative empirical research,1
+"thesis::Understanding Mental Models of Plastic Circularity: A Study of Coastal Residents in Attica, Greece","country::attica, greece",1
+thesis::Magnanti_2025,sdg::12,2
+thesis::Magnanti_2025,method::qualitative empirical research,1
+thesis::Klink_2025,sdg::13,2
+thesis::Klink_2025,method::mixed methods research,1
+thesis::Klink_2025,"country::utrechtse heuvelrug, netherlands",1
+thesis::Martins_2025,sdg::12,2
+thesis::Martins_2025,method::mixed methods research,1
+thesis::Martins_2025,country::netherlands,1
+thesis::Pelgrim_2025,sdg::11,2
+thesis::Pelgrim_2025,method::qualitative empirical research,1
+thesis::Pelgrim_2025,country::netherlands,1
+thesis::Ovalle_2025,sdg::6,2
+thesis::Ovalle_2025,method::qualitative empirical research,1
+thesis::Ovalle_2025,"country::coquimbo region, chile",1
+thesis::Peters_2025,sdg::16,2
+thesis::Peters_2025,method::qualitative empirical research,1
+thesis::Peters_2025,country::global,1
+thesis::Turpijn_2025,sdg::12,2
+thesis::Turpijn_2025,method::quantitative empirical research,1
+thesis::Turpijn_2025,country::netherlands,1
+thesis::Shen_2025,sdg::12,2
+thesis::Shen_2025,method::qualitative empirical research,1
+thesis::Shen_2025,country::china,1
+thesis::Grim_2025,sdg::7,2
+thesis::Grim_2025,method::qualitative empirical research,1
+thesis::Grim_2025,country::netherlands,1
+thesis::Harms_2025,sdg::11,2
+thesis::Harms_2025,method::qualitative empirical research,1
+thesis::Hu_2025,sdg::12,2
+thesis::Hu_2025,method::mixed methods research,1
+thesis::Hu_2025,country::netherlands,1
+thesis::Broos_2025,sdg::11,2
+thesis::Broos_2025,method::qualitative empirical research,1
+thesis::Broos_2025,"country::friesland, netherlands",1
+thesis::vanBemmel_2025,sdg::12,2
+thesis::vanBemmel_2025,method::literature-based research,1
+thesis::deKeijzer_2025,sdg::13,2
+thesis::deKeijzer_2025,method::qualitative empirical research,1
+thesis::deKeijzer_2025,country::utrecht,1
+thesis::Verhagen_2025,sdg::6,2
+thesis::Verhagen_2025,method::mixed methods research,1
+thesis::Verhagen_2025,country::european union,1
+thesis::Nijssen_2025,sdg::13,2
+thesis::Nijssen_2025,method::mixed methods research,1
+thesis::Nijssen_2025,country::european union,1

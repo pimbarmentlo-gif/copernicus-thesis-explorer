@@ -1,0 +1,163 @@
+<html>
+    <head>
+        <meta charset="utf-8">
+        
+            <script src="lib/bindings/utils.js"></script>
+            <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/vis-network/9.1.2/dist/dist/vis-network.min.css" integrity="sha512-WgxfT5LWjfszlPHXRmBWHkV2eceiWTOBvrKCNbdgDYTHrT2AeLCGbF4sZlZw3UMN3WtL0tGUoIAKsu8mllg/XA==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+            <script src="https://cdnjs.cloudflare.com/ajax/libs/vis-network/9.1.2/dist/vis-network.min.js" integrity="sha512-LnvoEWDFrqGHlHmDD2101OrLcbsfkrzoSpvtSQtxK3RMnRV0eOkhhBN2dXHKRrUU8p2DGRTk35n4O8nWSVe1mQ==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+            
+        
+<center>
+<h1></h1>
+</center>
+
+<!-- <link rel="stylesheet" href="../node_modules/vis/dist/vis.min.css" type="text/css" />
+<script type="text/javascript" src="../node_modules/vis/dist/vis.js"> </script>-->
+        <link
+          href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.0-beta3/dist/css/bootstrap.min.css"
+          rel="stylesheet"
+          integrity="sha384-eOJMYsd53ii+scO/bJGFsiCZc+5NDVN2yr8+0RDqr0Ql0h+rP48ckxlpbzKgwra6"
+          crossorigin="anonymous"
+        />
+        <script
+          src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.0-beta3/dist/js/bootstrap.bundle.min.js"
+          integrity="sha384-JEW9xMcG8R+pH31jmWH6WWP0WintQrMb4s7ZOdauHnUtxwoG2vI5DkLtS3qm9Ekf"
+          crossorigin="anonymous"
+        ></script>
+
+
+        <center>
+          <h1></h1>
+        </center>
+        <style type="text/css">
+
+             #mynetwork {
+                 width: 100%;
+                 height: 750px;
+                 background-color: #ffffff;
+                 border: 1px solid lightgray;
+                 position: relative;
+                 float: left;
+             }
+
+             
+
+             
+
+             
+        </style>
+    </head>
+
+
+    <body>
+        <div class="card" style="width: 100%">
+            
+            
+            <div id="mynetwork" class="card-body"></div>
+        </div>
+
+        
+        
+
+        <script type="text/javascript">
+
+              // initialize global variables.
+              var edges;
+              var nodes;
+              var allNodes;
+              var allEdges;
+              var nodeColors;
+              var originalNodes;
+              var network;
+              var container;
+              var options, data;
+              var filter = {
+                  item : '',
+                  property : '',
+                  value : []
+              };
+
+              
+
+              
+
+              // This method is responsible for drawing the graph, returns the drawn network
+              function drawGraph() {
+                  var container = document.getElementById('mynetwork');
+
+                  
+
+                  // parsing and collecting nodes and edges from the python
+                  nodes = new vis.DataSet([{"font": {"color": "#222"}, "group": "3 - Good Health and Well-Being", "id": "thesis::Liu_2024", "label": "Bridging the Gap: Assessing the Alignment of PFAS Research Supply and Social Demand in the United States", "shape": "dot", "size": 20, "title": "Bridging the Gap: Assessing the Alignment of PFAS Research Supply and Social Demand in the United States (thesis)"}, {"font": {"color": "#222"}, "group": "3", "id": "sdg::3", "label": "3 - Good Health and Well-Being", "shape": "dot", "size": 30, "title": "3 - Good Health and Well-Being (sdg)"}, {"font": {"color": "#222"}, "group": "method", "id": "method::mixed methods research", "label": "Mixed Methods Research", "shape": "dot", "size": 15, "title": "Mixed Methods Research (method)"}, {"font": {"color": "#222"}, "group": "country", "id": "country::united states", "label": "United States", "shape": "dot", "size": 15, "title": "United States (country)"}, {"font": {"color": "#222"}, "group": "8 - Decent Work and Economic Growth", "id": "thesis::vanDriel_2025", "label": "Matching for Impact", "shape": "dot", "size": 20, "title": "Matching for Impact (thesis)"}, {"font": {"color": "#222"}, "group": "8", "id": "sdg::8", "label": "8 - Decent Work and Economic Growth", "shape": "dot", "size": 30, "title": "8 - Decent Work and Economic Growth (sdg)"}, {"font": {"color": "#222"}, "group": "method", "id": "method::qualitative empirical research", "label": "Qualitative Empirical Research", "shape": "dot", "size": 15, "title": "Qualitative Empirical Research (method)"}, {"font": {"color": "#222"}, "group": "country", "id": "country::netherlands", "label": "Netherlands", "shape": "dot", "size": 15, "title": "Netherlands (country)"}, {"font": {"color": "#222"}, "group": "12 - Responsible Consumption and Production", "id": "thesis::Ghisai_2025", "label": "Life in plastic, is it fantastic? Exploring microplastics literacy, perceived risk, and the intention-behaviour gap", "shape": "dot", "size": 20, "title": "Life in plastic, is it fantastic? Exploring microplastics literacy, perceived risk, and the intention-behaviour gap (thesis)"}, {"font": {"color": "#222"}, "group": "12", "id": "sdg::12", "label": "12 - Responsible Consumption and Production", "shape": "dot", "size": 30, "title": "12 - Responsible Consumption and Production (sdg)"}, {"font": {"color": "#222"}, "group": "method", "id": "method::quantitative empirical research", "label": "Quantitative Empirical Research", "shape": "dot", "size": 15, "title": "Quantitative Empirical Research (method)"}, {"font": {"color": "#222"}, "group": "7 - Affordable and Clean Energy", "id": "thesis::Gresnigt_2025", "label": "Examining Energy Justice in Dutch Sustainability Policy using Policy Theory Analysis", "shape": "dot", "size": 20, "title": "Examining Energy Justice in Dutch Sustainability Policy using Policy Theory Analysis (thesis)"}, {"font": {"color": "#222"}, "group": "7", "id": "sdg::7", "label": "7 - Affordable and Clean Energy", "shape": "dot", "size": 30, "title": "7 - Affordable and Clean Energy (sdg)"}, {"font": {"color": "#222"}, "group": "7 - Affordable and Clean Energy", "id": "thesis::Venhuizen_2025", "label": "Exploring the energy burden disparity across Dutch income groups: A historical perspective", "shape": "dot", "size": 20, "title": "Exploring the energy burden disparity across Dutch income groups: A historical perspective (thesis)"}, {"font": {"color": "#222"}, "group": "12 - Responsible Consumption and Production", "id": "thesis::Colom\u00e9_2025", "label": "Navigating the PFAS Phase-Out in the Outdoor Apparel Industry", "shape": "dot", "size": 20, "title": "Navigating the PFAS Phase-Out in the Outdoor Apparel Industry (thesis)"}, {"font": {"color": "#222"}, "group": "country", "id": "country::global", "label": "Global", "shape": "dot", "size": 15, "title": "Global (country)"}, {"font": {"color": "#222"}, "group": "12 - Responsible Consumption and Production", "id": "thesis::deMoor_2025", "label": "Circular Strategies and Resource Preservation in the Solar Photovoltaics (PV) Industry in the Netherlands", "shape": "dot", "size": 20, "title": "Circular Strategies and Resource Preservation in the Solar Photovoltaics (PV) Industry in the Netherlands (thesis)"}, {"font": {"color": "#222"}, "group": "12 - Responsible Consumption and Production", "id": "thesis::Sustainable Business Models in the Circular Economy: A Case Study of the Dutch Textile Industry", "label": "Sustainable Business Models in the Circular Economy: A Case Study of the Dutch Textile Industry", "shape": "dot", "size": 20, "title": "Sustainable Business Models in the Circular Economy: A Case Study of the Dutch Textile Industry (thesis)"}, {"font": {"color": "#222"}, "group": "12 - Responsible Consumption and Production", "id": "thesis::Falcone_2025", "label": "Learning in Transformative Research Niches: The Case of Non-Animal Methods for Thyroid Disrupting Chemicals Risk Assessment", "shape": "dot", "size": 20, "title": "Learning in Transformative Research Niches: The Case of Non-Animal Methods for Thyroid Disrupting Chemicals Risk Assessment (thesis)"}, {"font": {"color": "#222"}, "group": "7 - Affordable and Clean Energy", "id": "thesis::Soltys_2025", "label": "European Energy Resilience in Response to the Russo-Ukrainian War", "shape": "dot", "size": 20, "title": "European Energy Resilience in Response to the Russo-Ukrainian War (thesis)"}, {"font": {"color": "#222"}, "group": "country", "id": "country::european union", "label": "European Union", "shape": "dot", "size": 15, "title": "European Union (country)"}, {"font": {"color": "#222"}, "group": "12 - Responsible Consumption and Production", "id": "thesis::Baauw_2025", "label": "Data sharing for a Circular Building Economy: Managing tensions", "shape": "dot", "size": 20, "title": "Data sharing for a Circular Building Economy: Managing tensions (thesis)"}, {"font": {"color": "#222"}, "group": "9 - Industry, Innovation and Infrastructure", "id": "thesis::Meerstad_2025", "label": "CONSUMER PREFERENCE FOR EV BATTERY TECHNOLOGIES", "shape": "dot", "size": 20, "title": "CONSUMER PREFERENCE FOR EV BATTERY TECHNOLOGIES (thesis)"}, {"font": {"color": "#222"}, "group": "9", "id": "sdg::9", "label": "9 - Industry, Innovation and Infrastructure", "shape": "dot", "size": 30, "title": "9 - Industry, Innovation and Infrastructure (sdg)"}, {"font": {"color": "#222"}, "group": "8 - Decent Work and Economic Growth", "id": "thesis::Schutter_2025", "label": "Exploring the Influence of University Support on the Performance of Student-Led Social Enterprises: A Quantitative Study of Enactus Europe", "shape": "dot", "size": 20, "title": "Exploring the Influence of University Support on the Performance of Student-Led Social Enterprises: A Quantitative Study of Enactus Europe (thesis)"}, {"font": {"color": "#222"}, "group": "14 - Life Below Water", "id": "thesis::Kolk_2025", "label": "The Impact of Education and Environmental Awareness on Mental Model Complexity: A Comparative Study of Dutch Young Adults\u0027 and Ocean Experts\u0027 Perceptions of Quality of Life in the Ocean.", "shape": "dot", "size": 20, "title": "The Impact of Education and Environmental Awareness on Mental Model Complexity: A Comparative Study of Dutch Young Adults\u0027 and Ocean Experts\u0027 Perceptions of Quality of Life in the Ocean. (thesis)"}, {"font": {"color": "#222"}, "group": "14", "id": "sdg::14", "label": "14 - Life Below Water", "shape": "dot", "size": 30, "title": "14 - Life Below Water (sdg)"}, {"font": {"color": "#222"}, "group": "7 - Affordable and Clean Energy", "id": "thesis::Hofman_2025", "label": "Towards a CO -free Electricity System: Analysis of the Dutch Mission-oriented Innovation System for a CO -free Electricity System", "shape": "dot", "size": 20, "title": "Towards a CO -free Electricity System: Analysis of the Dutch Mission-oriented Innovation System for a CO -free Electricity System (thesis)"}, {"font": {"color": "#222"}, "group": "8 - Decent Work and Economic Growth", "id": "thesis::Wijngaarden_2025", "label": "The dynamic environment of Sustainable tourism in the Northern Circuit of Tanzania: a Stakeholder and Policy perspective", "shape": "dot", "size": 20, "title": "The dynamic environment of Sustainable tourism in the Northern Circuit of Tanzania: a Stakeholder and Policy perspective (thesis)"}, {"font": {"color": "#222"}, "group": "country", "id": "country::northern circuit, tanzania", "label": "Northern Circuit, Tanzania", "shape": "dot", "size": 15, "title": "Northern Circuit, Tanzania (country)"}, {"font": {"color": "#222"}, "group": "12 - Responsible Consumption and Production", "id": "thesis::Breuer_2025", "label": "Role Overload or Opportunity? The Influence of Role Multiplicity on CSR Managers", "shape": "dot", "size": 20, "title": "Role Overload or Opportunity? The Influence of Role Multiplicity on CSR Managers (thesis)"}, {"font": {"color": "#222"}, "group": "country", "id": "country::western europe", "label": "Western Europe", "shape": "dot", "size": 15, "title": "Western Europe (country)"}, {"font": {"color": "#222"}, "group": "7 - Affordable and Clean Energy", "id": "thesis::Heyn_2025", "label": "Circularity as a lever for sustainable development in Sub-Saharan Africa? An exploration of business models for second-life lithium-ion batteries", "shape": "dot", "size": 20, "title": "Circularity as a lever for sustainable development in Sub-Saharan Africa? An exploration of business models for second-life lithium-ion batteries (thesis)"}, {"font": {"color": "#222"}, "group": "country", "id": "country::sub-saharan africa", "label": "Sub-Saharan Africa", "shape": "dot", "size": 15, "title": "Sub-Saharan Africa (country)"}, {"font": {"color": "#222"}, "group": "12 - Responsible Consumption and Production", "id": "thesis::Understanding Mental Models of Plastic Circularity: A Study of Coastal Residents in Attica, Greece", "label": "Understanding Mental Models of Plastic Circularity: A Study of Coastal Residents in Attica, Greece", "shape": "dot", "size": 20, "title": "Understanding Mental Models of Plastic Circularity: A Study of Coastal Residents in Attica, Greece (thesis)"}, {"font": {"color": "#222"}, "group": "country", "id": "country::attica, greece", "label": "Attica, Greece", "shape": "dot", "size": 15, "title": "Attica, Greece (country)"}, {"font": {"color": "#222"}, "group": "12 - Responsible Consumption and Production", "id": "thesis::Magnanti_2025", "label": "Parametric Design for supply chain collaboration: towards a circular built environment", "shape": "dot", "size": 20, "title": "Parametric Design for supply chain collaboration: towards a circular built environment (thesis)"}, {"font": {"color": "#222"}, "group": "13 - Climate Action", "id": "thesis::Klink_2025", "label": "Enhancing Water Governance: Identifying and addressing governance gaps in the Blauwe Agenda for the Utrechtse Heuvelrug", "shape": "dot", "size": 20, "title": "Enhancing Water Governance: Identifying and addressing governance gaps in the Blauwe Agenda for the Utrechtse Heuvelrug (thesis)"}, {"font": {"color": "#222"}, "group": "13", "id": "sdg::13", "label": "13 - Climate Action", "shape": "dot", "size": 30, "title": "13 - Climate Action (sdg)"}, {"font": {"color": "#222"}, "group": "country", "id": "country::utrechtse heuvelrug, netherlands", "label": "Utrechtse Heuvelrug, Netherlands", "shape": "dot", "size": 15, "title": "Utrechtse Heuvelrug, Netherlands (country)"}, {"font": {"color": "#222"}, "group": "12 - Responsible Consumption and Production", "id": "thesis::Martins_2025", "label": "Toward a Sustainable TV Industry: Measuring the Carbon Footprint Across a Production\u2019s Life Cycle", "shape": "dot", "size": 20, "title": "Toward a Sustainable TV Industry: Measuring the Carbon Footprint Across a Production\u2019s Life Cycle (thesis)"}, {"font": {"color": "#222"}, "group": "11 - Sustainable Cities and Communities", "id": "thesis::Pelgrim_2025", "label": "Smart charging of electric vehicles in the Netherlands: An ecosystem perspective", "shape": "dot", "size": 20, "title": "Smart charging of electric vehicles in the Netherlands: An ecosystem perspective (thesis)"}, {"font": {"color": "#222"}, "group": "11", "id": "sdg::11", "label": "11 - Sustainable Cities and Communities", "shape": "dot", "size": 30, "title": "11 - Sustainable Cities and Communities (sdg)"}, {"font": {"color": "#222"}, "group": "6 - Clean Water and Sanitation", "id": "thesis::Ovalle_2025", "label": "Multisector collaboration: The case of desalination and green hydrogen production in Chile", "shape": "dot", "size": 20, "title": "Multisector collaboration: The case of desalination and green hydrogen production in Chile (thesis)"}, {"font": {"color": "#222"}, "group": "6", "id": "sdg::6", "label": "6 - Clean Water and Sanitation", "shape": "dot", "size": 30, "title": "6 - Clean Water and Sanitation (sdg)"}, {"font": {"color": "#222"}, "group": "country", "id": "country::coquimbo region, chile", "label": "Coquimbo Region, Chile", "shape": "dot", "size": 15, "title": "Coquimbo Region, Chile (country)"}, {"font": {"color": "#222"}, "group": "16 - Peace, Justice and Strong Institutions", "id": "thesis::Peters_2025", "label": "From protocol to practice Community organizing for fair Access and Benefit-Sharing under the Nagoya Protocol Case study research of communities active in the exchange of genetic resources", "shape": "dot", "size": 20, "title": "From protocol to practice Community organizing for fair Access and Benefit-Sharing under the Nagoya Protocol Case study research of communities active in the exchange of genetic resources (thesis)"}, {"font": {"color": "#222"}, "group": "16", "id": "sdg::16", "label": "16 - Peace, Justice and Strong Institutions", "shape": "dot", "size": 30, "title": "16 - Peace, Justice and Strong Institutions (sdg)"}, {"font": {"color": "#222"}, "group": "12 - Responsible Consumption and Production", "id": "thesis::Turpijn_2025", "label": "From food forest to plate: the influence of cultural context and environmental concern on consumer acceptance", "shape": "dot", "size": 20, "title": "From food forest to plate: the influence of cultural context and environmental concern on consumer acceptance (thesis)"}, {"font": {"color": "#222"}, "group": "12 - Responsible Consumption and Production", "id": "thesis::Shen_2025", "label": "Dynamic changes in the PFAS phase-out and substitution process in China\u2019s cosmetics industry", "shape": "dot", "size": 20, "title": "Dynamic changes in the PFAS phase-out and substitution process in China\u2019s cosmetics industry (thesis)"}, {"font": {"color": "#222"}, "group": "country", "id": "country::china", "label": "China", "shape": "dot", "size": 15, "title": "China (country)"}, {"font": {"color": "#222"}, "group": "7 - Affordable and Clean Energy", "id": "thesis::Grim_2025", "label": "To what extent do ties to different types of network partners influence the success of renewable energy cooperatives in the Netherlands?", "shape": "dot", "size": 20, "title": "To what extent do ties to different types of network partners influence the success of renewable energy cooperatives in the Netherlands? (thesis)"}, {"font": {"color": "#222"}, "group": "11 - Sustainable Cities and Communities", "id": "thesis::Harms_2025", "label": "From downsizing to re-spending: analysing the relationship between motivations to live in tiny houses and re-spending behaviour", "shape": "dot", "size": 20, "title": "From downsizing to re-spending: analysing the relationship between motivations to live in tiny houses and re-spending behaviour (thesis)"}, {"font": {"color": "#222"}, "group": "12 - Responsible Consumption and Production", "id": "thesis::Hu_2025", "label": "Closing the Loop in Fashion: Life Cycle Assessment of Second-Hand Clothes and the Influence of Consumer Behaviour", "shape": "dot", "size": 20, "title": "Closing the Loop in Fashion: Life Cycle Assessment of Second-Hand Clothes and the Influence of Consumer Behaviour (thesis)"}, {"font": {"color": "#222"}, "group": "11 - Sustainable Cities and Communities", "id": "thesis::Broos_2025", "label": "Exploring Cooperative Car-Sharing Initiatives in Rural Friesland: Addressing Mobility Challenges and Enhancing Social Justice Outcomes", "shape": "dot", "size": 20, "title": "Exploring Cooperative Car-Sharing Initiatives in Rural Friesland: Addressing Mobility Challenges and Enhancing Social Justice Outcomes (thesis)"}, {"font": {"color": "#222"}, "group": "country", "id": "country::friesland, netherlands", "label": "Friesland, Netherlands", "shape": "dot", "size": 15, "title": "Friesland, Netherlands (country)"}, {"font": {"color": "#222"}, "group": "12 - Responsible Consumption and Production", "id": "thesis::vanBemmel_2025", "label": "A comparative screening life cycle assessment of mini tablets and standard tablets for enalapril maleate", "shape": "dot", "size": 20, "title": "A comparative screening life cycle assessment of mini tablets and standard tablets for enalapril maleate (thesis)"}, {"font": {"color": "#222"}, "group": "method", "id": "method::literature-based research", "label": "Literature-Based Research", "shape": "dot", "size": 15, "title": "Literature-Based Research (method)"}, {"font": {"color": "#222"}, "group": "13 - Climate Action", "id": "thesis::deKeijzer_2025", "label": "Exploring Innovation Dynamics in Adopting and Scaling Nature-Inclusive Fibre Crops for Biobased Construction in Utrecht", "shape": "dot", "size": 20, "title": "Exploring Innovation Dynamics in Adopting and Scaling Nature-Inclusive Fibre Crops for Biobased Construction in Utrecht (thesis)"}, {"font": {"color": "#222"}, "group": "country", "id": "country::utrecht", "label": "Utrecht", "shape": "dot", "size": 15, "title": "Utrecht (country)"}, {"font": {"color": "#222"}, "group": "6 - Clean Water and Sanitation", "id": "thesis::Verhagen_2025", "label": "Policy implications for the EU in balancing technological sovereignty and environmental sustainability in development of water desalination technologies", "shape": "dot", "size": 20, "title": "Policy implications for the EU in balancing technological sovereignty and environmental sustainability in development of water desalination technologies (thesis)"}, {"font": {"color": "#222"}, "group": "13 - Climate Action", "id": "thesis::Nijssen_2025", "label": "Assessing Scope 3 Emissions of Airlines: Development and Application of a Calculation Tool", "shape": "dot", "size": 20, "title": "Assessing Scope 3 Emissions of Airlines: Development and Application of a Calculation Tool (thesis)"}]);
+                  edges = new vis.DataSet([{"from": "thesis::Liu_2024", "to": "sdg::3", "value": 2.0}, {"from": "thesis::Liu_2024", "to": "method::mixed methods research", "value": 1.0}, {"from": "thesis::Liu_2024", "to": "country::united states", "value": 1.0}, {"from": "thesis::vanDriel_2025", "to": "sdg::8", "value": 2.0}, {"from": "thesis::vanDriel_2025", "to": "method::qualitative empirical research", "value": 1.0}, {"from": "thesis::vanDriel_2025", "to": "country::netherlands", "value": 1.0}, {"from": "thesis::Ghisai_2025", "to": "sdg::12", "value": 2.0}, {"from": "thesis::Ghisai_2025", "to": "method::quantitative empirical research", "value": 1.0}, {"from": "thesis::Ghisai_2025", "to": "country::netherlands", "value": 1.0}, {"from": "thesis::Gresnigt_2025", "to": "sdg::7", "value": 2.0}, {"from": "thesis::Gresnigt_2025", "to": "method::qualitative empirical research", "value": 1.0}, {"from": "thesis::Gresnigt_2025", "to": "country::netherlands", "value": 1.0}, {"from": "thesis::Venhuizen_2025", "to": "sdg::7", "value": 2.0}, {"from": "thesis::Venhuizen_2025", "to": "method::quantitative empirical research", "value": 1.0}, {"from": "thesis::Venhuizen_2025", "to": "country::netherlands", "value": 1.0}, {"from": "thesis::Colom\u00e9_2025", "to": "sdg::12", "value": 2.0}, {"from": "thesis::Colom\u00e9_2025", "to": "method::qualitative empirical research", "value": 1.0}, {"from": "thesis::Colom\u00e9_2025", "to": "country::global", "value": 1.0}, {"from": "thesis::deMoor_2025", "to": "sdg::12", "value": 2.0}, {"from": "thesis::deMoor_2025", "to": "method::qualitative empirical research", "value": 1.0}, {"from": "thesis::deMoor_2025", "to": "country::netherlands", "value": 1.0}, {"from": "thesis::Sustainable Business Models in the Circular Economy: A Case Study of the Dutch Textile Industry", "to": "sdg::12", "value": 2.0}, {"from": "thesis::Sustainable Business Models in the Circular Economy: A Case Study of the Dutch Textile Industry", "to": "method::qualitative empirical research", "value": 1.0}, {"from": "thesis::Sustainable Business Models in the Circular Economy: A Case Study of the Dutch Textile Industry", "to": "country::netherlands", "value": 1.0}, {"from": "thesis::Falcone_2025", "to": "sdg::12", "value": 2.0}, {"from": "thesis::Falcone_2025", "to": "method::mixed methods research", "value": 1.0}, {"from": "thesis::Falcone_2025", "to": "country::global", "value": 1.0}, {"from": "thesis::Soltys_2025", "to": "sdg::7", "value": 2.0}, {"from": "thesis::Soltys_2025", "to": "method::qualitative empirical research", "value": 1.0}, {"from": "thesis::Soltys_2025", "to": "country::european union", "value": 1.0}, {"from": "thesis::Baauw_2025", "to": "sdg::12", "value": 2.0}, {"from": "thesis::Baauw_2025", "to": "method::qualitative empirical research", "value": 1.0}, {"from": "thesis::Baauw_2025", "to": "country::netherlands", "value": 1.0}, {"from": "thesis::Meerstad_2025", "to": "sdg::9", "value": 2.0}, {"from": "thesis::Meerstad_2025", "to": "method::mixed methods research", "value": 1.0}, {"from": "thesis::Schutter_2025", "to": "sdg::8", "value": 2.0}, {"from": "thesis::Schutter_2025", "to": "method::quantitative empirical research", "value": 1.0}, {"from": "thesis::Schutter_2025", "to": "country::global", "value": 1.0}, {"from": "thesis::Kolk_2025", "to": "sdg::14", "value": 2.0}, {"from": "thesis::Kolk_2025", "to": "method::qualitative empirical research", "value": 1.0}, {"from": "thesis::Kolk_2025", "to": "country::netherlands", "value": 1.0}, {"from": "thesis::Hofman_2025", "to": "sdg::7", "value": 2.0}, {"from": "thesis::Hofman_2025", "to": "method::qualitative empirical research", "value": 1.0}, {"from": "thesis::Hofman_2025", "to": "country::netherlands", "value": 1.0}, {"from": "thesis::Wijngaarden_2025", "to": "sdg::8", "value": 2.0}, {"from": "thesis::Wijngaarden_2025", "to": "method::qualitative empirical research", "value": 1.0}, {"from": "thesis::Wijngaarden_2025", "to": "country::northern circuit, tanzania", "value": 1.0}, {"from": "thesis::Breuer_2025", "to": "sdg::12", "value": 2.0}, {"from": "thesis::Breuer_2025", "to": "method::qualitative empirical research", "value": 1.0}, {"from": "thesis::Breuer_2025", "to": "country::western europe", "value": 1.0}, {"from": "thesis::Heyn_2025", "to": "sdg::7", "value": 2.0}, {"from": "thesis::Heyn_2025", "to": "method::qualitative empirical research", "value": 1.0}, {"from": "thesis::Heyn_2025", "to": "country::sub-saharan africa", "value": 1.0}, {"from": "thesis::Understanding Mental Models of Plastic Circularity: A Study of Coastal Residents in Attica, Greece", "to": "sdg::12", "value": 2.0}, {"from": "thesis::Understanding Mental Models of Plastic Circularity: A Study of Coastal Residents in Attica, Greece", "to": "method::qualitative empirical research", "value": 1.0}, {"from": "thesis::Understanding Mental Models of Plastic Circularity: A Study of Coastal Residents in Attica, Greece", "to": "country::attica, greece", "value": 1.0}, {"from": "thesis::Magnanti_2025", "to": "sdg::12", "value": 2.0}, {"from": "thesis::Magnanti_2025", "to": "method::qualitative empirical research", "value": 1.0}, {"from": "thesis::Klink_2025", "to": "sdg::13", "value": 2.0}, {"from": "thesis::Klink_2025", "to": "method::mixed methods research", "value": 1.0}, {"from": "thesis::Klink_2025", "to": "country::utrechtse heuvelrug, netherlands", "value": 1.0}, {"from": "thesis::Martins_2025", "to": "sdg::12", "value": 2.0}, {"from": "thesis::Martins_2025", "to": "method::mixed methods research", "value": 1.0}, {"from": "thesis::Martins_2025", "to": "country::netherlands", "value": 1.0}, {"from": "thesis::Pelgrim_2025", "to": "sdg::11", "value": 2.0}, {"from": "thesis::Pelgrim_2025", "to": "method::qualitative empirical research", "value": 1.0}, {"from": "thesis::Pelgrim_2025", "to": "country::netherlands", "value": 1.0}, {"from": "thesis::Ovalle_2025", "to": "sdg::6", "value": 2.0}, {"from": "thesis::Ovalle_2025", "to": "method::qualitative empirical research", "value": 1.0}, {"from": "thesis::Ovalle_2025", "to": "country::coquimbo region, chile", "value": 1.0}, {"from": "thesis::Peters_2025", "to": "sdg::16", "value": 2.0}, {"from": "thesis::Peters_2025", "to": "method::qualitative empirical research", "value": 1.0}, {"from": "thesis::Peters_2025", "to": "country::global", "value": 1.0}, {"from": "thesis::Turpijn_2025", "to": "sdg::12", "value": 2.0}, {"from": "thesis::Turpijn_2025", "to": "method::quantitative empirical research", "value": 1.0}, {"from": "thesis::Turpijn_2025", "to": "country::netherlands", "value": 1.0}, {"from": "thesis::Shen_2025", "to": "sdg::12", "value": 2.0}, {"from": "thesis::Shen_2025", "to": "method::qualitative empirical research", "value": 1.0}, {"from": "thesis::Shen_2025", "to": "country::china", "value": 1.0}, {"from": "thesis::Grim_2025", "to": "sdg::7", "value": 2.0}, {"from": "thesis::Grim_2025", "to": "method::qualitative empirical research", "value": 1.0}, {"from": "thesis::Grim_2025", "to": "country::netherlands", "value": 1.0}, {"from": "thesis::Harms_2025", "to": "sdg::11", "value": 2.0}, {"from": "thesis::Harms_2025", "to": "method::qualitative empirical research", "value": 1.0}, {"from": "thesis::Hu_2025", "to": "sdg::12", "value": 2.0}, {"from": "thesis::Hu_2025", "to": "method::mixed methods research", "value": 1.0}, {"from": "thesis::Hu_2025", "to": "country::netherlands", "value": 1.0}, {"from": "thesis::Broos_2025", "to": "sdg::11", "value": 2.0}, {"from": "thesis::Broos_2025", "to": "method::qualitative empirical research", "value": 1.0}, {"from": "thesis::Broos_2025", "to": "country::friesland, netherlands", "value": 1.0}, {"from": "thesis::vanBemmel_2025", "to": "sdg::12", "value": 2.0}, {"from": "thesis::vanBemmel_2025", "to": "method::literature-based research", "value": 1.0}, {"from": "thesis::deKeijzer_2025", "to": "sdg::13", "value": 2.0}, {"from": "thesis::deKeijzer_2025", "to": "method::qualitative empirical research", "value": 1.0}, {"from": "thesis::deKeijzer_2025", "to": "country::utrecht", "value": 1.0}, {"from": "thesis::Verhagen_2025", "to": "sdg::6", "value": 2.0}, {"from": "thesis::Verhagen_2025", "to": "method::mixed methods research", "value": 1.0}, {"from": "thesis::Verhagen_2025", "to": "country::european union", "value": 1.0}, {"from": "thesis::Nijssen_2025", "to": "sdg::13", "value": 2.0}, {"from": "thesis::Nijssen_2025", "to": "method::mixed methods research", "value": 1.0}, {"from": "thesis::Nijssen_2025", "to": "country::european union", "value": 1.0}]);
+
+                  nodeColors = {};
+                  allNodes = nodes.get({ returnType: "Object" });
+                  for (nodeId in allNodes) {
+                    nodeColors[nodeId] = allNodes[nodeId].color;
+                  }
+                  allEdges = edges.get({ returnType: "Object" });
+                  // adding nodes and edges to the graph
+                  data = {nodes: nodes, edges: edges};
+
+                  var options = {
+    "configure": {
+        "enabled": false
+    },
+    "edges": {
+        "color": {
+            "inherit": true
+        },
+        "smooth": {
+            "enabled": true,
+            "type": "dynamic"
+        }
+    },
+    "interaction": {
+        "dragNodes": true,
+        "hideEdgesOnDrag": false,
+        "hideNodesOnDrag": false
+    },
+    "physics": {
+        "barnesHut": {
+            "avoidOverlap": 0,
+            "centralGravity": 0.3,
+            "damping": 0.09,
+            "gravitationalConstant": -80000,
+            "springConstant": 0.001,
+            "springLength": 250
+        },
+        "enabled": true,
+        "stabilization": {
+            "enabled": true,
+            "fit": true,
+            "iterations": 1000,
+            "onlyDynamicEdges": false,
+            "updateInterval": 50
+        }
+    }
+};
+
+                  
+
+
+                  
+
+                  network = new vis.Network(container, data, options);
+
+                  
+
+                  
+
+                  
+
+
+                  
+
+                  return network;
+
+              }
+              drawGraph();
+        </script>
+    </body>
+</html>
