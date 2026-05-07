@@ -6,10 +6,11 @@ except ImportError as e:
     raise ImportError("streamlit is required to run this dashboard. install with `pip install streamlit`") from e
 
 try:
-    from streamlit_pdf_viewer import pdf_viewer  # type: ignore[import]
-except ImportError as e:
-    # pdf_viewer is optional but required for embedded PDF viewing
-    raise ImportError("streamlit-pdf-viewer is required for PDF display; install via `pip install streamlit-pdf-viewer`") from e
+    from streamlit_pdf_viewer import pdf_viewer as _pdf_viewer_fn  # type: ignore[import]
+    _PDF_VIEWER_AVAILABLE = True
+except ImportError:
+    _pdf_viewer_fn = None  # type: ignore[assignment]
+    _PDF_VIEWER_AVAILABLE = False
 
 try:
     import pandas as pd  # type: ignore[import]
@@ -24,6 +25,244 @@ except ImportError as e:
 import os
 import base64
 import urllib.parse
+
+# ----- cached data-loading helpers -----------------------------------------
+# These functions are decorated with @st.cache_data so that expensive I/O and
+# data processing only runs once per unique set of arguments per session.
+# Streamlit automatically invalidates the cache when the function arguments
+# change (e.g. a different programme directory is requested).
+
+@st.cache_data(show_spinner=False)
+def _load_thesis_data(program_dir: str, program: str) -> tuple:
+    """Load, validate and clean the thesis metadata CSV for a programme directory.
+
+    Returns (dataframe, error_message).  On success error_message is ''.
+    All post-load transforms (fillna, Year normalisation, Featured flag) are
+    applied inside this function so they are also covered by the cache.
+    """
+    import zipfile as _zf
+
+    _featured_sbi = {
+        "nijssen_2023.pdf",
+        "peters_2025.pdf",
+        "colom_2023.pdf",
+        "harms_2025.pdf",
+        "hu_2025.pdf",
+        "klink_2025.pdf",
+        "pelgrim_2024.pdf",
+        "schutter_2025.pdf",
+        "soltys_2023.pdf",
+    }
+    # Featured theses for Innovation Sciences (Caspar van Bentum, Teun de Craen, Tim Dekker,
+    # Bart Janssen, Luc de Jongh not yet in metadata — will activate once PDFs are added).
+    _featured_is = {
+        "conijn_2025.pdf",        # Maike Conijn
+        "khachatryan_2025.pdf",   # Lilya Khachatryan
+        "raedts_2023.pdf",        # Cas Raedts
+        "schuitemaker_2023.pdf",  # Nena Schuitemaker
+        "trooijen_2023.pdf",      # Steven van Trooijen
+        "bentum_2025.pdf",        # Caspar van Bentum (PDF not yet in system)
+        "craen_2025.pdf",         # Teun de Craen (PDF not yet in system)
+        "dekker_2025.pdf",        # Tim Dekker (PDF not yet in system)
+        "janssen_2025.pdf",       # Bart Janssen (PDF not yet in system)
+        "jongh_2025.pdf",         # Luc de Jongh (PDF not yet in system)
+    }
+
+    metadata_path = os.path.join(program_dir, "thesis_metadata_matched.csv")
+
+    if not os.path.exists(metadata_path):
+        return pd.DataFrame(), (
+            f"Metadata file not found: {metadata_path}. Run prepare_thesis_files.py first."
+        )
+
+    try:
+        if _zf.is_zipfile(metadata_path):
+            return pd.DataFrame(), (
+                "The metadata file appears to be a compressed archive rather than a CSV. "
+                "Please replace it with a valid thesis_metadata file (or .csv)."
+            )
+    except Exception:
+        pass  # is_zipfile can raise on some edge-case files; fall through to read attempt
+
+    df = pd.DataFrame()
+    last_error = None
+    loaded = False
+    try:
+        for encoding in ("utf-8-sig", "latin1"):
+            for sep in (",", ";"):
+                try:
+                    candidate_df = pd.read_csv(metadata_path, sep=sep, encoding=encoding)
+                    if len(candidate_df.columns) == 1 and ";" in str(candidate_df.columns[0]) and sep == ",":
+                        continue
+                    df = candidate_df
+                    loaded = True
+                    break
+                except Exception as e:
+                    last_error = e
+            if loaded:
+                break
+    except Exception as exc:
+        return pd.DataFrame(), f"Error reading metadata: {exc}"
+
+    if not loaded:
+        return pd.DataFrame(), f"Could not read metadata file: {last_error}"
+
+    # Post-load transforms -------------------------------------------------------
+    # Exclude unresolved records from all dashboard views.
+    if "Match_Status" in df.columns:
+        df = df[~df["Match_Status"].astype(str).str.strip().str.lower().eq("not found")].copy()
+
+    df = df.fillna("n/a")
+
+    # Normalize year values (remove trailing .0 from float conversions).
+    df["Year"] = pd.to_numeric(df["Year"], errors="coerce").astype("Int64").astype(str).replace("<NA>", "n/a")
+
+    # Featured flag — programme-specific curated selection.
+    if program == "sbi":
+        df["Featured"] = df["Thesis_PDF"].astype(str).str.strip().isin(_featured_sbi)
+    elif program == "innovation_sciences":
+        df["Featured"] = df["Thesis_PDF"].astype(str).str.strip().isin(_featured_is)
+    else:
+        df["Featured"] = False
+
+    return df, ""
+
+
+@st.cache_data(show_spinner=False)
+def _load_image_b64(path: str) -> str:
+    """Return a base64-encoded string for a binary file, or '' if the file does not exist."""
+    if not os.path.exists(path):
+        return ""
+    with open(path, "rb") as f:
+        return base64.b64encode(f.read()).decode("utf-8")
+
+
+@st.cache_data(show_spinner=False)
+def _load_html_file(path: str) -> str:
+    """Return the text content of a file, or '' if it does not exist."""
+    if not os.path.exists(path):
+        return ""
+    with open(path, "r", encoding="utf-8") as f:
+        return f.read()
+
+
+@st.cache_data(show_spinner=False)
+def _build_logo_index(logos_dir: str) -> list:
+    """Scan logos_dir and return list of (token_set, joined_slug, filepath) tuples."""
+    import re as _rl
+    _NOISE = {
+        "logo","brand","svg","png","jpg","jpeg","webp","avif","rgb","seeklogo",
+        "wine","pos","bg","voorkant","corelogo","colour","teal","claim","rz",
+        "smarter","last","mile","logistics","horizontaal","worldwide","north",
+        "bv","nv","ltd","inc","llc","gmbh","ag","plc","sa","the","de","van",
+        "het","en","of","for","and","an","in",
+    }
+    result = []
+    if not os.path.exists(logos_dir):
+        return result
+    for fname in os.listdir(logos_dir):
+        if not os.path.isfile(os.path.join(logos_dir, fname)):
+            continue
+        stem = fname
+        # strip all extensions including double ones like .svg.png
+        for _ in range(4):
+            base, ext = os.path.splitext(stem)
+            if not ext:
+                break
+            stem = base
+        joined = _rl.sub(r'[^a-z0-9]', '', stem.lower())
+        tokens = frozenset(
+            t for t in _rl.sub(r'[^a-z0-9]', ' ', stem.lower()).split()
+            if t not in _NOISE and len(t) > 1
+        )
+        if tokens or joined:
+            result.append((tokens, joined, os.path.join(logos_dir, fname)))
+    return result
+
+
+@st.cache_data(show_spinner=False)
+def _load_org_logo_b64(logos_dir: str, org_name: str) -> str:
+    """Fuzzy-match org_name against messy logo filenames using multi-phase scoring."""
+    import re as _rl
+    from difflib import SequenceMatcher as _SM
+    index = _build_logo_index(logos_dir)
+    if not index:
+        return ''
+    _LEGAL = r'\b(b\.?v\.?|n\.?v\.?|ltd\.?|inc\.?|llc|gmbh|ag|plc|s\.a\.?|rcv|co|kg)\b'
+    # Extract parenthesised acronym e.g. "(RVO)", "(MCC)", "(DORC)"
+    _acr_m = _rl.search(r'\(([A-Z]{2,8})\)', org_name)
+    _acronym = _acr_m.group(1).lower() if _acr_m else ''
+    # Remove parenthesised parts before further cleaning
+    cleaned = _rl.sub(r'\([^)]*\)', '', org_name.lower())
+    cleaned = _rl.sub(_LEGAL, '', cleaned)
+    org_tokens = set(
+        t for t in _rl.sub(r'[^a-z0-9]', ' ', cleaned).split()
+        if len(t) > 1
+    )
+    org_tokens -= {'the', 'de', 'van', 'het', 'and', 'of', 'for', 'en', 'an', 'on', 'in'}
+    org_joined = _rl.sub(r'[^a-z0-9]', '', cleaned)
+    # Build initials acronym from all words (including short stop words like "de")
+    _raw_words = _rl.sub(r'[^a-z0-9\s]', '', org_name.lower()).split()
+    _acr_stop = {'the', 'van', 'het', 'and', 'of', 'for', 'an', 'on', 'in',
+                 'bv', 'nv', 'ltd', 'inc', 'llc', 'gmbh', 'ag', 'plc', 'sa', 'rcv', 'co', 'kg'}
+    _acr_words = [w for w in _raw_words if w and w not in _acr_stop]
+    _initials_acr = ''.join(w[0] for w in _acr_words) if len(_acr_words) >= 2 else ''
+    if not org_tokens and not _acronym:
+        return ''
+    best_path, best_score = '', 0.0
+    for file_tokens, file_joined, path in index:
+        score = 0.0
+        # Phase 1: Jaccard token overlap (union denominator prevents generic tokens from scoring 1.0)
+        if file_tokens and org_tokens:
+            overlap = len(org_tokens & file_tokens)
+            if overlap:
+                score = max(score, overlap / len(org_tokens | file_tokens))
+        # Phase 2a: org tokens as substrings of file_joined (compound filenames)
+        if file_joined and org_tokens:
+            sub_hits = sum(1 for t in org_tokens if t in file_joined)
+            if sub_hits:
+                score = max(score, sub_hits / max(1, len(org_tokens)) * 0.75)
+        # Phase 2b: file_joined as substring of org_joined (acronym files: "dorc", "mcc", "cfp")
+        if file_joined and org_joined and len(file_joined) >= 3:
+            if file_joined in org_joined:
+                coverage = len(file_joined) / max(1, len(org_joined))
+                score = max(score, 0.50 + coverage * 0.40)
+        # Phase 3: org_joined as substring of file_joined
+        if file_joined and org_joined and len(org_joined) > 3:
+            if org_joined in file_joined:
+                score = max(score, 0.85)
+        # Phase 4a: parenthesised acronym match
+        if _acronym and file_joined:
+            if file_joined == _acronym or _acronym in file_joined:
+                score = max(score, 0.82)
+        # Phase 4b: initials acronym match (e.g. "hdsr" → Hoogheemraadschap De Stichtse Rijnlanden)
+        if _initials_acr and len(_initials_acr) >= 3 and file_joined:
+            if file_joined == _initials_acr or _initials_acr in file_joined:
+                score = max(score, 0.76)
+        # Phase 5: difflib fuzzy match on slugs (catches typos like greylable → graylabel)
+        if file_joined and org_joined and len(file_joined) >= 4 and len(org_joined) >= 4:
+            ratio = _SM(None, file_joined, org_joined).ratio()
+            if ratio >= 0.75:
+                score = max(score, ratio * 0.85)
+        if score > best_score:
+            best_score, best_path = score, path
+    if best_score >= 0.42:
+        b64 = _load_image_b64(best_path)
+        if not b64:
+            return ''
+        # Correct MIME type (SVG and WebP need explicit types)
+        ext = os.path.splitext(best_path)[1].lower()
+        mime = {
+            '.svg': 'image/svg+xml',
+            '.webp': 'image/webp',
+            '.avif': 'image/avif',
+            '.jpg': 'image/jpeg',
+            '.jpeg': 'image/jpeg',
+            '.png': 'image/png',
+        }.get(ext, 'image/*')
+        return f"data:{mime};base64,{b64}"
+    return ''
+
 
 # ensure file paths work regardless of current working directory
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -186,12 +425,12 @@ st.markdown(
     /* ── Sidebar navigation items (key-based selectors for reliable styling) ── */
     section[data-testid="stSidebar"] .st-key-sidenav_Explorer,
     section[data-testid="stSidebar"] .st-key-sidenav_Supervisors,
-    section[data-testid="stSidebar"] .st-key-sidenav_Find_My_Research_Topic {
+    section[data-testid="stSidebar"] .st-key-sidenav_Insights {
         margin-bottom: 0.24rem !important;
     }
     section[data-testid="stSidebar"] .st-key-sidenav_Explorer .stButton > button,
     section[data-testid="stSidebar"] .st-key-sidenav_Supervisors .stButton > button,
-    section[data-testid="stSidebar"] .st-key-sidenav_Find_My_Research_Topic .stButton > button {
+    section[data-testid="stSidebar"] .st-key-sidenav_Insights .stButton > button {
         border-radius: 12px !important;
         padding: 0.56rem 0.92rem !important;
         width: 100% !important;
@@ -200,29 +439,29 @@ st.markdown(
         letter-spacing: 0.01em !important;
         transition: background 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease !important;
     }
-    /* Inactive nav item */
+    /* Inactive nav item — white bg, blue text */
     section[data-testid="stSidebar"] .st-key-sidenav_Explorer .stButton > button[data-testid="baseButton-secondary"],
     section[data-testid="stSidebar"] .st-key-sidenav_Supervisors .stButton > button[data-testid="baseButton-secondary"],
-    section[data-testid="stSidebar"] .st-key-sidenav_Find_My_Research_Topic .stButton > button[data-testid="baseButton-secondary"] {
-        background: rgba(255,255,255,0.11) !important;
-        border: 1px solid rgba(255,255,255,0.24) !important;
-        color: rgba(255,255,255,0.92) !important;
+    section[data-testid="stSidebar"] .st-key-sidenav_Insights .stButton > button[data-testid="baseButton-secondary"] {
+        background: #ffffff !important;
+        border: 1px solid rgba(0,54,96,0.12) !important;
+        color: #003660 !important;
         font-weight: 600 !important;
-        box-shadow: 0 3px 10px rgba(0,0,0,0.12) !important;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.08) !important;
     }
     section[data-testid="stSidebar"] .st-key-sidenav_Explorer .stButton > button[data-testid="baseButton-secondary"]:hover,
     section[data-testid="stSidebar"] .st-key-sidenav_Supervisors .stButton > button[data-testid="baseButton-secondary"]:hover,
-    section[data-testid="stSidebar"] .st-key-sidenav_Find_My_Research_Topic .stButton > button[data-testid="baseButton-secondary"]:hover {
-        background: rgba(255,255,255,0.22) !important;
-        border-color: rgba(255,255,255,0.40) !important;
-        color: #ffffff !important;
-        box-shadow: 0 7px 20px rgba(0,0,0,0.22) !important;
+    section[data-testid="stSidebar"] .st-key-sidenav_Insights .stButton > button[data-testid="baseButton-secondary"]:hover {
+        background: #f0f5fa !important;
+        border-color: rgba(0,54,96,0.25) !important;
+        color: #003660 !important;
+        box-shadow: 0 5px 14px rgba(0,0,0,0.12) !important;
         transform: translateY(-2px) !important;
     }
     /* Active nav item */
     section[data-testid="stSidebar"] .st-key-sidenav_Explorer .stButton > button[data-testid="baseButton-primary"],
     section[data-testid="stSidebar"] .st-key-sidenav_Supervisors .stButton > button[data-testid="baseButton-primary"],
-    section[data-testid="stSidebar"] .st-key-sidenav_Find_My_Research_Topic .stButton > button[data-testid="baseButton-primary"] {
+    section[data-testid="stSidebar"] .st-key-sidenav_Insights .stButton > button[data-testid="baseButton-primary"] {
         background: #ffffff !important;
         border: none !important;
         color: #0a3d5c !important;
@@ -232,11 +471,32 @@ st.markdown(
     }
     section[data-testid="stSidebar"] .st-key-sidenav_Explorer .stButton > button[data-testid="baseButton-primary"]:hover,
     section[data-testid="stSidebar"] .st-key-sidenav_Supervisors .stButton > button[data-testid="baseButton-primary"]:hover,
-    section[data-testid="stSidebar"] .st-key-sidenav_Find_My_Research_Topic .stButton > button[data-testid="baseButton-primary"]:hover {
+    section[data-testid="stSidebar"] .st-key-sidenav_Insights .stButton > button[data-testid="baseButton-primary"]:hover {
         background: #f4f8fc !important;
         color: #07314b !important;
         box-shadow: 0 8px 22px rgba(0,0,0,0.22) !important;
         transform: translateY(-2px) !important;
+    }
+    /* Back to Programs button */
+    section[data-testid="stSidebar"] .st-key-sidenav_back_to_programs {
+        margin-bottom: 0.8rem !important;
+    }
+    section[data-testid="stSidebar"] .st-key-sidenav_back_to_programs .stButton > button {
+        border-radius: 10px !important;
+        padding: 0.44rem 0.8rem !important;
+        width: 100% !important;
+        text-align: left !important;
+        font-size: 0.78rem !important;
+        letter-spacing: 0.01em !important;
+        background: #FFCD00 !important;
+        border: none !important;
+        color: #111111 !important;
+        font-weight: 700 !important;
+        transition: background 0.18s ease, color 0.18s ease !important;
+    }
+    section[data-testid="stSidebar"] .st-key-sidenav_back_to_programs .stButton > button:hover {
+        background: #e6b800 !important;
+        color: #111111 !important;
     }
     /* Small nav label above navigation items */
     .sidebar-programme-label {
@@ -1174,9 +1434,8 @@ def sdg_badge(sdg_text: str) -> str:
     if number is not None and 1 <= number <= 17:
         # Load local icon from the project folder and base64 encode it
         local_file = os.path.join(PROGRAM_DIR, "sdg_icons", f"Goal-{number:02d}.png")
-        if os.path.exists(local_file):
-            with open(local_file, "rb") as f:
-                icon_b64 = base64.b64encode(f.read()).decode("utf-8")
+        icon_b64 = _load_image_b64(local_file)
+        if icon_b64:
             icon_html = (
                 f"<img src=\"data:image/png;base64,{icon_b64}\" width=24 "
                 "style='vertical-align:middle;margin-right:4px;'/>"
@@ -1334,6 +1593,198 @@ def _featured_badge_html(is_featured: bool) -> str:
     return "<span class='featured-badge'>★ Featured</span>" if is_featured else ""
 
 
+# Google Drive root folder — used as fallback when PDFs are not on disk (e.g. Community Cloud)
+_DRIVE_ROOT_FALLBACK = "https://drive.google.com/drive/folders/1Gy0Ez7MtbexaV6y8R5JRMx-lj9o-cCB4"
+
+
+@st.cache_data(show_spinner=False, max_entries=12)
+def _load_pdf_bytes_cached(pdf_path: str) -> bytes | None:
+    """Cache PDF bytes by path — used only for the download button."""
+    try:
+        with open(pdf_path, "rb") as _f:
+            return _f.read()
+    except (OSError, IOError):
+        return None
+
+
+def _pdf_iframe_html(static_url: str, height: int = 1100) -> str:
+    """Modern continuous-scroll PDF viewer with text layer and Ctrl+F search."""
+    tb = 46
+    vh = height - tb
+    return f"""<!DOCTYPE html>
+<html><head><meta charset="utf-8"><style>
+*{{box-sizing:border-box;margin:0;padding:0;}}
+html,body{{width:100%;height:{height}px;background:#eef0f4;overflow:hidden;font-family:Inter,system-ui,sans-serif;}}
+/* ── toolbar ── */
+#tb{{display:flex;align-items:center;gap:6px;padding:0 14px;height:{tb}px;background:#003660;color:#fff;flex-shrink:0;}}
+#sw{{display:flex;align-items:center;gap:5px;background:rgba(255,255,255,0.13);border-radius:6px;padding:4px 10px;}}
+#si{{background:transparent;border:none;outline:none;color:#fff;font-size:13px;width:170px;}}
+#si::placeholder{{color:rgba(255,255,255,0.48);}}
+.tbtn{{background:rgba(255,255,255,0.13);border:none;color:#fff;border-radius:4px;padding:3px 10px;cursor:pointer;font-size:12px;line-height:1.5;}}
+.tbtn:hover{{background:rgba(255,255,255,0.26);}}
+#sc{{font-size:11px;color:rgba(255,255,255,0.58);min-width:52px;}}
+#zs{{background:rgba(255,255,255,0.13);border:1px solid rgba(255,255,255,0.18);color:#fff;border-radius:4px;padding:3px 7px;font-size:12px;cursor:pointer;}}
+#zs option{{background:#003660;color:#fff;}}
+#pi{{font-size:12px;color:rgba(255,255,255,0.68);white-space:nowrap;}}
+/* ── scroll container ── */
+#viewer{{height:{vh}px;overflow-y:auto;overflow-x:auto;display:flex;flex-direction:column;align-items:center;gap:10px;padding:14px;background:#eef0f4;}}
+/* ── page wrappers ── */
+.pg{{position:relative;background:#fff;flex-shrink:0;box-shadow:0 1px 8px rgba(0,0,0,0.18);}}
+.pg canvas{{display:block;}}
+/* ── text layer (transparent text for selection + search) ── */
+.tl{{position:absolute;inset:0;overflow:hidden;line-height:1;pointer-events:auto;}}
+.tl span{{color:transparent;position:absolute;white-space:pre;transform-origin:0% 0%;cursor:text;}}
+.tl span::selection{{background:rgba(0,110,255,0.28);}}
+.tl .hl{{background:rgba(255,210,0,0.52)!important;border-radius:2px;}}
+.tl .hl.sel{{background:rgba(255,140,0,0.72)!important;}}
+#msg{{color:#666;padding:2.5rem 1rem;font-size:14px;}}
+</style></head><body>
+<div id="tb">
+  <div id="sw">
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.6)" stroke-width="2.5" style="flex-shrink:0"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+    <input id="si" placeholder="Search document (Ctrl+F)" autocomplete="off" spellcheck="false"/>
+  </div>
+  <button class="tbtn" onclick="findPrev()" title="Previous match">↑</button>
+  <button class="tbtn" onclick="findNext()" title="Next match">↓</button>
+  <span id="sc"></span>
+  <div style="margin-left:auto;display:flex;align-items:center;gap:10px;">
+    <select id="zs" onchange="setZoom(this.value)">
+      <option value="0.7">70%</option>
+      <option value="0.85">85%</option>
+      <option value="1.0" selected>100%</option>
+      <option value="1.25">125%</option>
+      <option value="1.5">150%</option>
+    </select>
+    <span id="pi">Loading…</span>
+  </div>
+</div>
+<div id="viewer"><div id="msg">Loading PDF…</div></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script>
+pdfjsLib.GlobalWorkerOptions.workerSrc=
+  'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+var sc=1.0,doc=null,pgEls=[],matches=[],mIdx=-1;
+var viewer=document.getElementById('viewer');
+var si=document.getElementById('si');
+var scEl=document.getElementById('sc');
+var pi=document.getElementById('pi');
+var origin=(window.parent&&window.parent.location&&window.parent.location.origin)||window.location.origin;
+var pdfUrl=origin+'{static_url}';
+
+// ── Load ──────────────────────────────────────────────────────────────────
+pdfjsLib.getDocument({{url:pdfUrl,withCredentials:false,isEvalSupported:false}}).promise
+  .then(function(pdf){{
+    doc=pdf;
+    var el=document.getElementById('msg'); if(el)el.remove();
+    // Create placeholders in DOM order first, then render in parallel
+    for(var i=0;i<pdf.numPages;i++){{
+      var ph=document.createElement('div');
+      ph.className='pg'; ph.dataset.n=i+1;
+      ph.style.cssText='width:100px;height:140px;background:#e8eaed;';
+      pgEls[i]=ph; viewer.appendChild(ph);
+    }}
+    var promises=[];
+    for(var j=1;j<=pdf.numPages;j++){{(function(n){{promises.push(renderPage(n));}})(j);}}
+    return Promise.all(promises);
+  }})
+  .then(function(){{updatePageInfo();pi.style.opacity='1';}})
+  .catch(function(e){{
+    var el=document.getElementById('msg');
+    if(el)el.textContent='Could not load PDF: '+e.message;
+    else viewer.insertAdjacentHTML('afterbegin','<div id="msg">'+e.message+'</div>');
+    pi.textContent='Error';
+  }});
+
+// ── Render one page ───────────────────────────────────────────────────────
+function renderPage(n){{
+  return doc.getPage(n).then(function(page){{
+    var vp=page.getViewport({{scale:sc}});
+    var wrap=pgEls[n-1];
+    wrap.style.cssText='position:relative;background:#fff;flex-shrink:0;'
+      +'box-shadow:0 1px 8px rgba(0,0,0,0.18);width:'+vp.width+'px;height:'+vp.height+'px;';
+    wrap.innerHTML='';
+    var cv=document.createElement('canvas');
+    cv.width=vp.width; cv.height=vp.height; wrap.appendChild(cv);
+    return page.render({{canvasContext:cv.getContext('2d'),viewport:vp}}).promise
+      .then(function(){{return page.getTextContent();}} )
+      .then(function(tc){{
+        var tl=document.createElement('div'); tl.className='tl'; wrap.appendChild(tl);
+        if(typeof pdfjsLib.renderTextLayer==='function'){{
+          var task=pdfjsLib.renderTextLayer({{textContentSource:tc,container:tl,viewport:vp,textDivs:[]}});
+          var p=task&&task.promise?task.promise:(task instanceof Promise?task:Promise.resolve());
+          return p.catch(function(){{}});
+        }}
+      }});
+  }});
+}}
+
+// ── Page counter ─────────────────────────────────────────────────────────
+viewer.addEventListener('scroll',updatePageInfo,{{passive:true}});
+function updatePageInfo(){{
+  if(!doc||!pgEls.length)return;
+  var mid=viewer.scrollTop+viewer.clientHeight*0.4;
+  for(var i=pgEls.length-1;i>=0;i--){{
+    if(pgEls[i]&&pgEls[i].offsetTop<=mid){{pi.textContent=(i+1)+' / '+doc.numPages;return;}}
+  }}
+  pi.textContent='1 / '+(doc?doc.numPages:'…');
+}}
+
+// ── Zoom ─────────────────────────────────────────────────────────────────
+function setZoom(v){{
+  sc=parseFloat(v);
+  matches=[];mIdx=-1;scEl.textContent='';si.value='';
+  var scrollPct=viewer.scrollTop/(viewer.scrollHeight||1);
+  // Reset placeholders
+  pgEls=[];
+  viewer.innerHTML='';
+  for(var i=0;i<doc.numPages;i++){{
+    var ph=document.createElement('div');
+    ph.className='pg'; ph.dataset.n=i+1;
+    ph.style.cssText='width:100px;height:140px;background:#e8eaed;';
+    pgEls[i]=ph; viewer.appendChild(ph);
+  }}
+  var promises=[];
+  for(var j=1;j<=doc.numPages;j++){{(function(n){{promises.push(renderPage(n));}})(j);}}
+  Promise.all(promises).then(function(){{
+    viewer.scrollTop=scrollPct*viewer.scrollHeight;
+    updatePageInfo();
+  }});
+}}
+
+// ── Search ───────────────────────────────────────────────────────────────
+document.addEventListener('keydown',function(e){{
+  if((e.ctrlKey||e.metaKey)&&e.key==='f'){{e.preventDefault();si.focus();si.select();}}
+}});
+si.addEventListener('keydown',function(e){{
+  if(e.key==='Enter'){{e.shiftKey?findPrev():findNext();e.preventDefault();}}
+  if(e.key==='Escape'){{si.value='';doSearch('');si.blur();}}
+}});
+si.addEventListener('input',function(){{doSearch(this.value);}});
+
+function doSearch(q){{
+  viewer.querySelectorAll('.hl').forEach(function(s){{s.classList.remove('hl','sel');}});
+  matches=[];mIdx=-1;scEl.textContent='';
+  if(!q||q.length<2)return;
+  var ql=q.toLowerCase();
+  viewer.querySelectorAll('.tl span').forEach(function(s){{
+    if(s.textContent&&s.textContent.toLowerCase().includes(ql)){{s.classList.add('hl');matches.push(s);}}
+  }});
+  if(matches.length){{mIdx=0;selectMatch(0);}}
+  else scEl.textContent='Not found';
+}}
+function selectMatch(i){{
+  viewer.querySelectorAll('.sel').forEach(function(s){{s.classList.remove('sel');}});
+  if(!matches[i])return;
+  matches[i].classList.add('sel');
+  matches[i].scrollIntoView({{behavior:'smooth',block:'center'}});
+  scEl.textContent=(i+1)+'/'+matches.length;
+}}
+function findNext(){{if(!matches.length)return;mIdx=(mIdx+1)%matches.length;selectMatch(mIdx);}}
+function findPrev(){{if(!matches.length)return;mIdx=(mIdx-1+matches.length)%matches.length;selectMatch(mIdx);}}
+</script></body></html>"""
+
+
 def resolve_cover_and_pdf_paths(row) -> tuple[str, str]:
     pdf_name = str(row.get("Thesis_PDF", "")).strip()
     pdf_path = ""
@@ -1372,9 +1823,8 @@ def resolve_cover_and_pdf_paths(row) -> tuple[str, str]:
 def render_cover_html(cover_path: str, pdf_path: str = "", featured: bool = False) -> str:
     """Render a fixed-size cover block so all cards align, even without an image."""
     badge = "<span class='thesis-cover-badge'>&#9733; Featured</span>" if featured else ""
-    if os.path.exists(cover_path):
-        with open(cover_path, "rb") as f:
-            cover_b64 = base64.b64encode(f.read()).decode("utf-8")
+    cover_b64 = _load_image_b64(cover_path)
+    if cover_b64:
         return (
             "<div class='thesis-cover'>"
             f"<img src='data:image/png;base64,{cover_b64}' class='thesis-cover-image' alt='Thesis cover' />"
@@ -1660,10 +2110,9 @@ def _asset_data_uri(filename: str, mime: str) -> str:
     if not os.path.exists(asset_path):
         # Fall back to shared SBI assets
         asset_path = os.path.join(BASE_DIR, "..", "programs", "sbi", "assets", filename)
-    if not os.path.exists(asset_path):
+    data_b64 = _load_image_b64(asset_path)
+    if not data_b64:
         return ""
-    with open(asset_path, "rb") as f:
-        data_b64 = base64.b64encode(f.read()).decode("utf-8")
     return f"data:{mime};base64,{data_b64}"
 
 
@@ -1685,9 +2134,8 @@ def show_homepage():
     bg_style = ""
     for folder, filename, mime in bg_candidates:
         bg_path = os.path.join(folder, filename)
-        if os.path.exists(bg_path):
-            with open(bg_path, "rb") as f:
-                bg_b64 = base64.b64encode(f.read()).decode("utf-8")
+        bg_b64 = _load_image_b64(bg_path)
+        if bg_b64:
             bg_style = (
                 "<style>"
                 " .stApp {"
@@ -1711,9 +2159,8 @@ def show_homepage():
     )
 
     _logo_path = os.path.join(BASE_DIR, "..", "programs", "sbi", "assets", "uu_logo.png")
-    if os.path.exists(_logo_path):
-        with open(_logo_path, "rb") as f:
-            _logo_b64 = base64.b64encode(f.read()).decode("utf-8")
+    _logo_b64 = _load_image_b64(_logo_path)
+    if _logo_b64:
         st.markdown(
             f"<div style='text-align:center;margin-top:2rem;'>"
             f"<img src='data:image/png;base64,{_logo_b64}' style='height:90px;'/>"
@@ -1769,101 +2216,9 @@ PROGRAM_DIR = os.path.abspath(
 )
 
 # ----- load data ------------------------------------------------------------
-
-import zipfile
-
-# Processed dataset produced by prepare_thesis_files.py
-metadata_path = os.path.join(PROGRAM_DIR, "thesis_metadata_matched.csv")
-
-# load metadata with graceful error handling for encoding or wrong file type
-df = pd.DataFrame()
-
-try:
-    if not os.path.exists(metadata_path):
-        st.error(f"Metadata file not found: {metadata_path}. Run prepare_thesis_files.py first.")
-        df = pd.DataFrame()
-    elif zipfile.is_zipfile(metadata_path):
-        st.error(
-            "The metadata file appears to be a compressed archive rather than a CSV. "
-            "Please replace it with a valid thesis_metadata file (or .csv)."
-        )
-        df = pd.DataFrame()
-    else:
-        # try common encodings and separators used in programme metadata exports
-        last_error = None
-        loaded = False
-        for encoding in ("utf-8-sig", "latin1"):
-            for sep in (",", ";"):
-                try:
-                    candidate_df = pd.read_csv(metadata_path, sep=sep, encoding=encoding)
-                    if len(candidate_df.columns) == 1 and ";" in str(candidate_df.columns[0]) and sep == ",":
-                        continue
-                    df = candidate_df
-                    loaded = True
-                    break
-                except Exception as e:
-                    last_error = e
-            if loaded:
-                break
-
-        if not loaded:
-            st.error(f"Could not read metadata file: {last_error}")
-            df = pd.DataFrame()
-except Exception as exc:
-    st.error(f"Error reading metadata: {exc}")
-    df = pd.DataFrame()
-
-# continue safely even if df is empty
-if not df.empty:
-    # Exclude unresolved records from all dashboard views.
-    if "Match_Status" in df.columns:
-        df = df[~df["Match_Status"].astype(str).str.strip().str.lower().eq("not found")].copy()
-
-    df = df.fillna("n/a")
-
-    # Normalize year values (remove trailing .0 from float conversions)
-    df["Year"] = pd.to_numeric(df["Year"], errors="coerce")
-    df["Year"] = df["Year"].astype("Int64")
-    df["Year"] = df["Year"].astype(str).replace("<NA>", "n/a")
-
-    # Featured theses selected by programme coordinators (SBI only).
-    # Matched with a thorough process using surname + given-name checks and PDF verification.
-    # Names without reliable evidence are intentionally left unmatched.
-    featured_sbi_pdfs_matched = {
-        "nijssen_2023.pdf",
-        "peters_2025.pdf",
-        "colom_2023.pdf",
-        "harms_2025.pdf",
-        "hu_2025.pdf",
-        "klink_2025.pdf",
-        "pelgrim_2024.pdf",
-        "schutter_2025.pdf",
-        "soltys_2023.pdf",
-    }
-
-    # Featured theses for Innovation Sciences (Caspar van Bentum, Teun de Craen, Tim Dekker,
-    # Bart Janssen, Luc de Jongh not yet in metadata — will activate once PDFs are added).
-    featured_is_pdfs_matched = {
-        "conijn_2025.pdf",        # Maike Conijn
-        "khachatryan_2025.pdf",   # Lilya Khachatryan
-        "raedts_2023.pdf",        # Cas Raedts
-        "schuitemaker_2023.pdf",  # Nena Schuitemaker
-        "trooijen_2023.pdf",      # Steven van Trooijen
-        "bentum_2025.pdf",        # Caspar van Bentum (PDF not yet in system)
-        "craen_2025.pdf",         # Teun de Craen (PDF not yet in system)
-        "dekker_2025.pdf",        # Tim Dekker (PDF not yet in system)
-        "janssen_2025.pdf",       # Bart Janssen (PDF not yet in system)
-        "jongh_2025.pdf",         # Luc de Jongh (PDF not yet in system)
-    }
-
-    if PROGRAM == "sbi":
-        df["Featured"] = df["Thesis_PDF"].astype(str).str.strip().isin(featured_sbi_pdfs_matched)
-    elif PROGRAM == "innovation_sciences":
-        df["Featured"] = df["Thesis_PDF"].astype(str).str.strip().isin(featured_is_pdfs_matched)
-    else:
-        df["Featured"] = False
-else:
-    df["Featured"] = False
+df, _load_error = _load_thesis_data(PROGRAM_DIR, PROGRAM)
+if _load_error:
+    st.error(_load_error)
 
 pdf_folder = os.path.join(PROGRAM_DIR, "pdfs")
 
@@ -1893,16 +2248,13 @@ _display_name = PROGRAMME_DISPLAY_NAMES.get(PROGRAM, PROGRAM)
 logo_path = os.path.join(PROGRAM_DIR, "assets", "uu_logo.png")
 if not os.path.exists(logo_path):
     logo_path = os.path.join(BASE_DIR, "..", "programs", "sbi", "assets", "uu_logo.png")
-with open(logo_path, "rb") as f:
-    logo_b64 = base64.b64encode(f.read()).decode("utf-8")
+logo_b64 = _load_image_b64(logo_path)
 
 st.markdown(
     f"""
     <div class="header-row">
         <div class="header-logo-wrap">
-            <a href="?back_home=1" title="Back to Programmes" style="display:block;cursor:pointer;">
-                <img src="data:image/png;base64,{logo_b64}" class="header-logo" style="cursor:pointer;" />
-            </a>
+            <img src="data:image/png;base64,{logo_b64}" class="header-logo" />
         </div>
         <div class="header-container">
             <div class="header-title">{_display_name} Thesis Explorer</div>
@@ -1916,7 +2268,7 @@ st.markdown(
 # ----- page navigation (sidebar) ------------------------------------------
 if "page_nav" not in st.session_state:
     st.session_state.page_nav = "Explorer"
-_VALID_PAGES = ("Explorer", "Supervisors")
+_VALID_PAGES = ("Explorer", "Supervisors", "Insights")
 if st.session_state.get("pending_page_nav") in _VALID_PAGES:
     st.session_state.page_nav = st.session_state.pending_page_nav
     st.session_state.pending_page_nav = None
@@ -1924,6 +2276,14 @@ if st.session_state.get("pending_page_nav") in _VALID_PAGES:
 page = st.session_state.page_nav
 
 # Render clean vertical nav in sidebar
+if st.sidebar.button(
+    "← Back to Programs",
+    key="sidenav_back_to_programs",
+    use_container_width=True,
+):
+    st.session_state.page = "home"
+    st.rerun()
+
 st.sidebar.markdown("<div class='sidebar-programme-label'>Navigation</div>", unsafe_allow_html=True)
 for _np in _VALID_PAGES:
     _is_active = page == _np
@@ -2308,26 +2668,25 @@ if page == "Explorer":
             if st.button("\u2190 Back to Explorer", key="reader_back_to_explorer"):
                 st.session_state.selected_pdf = None
                 st.rerun()
-            with open(pdf_path, "rb") as pdf_file:
-                binary_data = pdf_file.read()
 
             st.caption("Full-page thesis viewer. Use the viewer controls to navigate and inspect the document in detail.")
-            pdf_viewer(
-                binary_data,
-                width="100%",
-                height=1100,
-                zoom_level="auto",
-                viewer_align="center",
-            )
 
-            st.download_button(
-                label="Download Thesis PDF",
-                data=binary_data,
-                file_name=selected_pdf,
-                mime="application/pdf",
-                key=f"reader_download_{selected_pdf}",
-                help="Download the full thesis as a PDF file.",
-            )
+            # Serve directly from the static file server — browser fetches the PDF,
+            # Python never touches the bytes for rendering (fast, no WebSocket overhead).
+            _static_url = f"/app/static/pdfs/{PROGRAM}/{selected_pdf}"
+            st.components.v1.html(_pdf_iframe_html(_static_url, height=1100), height=1108, scrolling=False)
+
+            # Download button uses cached bytes (read once per session)
+            _dl_bytes = _load_pdf_bytes_cached(pdf_path)
+            if _dl_bytes:
+                st.download_button(
+                    label="Download Thesis PDF",
+                    data=_dl_bytes,
+                    file_name=selected_pdf,
+                    mime="application/pdf",
+                    key=f"reader_download_{selected_pdf}",
+                    help="Download the full thesis as a PDF file.",
+                )
 
             if matching_row is not None:
                 with st.expander("Thesis details", expanded=False):
@@ -2350,7 +2709,10 @@ if page == "Explorer":
             if matching_row is not None:
                 render_related_thesis_cards(matching_row, "reader_related_view")
         else:
-            st.error("The requested thesis PDF could not be found.")
+            st.warning(
+                f"PDF not available in this deployment. "
+                f"[Browse all theses on Google Drive]({_DRIVE_ROOT_FALLBACK})"
+            )
             if st.button("\u2190 Back to Explorer", key="back_to_explorer_pdf_err"):
                 st.session_state.selected_pdf = None
                 st.rerun()
@@ -2395,16 +2757,9 @@ if page == "Explorer":
                 col_pdf, col_meta = st.columns([5, 4], gap="large")
 
                 with col_pdf:
-                    with open(pdf_path, "rb") as pdf_file:
-                        binary_data = pdf_file.read()
-
-                    pdf_viewer(
-                        binary_data,
-                        width="100%",
-                        height=850,
-                        zoom_level="auto",
-                        viewer_align="center",
-                    )
+                    # Serve via static file server — no Python byte loading needed for display
+                    _det_static_url = f"/app/static/pdfs/{PROGRAM}/{pdf_name}"
+                    st.components.v1.html(_pdf_iframe_html(_det_static_url, height=850), height=858, scrolling=False)
 
                     download_icon_uri = _asset_data_uri("pdf_download_icon.png", "image/png")
                     download_label = (
@@ -2413,6 +2768,8 @@ if page == "Explorer":
                         else "Download PDF"
                     )
 
+                    # Download button uses cached bytes (read once per session)
+                    _det_dl_bytes = _load_pdf_bytes_cached(pdf_path)
                     with st.container(key="details_action_buttons"):
                         btn_c1, btn_c2 = st.columns(2)
                         with btn_c1:
@@ -2421,14 +2778,15 @@ if page == "Explorer":
                                 st.session_state.selected_details = None
                                 st.rerun()
                         with btn_c2:
-                            st.download_button(
-                                label=download_label,
-                                data=binary_data,
-                                file_name=pdf_name,
-                                mime="application/pdf",
-                                key=f"details_download_{pdf_name}",
-                                width='stretch',
-                            )
+                            if _det_dl_bytes:
+                                st.download_button(
+                                    label=download_label,
+                                    data=_det_dl_bytes,
+                                    file_name=pdf_name,
+                                    mime="application/pdf",
+                                    key=f"details_download_{pdf_name}",
+                                    width='stretch',
+                                )
 
                 with col_meta:
                     render_structured_details_sections(matching_row)
@@ -2469,6 +2827,10 @@ if page == "Explorer":
                             st.session_state.selected_pdf = pdf_name
                             st.session_state.selected_details = None
                             st.rerun()
+                        st.markdown(
+                            f"[Browse all theses on Google Drive]({_DRIVE_ROOT_FALLBACK})",
+                            unsafe_allow_html=False,
+                        )
                     else:
                         st.caption("PDF not available")
 
@@ -2483,10 +2845,6 @@ if page == "Explorer":
                 st.rerun()
 
     else:
-        if st.button("← Back to Programmes", key="back_to_home"):
-            st.session_state.page = "home"
-            st.rerun()
-
         explorer_df = filtered_df.copy()
         # Always show newest theses first (e.g., 2025 -> older years).
         explorer_df["_year_sort"] = pd.to_numeric(explorer_df["Year"], errors="coerce")
@@ -2729,6 +3087,7 @@ elif page == "Programme Analytics":
             return "n/a"
         return cleaned[0].upper() + cleaned[1:]
 
+    @st.cache_data(show_spinner=False)
     def build_methodology_map(series: pd.Series) -> dict[str, str]:
         from difflib import SequenceMatcher
 
@@ -2886,9 +3245,8 @@ elif page == "Programme Analytics":
     top_sdg_html = "<span class='programme-insight-value-text'>n/a</span>"
     if most_common_sdg_number is not None:
         sdg_icon_path = os.path.join(PROGRAM_DIR, "sdg_icons", f"Goal-{most_common_sdg_number:02d}.png")
-        if os.path.exists(sdg_icon_path):
-            with open(sdg_icon_path, "rb") as f:
-                sdg_b64 = base64.b64encode(f.read()).decode("utf-8")
+        sdg_b64 = _load_image_b64(sdg_icon_path)
+        if sdg_b64:
             top_sdg_html = (
                 f"<img src='data:image/png;base64,{sdg_b64}' class='programme-insight-sdg-icon' alt='Top SDG icon'/>"
             )
@@ -2987,98 +3345,106 @@ elif page == "Programme Analytics":
     st.markdown("## Research Topic Explorer")
     st.markdown("Explore the **keyword universe** of research topics. Hover to preview related theses, click to dive deeper.")
 
-    from collections import Counter
-    from difflib import SequenceMatcher
     import re
     import numpy as np
 
-    def normalize_keyword(keyword: str) -> str:
-        k = str(keyword).lower().strip()
-        k = k.replace("&", " and ").replace("/", " ").replace("-", " ")
-        k = re.sub(r"[^a-z0-9\s]", " ", k)
-        k = " ".join(k.split())
+    @st.cache_data(show_spinner=False)
+    def _compute_keyword_data(df: pd.DataFrame) -> tuple:
+        """Normalise, deduplicate and canonicalise all thesis keywords.
 
-        replacements = {
-            "behaviours": "behavior",
-            "behaviour": "behavior",
-            "organizations": "organization",
-            "organisations": "organization",
-            "smes": "sme",
-            "stakeholders": "stakeholder",
-            "business models": "business model",
-        }
-        k = replacements.get(k, k)
+        Returns (kw_df, keyword_lookup_df):
+          - kw_df: top-30 keywords with columns [keyword_norm, count, keyword]
+          - keyword_lookup_df: per-row keyword index with columns
+            [row_index, keyword_norm, keyword_canonical]
+        """
+        from collections import Counter
+        from difflib import SequenceMatcher
+        import re as _re
 
-        if len(k) > 4 and k.endswith("ies"):
-            k = k[:-3] + "y"
-        elif len(k) > 4 and k.endswith("s") and not k.endswith("ss"):
-            k = k[:-1]
+        def normalize_keyword(keyword: str) -> str:
+            k = str(keyword).lower().strip()
+            k = k.replace("&", " and ").replace("/", " ").replace("-", " ")
+            k = _re.sub(r"[^a-z0-9\s]", " ", k)
+            k = " ".join(k.split())
+            replacements = {
+                "behaviours": "behavior",
+                "behaviour": "behavior",
+                "organizations": "organization",
+                "organisations": "organization",
+                "smes": "sme",
+                "stakeholders": "stakeholder",
+                "business models": "business model",
+            }
+            k = replacements.get(k, k)
+            if len(k) > 4 and k.endswith("ies"):
+                k = k[:-3] + "y"
+            elif len(k) > 4 and k.endswith("s") and not k.endswith("ss"):
+                k = k[:-1]
+            return k.strip()
 
-        return k.strip()
+        def pretty_keyword(keyword: str) -> str:
+            if not keyword:
+                return ""
+            return keyword[0].upper() + keyword[1:]
 
-    def pretty_keyword(keyword: str) -> str:
-        if not keyword:
-            return ""
-        return keyword[0].upper() + keyword[1:]
+        def similar_keyword(a: str, b: str) -> bool:
+            if a == b:
+                return True
+            if a.replace(" ", "") == b.replace(" ", ""):
+                return True
+            if SequenceMatcher(None, a, b).ratio() >= 0.93:
+                return True
+            a_tokens = set(a.split())
+            b_tokens = set(b.split())
+            if not a_tokens or not b_tokens:
+                return False
+            overlap = len(a_tokens.intersection(b_tokens)) / max(len(a_tokens), len(b_tokens))
+            return overlap >= 0.85 and abs(len(a) - len(b)) <= 10
 
-    def similar_keyword(a: str, b: str) -> bool:
-        if a == b:
-            return True
-        if a.replace(" ", "") == b.replace(" ", ""):
-            return True
-        ratio = SequenceMatcher(None, a, b).ratio()
-        if ratio >= 0.93:
-            return True
+        norm_keyword_counts: Counter = Counter()
+        row_keyword_norm_pairs = []
 
-        a_tokens = set(a.split())
-        b_tokens = set(b.split())
-        if not a_tokens or not b_tokens:
-            return False
-        overlap = len(a_tokens.intersection(b_tokens)) / max(len(a_tokens), len(b_tokens))
-        return overlap >= 0.85 and abs(len(a) - len(b)) <= 10
+        if "Keywords" in df.columns:
+            for row_idx, entry in df["Keywords"].items():
+                if str(entry).strip().lower() in ("", "n/a", "na", "nan"):
+                    continue
+                row_norm_keywords = []
+                for raw_keyword in str(entry).split(","):
+                    normalized = normalize_keyword(raw_keyword)
+                    if normalized and normalized not in ("n/a", "na", "nan"):
+                        row_norm_keywords.append(normalized)
+                        norm_keyword_counts[normalized] += 1
+                for unique_kw in set(row_norm_keywords):
+                    row_keyword_norm_pairs.append({"row_index": row_idx, "keyword_norm": unique_kw})
 
-    norm_keyword_counts = Counter()
-    row_keyword_norm_pairs = []
+        canonical_map: dict = {}
+        canonical_counts: Counter = Counter()
+        canonical_keys: list = []
 
-    if "Keywords" in df.columns:
-        for row_idx, entry in df["Keywords"].items():
-            if str(entry).strip().lower() in ("", "n/a", "na", "nan"):
-                continue
+        for norm_kw, freq in norm_keyword_counts.most_common():
+            matched = None
+            for canonical_kw in canonical_keys:
+                if similar_keyword(norm_kw, canonical_kw):
+                    matched = canonical_kw
+                    break
+            if matched is None:
+                matched = norm_kw
+                canonical_keys.append(matched)
+            canonical_map[norm_kw] = matched
+            canonical_counts[matched] += freq
 
-            row_norm_keywords = []
-            for raw_keyword in str(entry).split(","):
-                normalized = normalize_keyword(raw_keyword)
-                if normalized and normalized not in ("n/a", "na", "nan"):
-                    row_norm_keywords.append(normalized)
-                    norm_keyword_counts[normalized] += 1
+        top_keywords = canonical_counts.most_common(30)
+        kw_df = pd.DataFrame(top_keywords, columns=["keyword_norm", "count"])
+        if not kw_df.empty:
+            kw_df["keyword"] = kw_df["keyword_norm"].apply(pretty_keyword)
 
-            for unique_kw in set(row_norm_keywords):
-                row_keyword_norm_pairs.append({"row_index": row_idx, "keyword_norm": unique_kw})
+        keyword_lookup_df = pd.DataFrame(row_keyword_norm_pairs)
+        if not keyword_lookup_df.empty:
+            keyword_lookup_df["keyword_canonical"] = keyword_lookup_df["keyword_norm"].map(canonical_map)
 
-    canonical_map = {}
-    canonical_counts = Counter()
-    canonical_keys = []
+        return kw_df, keyword_lookup_df
 
-    for norm_kw, freq in norm_keyword_counts.most_common():
-        matched = None
-        for canonical_kw in canonical_keys:
-            if similar_keyword(norm_kw, canonical_kw):
-                matched = canonical_kw
-                break
-        if matched is None:
-            matched = norm_kw
-            canonical_keys.append(matched)
-        canonical_map[norm_kw] = matched
-        canonical_counts[matched] += freq
-
-    top_keywords = canonical_counts.most_common(30)
-    kw_df = pd.DataFrame(top_keywords, columns=["keyword_norm", "count"])
-    if not kw_df.empty:
-        kw_df["keyword"] = kw_df["keyword_norm"].apply(pretty_keyword)
-
-    keyword_lookup_df = pd.DataFrame(row_keyword_norm_pairs)
-    if not keyword_lookup_df.empty:
-        keyword_lookup_df["keyword_canonical"] = keyword_lookup_df["keyword_norm"].map(canonical_map)
+    kw_df, keyword_lookup_df = _compute_keyword_data(df)
 
     def get_topic_df(keyword_canonical: str) -> pd.DataFrame:
         if keyword_lookup_df.empty:
@@ -3479,8 +3845,7 @@ elif page == "Programme Analytics":
         if os.path.exists(network_path):
             st.caption("Interactive thesis network embedded in Programme Analytics.")
 
-            with open(network_path, "r", encoding="utf-8") as f:
-                html_content = f.read()
+            html_content = _load_html_file(network_path)
 
             components.html(html_content, height=800, scrolling=True)
         else:
@@ -3498,6 +3863,1560 @@ elif page == "Programme Analytics":
     st.markdown("### Theories used")
     fig4 = px.bar(df["Theories"].value_counts(), labels={'index':'Theory','value':'Count'})
     st.plotly_chart(fig4, width='stretch')
+
+elif page == "Insights":
+    import re as _ins_re
+    import json as _ins_json
+    import math as _ins_math
+    import base64 as _ins_b64
+    from collections import Counter as _ins_Counter
+    import streamlit.components.v1 as _ins_comp
+
+    # ── helpers ───────────────────────────────────────────────────────────
+    def _ins_sdg_num(v):
+        m = _ins_re.match(r'(\d+)', str(v))
+        return int(m.group(1)) if m else None
+
+    _INS_SDG_HEX = {
+        1:"#E5243B",2:"#DDA63A",3:"#4C9F38",4:"#C5192D",5:"#FF3A21",
+        6:"#26BDE2",7:"#FCC30B",8:"#A21942",9:"#FD6925",10:"#DD1367",
+        11:"#FD9D24",12:"#BF8B2E",13:"#3F7E44",14:"#0A97D9",15:"#56C02B",
+        16:"#00689D",17:"#19486A",
+    }
+    _INS_SDG_NAMES = {
+        1:"No Poverty",2:"Zero Hunger",3:"Good Health",4:"Quality Education",
+        5:"Gender Equality",6:"Clean Water",7:"Affordable Energy",8:"Decent Work",
+        9:"Industry & Innovation",10:"Reduced Inequalities",
+        11:"Sustainable Cities",12:"Responsible Consumption",13:"Climate Action",
+        14:"Life Below Water",15:"Life on Land",16:"Peace & Justice",
+        17:"Partnerships",
+    }
+    _INS_METHOD_HEX = {
+        "Qualitative Empirical Research":  "#003660",
+        "Mixed Methods Research":          "#FFCD00",
+        "Quantitative Empirical Research": "#0a97d9",
+        "Literature-Based Research":       "#4C9F38",
+        "Modelling & Systems Approaches":  "#FD6925",
+        "Spatial & Environmental Analysis":"#DD1367",
+        "Conceptual & Theoretical":        "#9B59B6",
+        "Participatory & Action-Oriented Research":"#BF8B2E",
+    }
+    _INS_SECTOR_HEX = {
+        "Energy & Climate":              "#FCC30B",
+        "Circular Economy & Production": "#4C9F38",
+        "Governance & Policy":           "#003660",
+        "Ecology & Biodiversity":        "#56C02B",
+        "Urban & Regional Development":  "#FD6925",
+        "Social Justice & Equity":       "#DD1367",
+        "Water Management":              "#26BDE2",
+        "Health & Medicine":             "#E5243B",
+        "Food & Agriculture":            "#DDA63A",
+        "Transport & Mobility":          "#9B59B6",
+    }
+
+    # ── org domain map for Clearbit logo API ─────────────────────────────
+    _ORG_DOMAIN = {
+        "TNO": "tno.nl",
+        "Shell": "shell.com",
+        "Arcadis": "arcadis.com",
+        "Eneco": "eneco.nl",
+        "Heineken N.V.": "heineken.com",
+        "PricewaterhouseCoopers": "pwc.com",
+        "Fairphone B.V.": "fairphone.com",
+        "ENGIE": "engie.com",
+        "Royal HaskoningDHV": "royalhaskoningdhv.com",
+        "Deltares": "deltares.nl",
+        "Alliander": "alliander.com",
+        "Stedin": "stedin.net",
+        "KWR Water Research Institute": "kwrwater.nl",
+        "Rijkswaterstaat": "rijkswaterstaat.nl",
+        "Unilever": "unilever.com",
+        "PBL Netherlands Environmental Assessment Agency": "pbl.nl",
+        "Utrecht University": "uu.nl",
+        "Jacobs Douwe Egberts": "jdecoffee.com",
+        "Gemeente Utrecht": "utrecht.nl",
+        "KLM Engineering & Maintenance": "klm.com",
+        "Circle Economy": "circle-economy.com",
+        "SINTEF": "sintef.no",
+        "Dialogic": "dialogic.nl",
+        "Tata Steel Nederland": "tatasteeleurope.com",
+        "Guidehouse": "guidehouse.com",
+        "European Commission's RIPEET project": "ec.europa.eu",
+        "Sociaal-Economische Raad": "ser.nl",
+        "Ministry of Infrastructure and Water Management": "government.nl",
+        "Ministry of the Interior and Kingdom Relations": "government.nl",
+        "Rijksdienst voor Ondernemend Nederland (RVO)": "rvo.nl",
+        "Global Center on Adaptation": "gca.org",
+        "WASTE": "wasteconsultants.nl",
+        "Fashion for Good": "fashionforgood.com",
+        "Hoogheemraadschap De Stichtse Rijnlanden": "hdsr.nl",
+        "Commown": "commown.coop",
+        "Impact Hub Amsterdam": "amsterdam.impacthub.net",
+        "Rotterdam The Hague Airport": "rotterdamthehagueairport.nl",
+        "Copper8": "copper8.com",
+        "KIM Netherlands Institute for Transport Policy Analysis": "kimnet.nl",
+        "Natuur en Milieufederatie Utrecht": "natuurenmilieuutrecht.nl",
+        "Nederlandse Publieke Omroep": "npo.nl",
+        "Rabo Partnerships": "rabobank.com",
+        "FairClimateFund": "fairclimatefund.org",
+        "BirdLife Netherlands": "vogelbescherming.nl",
+        "Gray Label": "graylabel.com",
+        "Groendus": "groendus.nl",
+        "Energie Samen": "energiesamen.nl",
+        "Heerema Marine Contractors": "heerema.com",
+        "FlexiDAO": "flexidao.com",
+        "Mercator Research Institute on Global Commons and Climate Change (MCC)": "mcc-berlin.net",
+        "Trouw Nutrition": "trouwnutrition.com",
+    }
+
+    # ── compute insights data ─────────────────────────────────────────────
+
+    @st.cache_data(show_spinner=False)
+    def _compute_insights(df: pd.DataFrame, program: str):
+        # SDG universe
+        sdg_counts = _ins_Counter()
+        sdg_theses: dict = {}
+        for _, row in df.iterrows():
+            n = _ins_sdg_num(row.get("SDG", ""))
+            if n:
+                sdg_counts[n] += 1
+                sdg_theses.setdefault(n, []).append({
+                    "title": str(row.get("Title", "")),
+                    "author": str(row.get("Author(s)", "")),
+                    "year": str(row.get("Year", "")),
+                    "pdf": str(row.get("Thesis_PDF", "")),
+                })
+
+        # Internship org universe
+        org_theses: dict = {}
+        for _, row in df.iterrows():
+            org = str(row.get("Internship Organization", "")).strip()
+            if org and org.lower() not in ("n/a", "nan", ""):
+                for o in org.split(";"):
+                    o = o.strip()
+                    if o and o.lower() not in ("n/a", "nan", ""):
+                        org_theses.setdefault(o, []).append({
+                            "title": str(row.get("Title", "")),
+                            "author": str(row.get("Author(s)", "")),
+                            "year": str(row.get("Year", "")),
+                            "sdg": str(row.get("SDG", "")),
+                            "sector": str(row.get("Main sector", "")),
+                            "pdf": str(row.get("Thesis_PDF", "")),
+                        })
+
+        # Country counts + theses
+        country_counts = _ins_Counter()
+        country_theses: dict = {}
+        for _, row in df.iterrows():
+            for c in str(row.get("Country", "")).split(";"):
+                c = c.strip()
+                if c and c.lower() not in ("n/a", "nan", ""):
+                    country_counts[c] += 1
+                    country_theses.setdefault(c, []).append({
+                        "title": str(row.get("Title", "")),
+                        "author": str(row.get("Author(s)", "")),
+                        "year": str(row.get("Year", "")),
+                        "pdf": str(row.get("Thesis_PDF", "")),
+                    })
+
+        # Methodology counts
+        method_counts = _ins_Counter()
+        for v in df["Methodology Type"].dropna():
+            for m in str(v).split(","):
+                m = m.strip()
+                if m and m.lower() not in ("n/a", "nan", ""):
+                    method_counts[m] += 1
+
+        # Sector per year
+        df2 = df.copy()
+        df2["_year"] = pd.to_numeric(df2["Year"], errors="coerce")
+        years = sorted(df2["_year"].dropna().unique().astype(int))
+        sectors = [s for s in df2["Main sector"].dropna().unique()
+                   if str(s).lower() not in ("n/a", "nan", "")]
+        sector_year = {}
+        for s in sectors:
+            counts = []
+            for y in years:
+                mask = (df2["_year"] == y) & (df2["Main sector"] == s)
+                counts.append(int(mask.sum()))
+            sector_year[s] = counts
+
+        return {
+            "sdg_counts": dict(sdg_counts),
+            "sdg_theses": sdg_theses,
+            "org_theses": org_theses,
+            "country_counts": dict(country_counts),
+            "country_theses": country_theses,
+            "method_counts": dict(method_counts),
+            "sector_year": sector_year,
+            "years": [int(y) for y in years],
+        }
+
+    _ins_data = _compute_insights(df, PROGRAM)
+
+    # ── page CSS ──────────────────────────────────────────────────────────
+    st.markdown("""<style>
+    /* ── Insights hero ── */
+    .ins-hero {
+        background: linear-gradient(135deg, #001f3a 0%, #003660 60%, #0a5c8a 100%);
+        border-radius: 24px; padding: 3rem 3rem 2.5rem;
+        margin-bottom: 2.8rem; position: relative; overflow: hidden;
+    }
+    .ins-hero::before {
+        content: ''; position: absolute; inset: 0;
+        background: radial-gradient(ellipse at 80% 50%, rgba(255,205,0,0.08) 0%, transparent 60%);
+        pointer-events: none;
+    }
+    .ins-hero-eyebrow {
+        font-size: 0.68rem; font-weight: 800; letter-spacing: 0.18em;
+        text-transform: uppercase; color: #FFCD00; margin-bottom: 0.7rem;
+    }
+    .ins-hero-title {
+        font-size: 2.6rem; font-weight: 800; color: #fff;
+        line-height: 1.15; margin: 0 0 0.8rem; letter-spacing: -0.02em;
+    }
+    .ins-hero-sub {
+        font-size: 1rem; color: rgba(255,255,255,0.65); max-width: 640px;
+        line-height: 1.6; margin: 0;
+    }
+    .ins-stat-row {
+        display: flex; gap: 2.2rem; margin-top: 2rem; flex-wrap: wrap;
+    }
+    .ins-stat {
+        display: flex; flex-direction: column; gap: 0.1rem;
+    }
+    .ins-stat-num {
+        font-size: 2rem; font-weight: 800; color: #FFCD00; line-height: 1;
+    }
+    .ins-stat-label {
+        font-size: 0.72rem; color: rgba(255,255,255,0.5);
+        text-transform: uppercase; letter-spacing: 0.1em; font-weight: 600;
+    }
+
+    /* ── Section wrappers ── */
+    .ins-section {
+        margin-bottom: 3.5rem;
+    }
+    .ins-section-header {
+        display: flex; align-items: flex-end; gap: 1rem; margin-bottom: 1.6rem;
+    }
+    .ins-section-number {
+        font-size: 3.5rem; font-weight: 900; color: rgba(0,54,96,0.07);
+        line-height: 1; font-family: 'Merriweather', serif; user-select: none;
+        letter-spacing: -0.04em;
+    }
+    .ins-section-text {}
+    .ins-section-title {
+        font-size: 1.45rem; font-weight: 800; color: #0a2540; margin: 0;
+        letter-spacing: -0.02em;
+    }
+    .ins-section-desc {
+        font-size: 0.83rem; color: #6b7a8d; margin: 0.2rem 0 0;
+        font-weight: 400;
+    }
+    </style>""", unsafe_allow_html=True)
+
+    # ── Hero ─────────────────────────────────────────────────────────────
+    _n_orgs = len(_ins_data["org_theses"])
+    _n_countries = len(_ins_data["country_counts"])
+    _n_sdgs = len(_ins_data["sdg_counts"])
+    _years_range = (
+        f"{min(_ins_data['years'])}–{max(_ins_data['years'])}"
+        if _ins_data["years"] else "—"
+    )
+    st.markdown(f"""
+    <div class="ins-hero">
+      <div class="ins-hero-eyebrow">Programme Insights</div>
+      <div class="ins-hero-title">{_display_name}<br/>by the numbers</div>
+      <div class="ins-hero-sub">
+        Explore the research landscape of the {_display_name} programme —
+        from the global goals that drive research to the organisations shaping it.
+      </div>
+      <div class="ins-stat-row">
+        <div class="ins-stat">
+          <span class="ins-stat-num">{len(df)}</span>
+          <span class="ins-stat-label">Theses</span>
+        </div>
+        <div class="ins-stat">
+          <span class="ins-stat-num">{_n_sdgs}</span>
+          <span class="ins-stat-label">SDGs covered</span>
+        </div>
+        <div class="ins-stat">
+          <span class="ins-stat-num">{_n_countries}</span>
+          <span class="ins-stat-label">Countries</span>
+        </div>
+        <div class="ins-stat">
+          <span class="ins-stat-num">{_n_orgs}</span>
+          <span class="ins-stat-label">Partner orgs</span>
+        </div>
+        <div class="ins-stat">
+          <span class="ins-stat-num">{_years_range}</span>
+          <span class="ins-stat-label">Cohorts</span>
+        </div>
+      </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # ══════════════════════════════════════════════════════════════════════
+    # SECTION 1 — SDG UNIVERSE
+    # ══════════════════════════════════════════════════════════════════════
+    st.markdown("""
+    <div class="ins-section">
+      <div class="ins-section-header">
+        <div class="ins-section-number">01</div>
+        <div class="ins-section-text">
+          <div class="ins-section-title">SDG Universe</div>
+          <div class="ins-section-desc">Which Sustainable Development Goals does the research address? Click any goal to explore linked theses.</div>
+        </div>
+      </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # Build SDG data payload
+    _sdg_payload = []
+    for _sdg_n in range(1, 18):
+        _cnt = _ins_data["sdg_counts"].get(_sdg_n, 0)
+        _icon_path = os.path.join(PROGRAM_DIR, "sdg_icons", f"Goal-{_sdg_n:02d}.png")
+        _icon_b64 = _load_image_b64(_icon_path)
+        _theses = _ins_data["sdg_theses"].get(_sdg_n, [])[:6]  # cap payload
+        _sdg_payload.append({
+            "n": _sdg_n,
+            "count": _cnt,
+            "name": _INS_SDG_NAMES.get(_sdg_n, ""),
+            "color": _INS_SDG_HEX.get(_sdg_n, "#888"),
+            "icon": _icon_b64,
+            "theses": _theses,
+        })
+
+    _sdg_json = _ins_json.dumps(_sdg_payload, ensure_ascii=False)
+    _sdg_enc_prog = __import__("urllib.parse", fromlist=["quote"]).quote(PROGRAM, safe="")
+
+    _sdg_html = f"""
+<style>
+*{{box-sizing:border-box;margin:0;padding:0;}}
+body{{font-family:'Inter',-apple-system,sans-serif;background:transparent;overflow-x:hidden;}}
+#whl-wrap{{display:flex;justify-content:center;padding:8px 0 4px;position:relative;}}
+.seg-g{{transition:transform 0.22s cubic-bezier(.34,1.56,.64,1),opacity 0.3s;}}
+#sdg-overlay{{
+  display:none;position:absolute;inset:0;
+  background:rgba(255,255,255,0.55);backdrop-filter:blur(2px);
+  border-radius:20px;z-index:10;
+}}
+#sdg-overlay.open{{display:block;}}
+#sdg-detail{{
+  display:none;position:absolute;
+  top:50%;left:50%;transform:translate(-50%,-50%) scale(0.92);
+  width:min(480px,90%);max-height:460px;
+  border-radius:18px;background:#fff;border:1px solid #e2e8f0;
+  box-shadow:0 8px 40px rgba(0,54,96,0.18);overflow:hidden;
+  z-index:11;
+  transition:transform 0.22s cubic-bezier(.34,1.56,.64,1),opacity 0.22s;
+  opacity:0;
+}}
+#sdg-detail.open{{
+  display:flex;flex-direction:column;
+  transform:translate(-50%,-50%) scale(1);opacity:1;
+}}
+#sdg-di{{padding:1.4rem 1.6rem;overflow-y:auto;flex:1;}}
+.sd-t{{padding:0.65rem 0.4rem;border-bottom:1px solid #f0f4f9;display:block;text-decoration:none;color:inherit;}}
+.sd-t:last-child{{border-bottom:none;}}
+.sd-t[href]:hover{{background:#f5f8ff;border-radius:6px;cursor:pointer;}}
+.sd-title{{font-size:0.87rem;font-weight:700;color:#0a2540;}}
+.sd-meta{{font-size:0.74rem;color:#6b7a8d;margin-top:0.1rem;}}
+</style>
+<div id="whl-wrap">
+  <svg id="whl" viewBox="0 0 480 480" width="580" height="580"></svg>
+  <div id="sdg-overlay"></div>
+  <div id="sdg-detail"><div id="sdg-di"></div></div>
+</div>
+<script>
+var DATA={_sdg_json};
+var PROG="{_sdg_enc_prog}";
+var NS='http://www.w3.org/2000/svg';
+var svg=document.getElementById('whl');
+var detail=document.getElementById('sdg-detail');
+var overlay=document.getElementById('sdg-overlay');
+var di=document.getElementById('sdg-di');
+var CX=240,CY=240,R_OUT=218,R_IN=86,STEP=360/17,GAP=1.8;
+var R_MID=(R_OUT+R_IN)/2;
+var activeN=null;
+var segs=[];
+function rad(d){{return d*Math.PI/180;}}
+function pt(r,d){{return [CX+r*Math.cos(rad(d)),CY+r*Math.sin(rad(d))]}}
+function arc(ro,ri,a1,a2){{
+  var p1=pt(ro,a1),p2=pt(ro,a2),p3=pt(ri,a2),p4=pt(ri,a1),lg=(a2-a1>180)?1:0;
+  return 'M'+p1[0].toFixed(2)+' '+p1[1].toFixed(2)
+    +' A'+ro+' '+ro+' 0 '+lg+' 1 '+p2[0].toFixed(2)+' '+p2[1].toFixed(2)
+    +' L'+p3[0].toFixed(2)+' '+p3[1].toFixed(2)
+    +' A'+ri+' '+ri+' 0 '+lg+' 0 '+p4[0].toFixed(2)+' '+p4[1].toFixed(2)+'Z';
+}}
+function mk(t){{return document.createElementNS(NS,t);}}
+function esc(s){{return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}}
+var defs=mk('defs');
+defs.innerHTML='<filter id="cs"><feDropShadow dx="0" dy="2" stdDeviation="5" flood-color="rgba(0,54,96,0.18)"/></filter>';
+svg.appendChild(defs);
+var hub=mk('circle');
+hub.setAttribute('cx',CX);hub.setAttribute('cy',CY);hub.setAttribute('r',R_IN-3);
+hub.setAttribute('fill','#fff');hub.setAttribute('filter','url(#cs)');
+svg.appendChild(hub);
+DATA.forEach(function(d,i){{
+  var a1=-90+i*STEP+GAP/2,a2=-90+(i+1)*STEP-GAP/2,am=(a1+a2)/2;
+  var mp=pt(R_MID,am),rAM=rad(am);
+  var dx=Math.cos(rAM)*10,dy=Math.sin(rAM)*10;
+  var g=mk('g');
+  g.style.opacity='0';
+  g.style.transition='opacity 0.35s ease,transform 0.22s cubic-bezier(.34,1.56,.64,1)';
+  if(d.count>0)g.style.cursor='pointer';
+  var ph=mk('path');
+  ph.setAttribute('d',arc(R_OUT,R_IN,a1,a2));
+  ph.setAttribute('fill',d.color);
+  ph.setAttribute('stroke','#fff');ph.setAttribute('stroke-width','2');
+  g.appendChild(ph);
+  var IS=28,IR=5,cid='ic'+i;
+  var cp=mk('clipPath');cp.setAttribute('id',cid);
+  var cr=mk('rect');
+  cr.setAttribute('x',mp[0]-IS/2);cr.setAttribute('y',mp[1]-IS/2);
+  cr.setAttribute('width',IS);cr.setAttribute('height',IS);cr.setAttribute('rx',IR);
+  cp.appendChild(cr);defs.appendChild(cp);
+  if(d.icon){{
+    var img=mk('image');
+    img.setAttribute('href','data:image/png;base64,'+d.icon);
+    img.setAttribute('x',mp[0]-IS/2);img.setAttribute('y',mp[1]-IS/2);
+    img.setAttribute('width',IS);img.setAttribute('height',IS);
+    img.setAttribute('clip-path','url(#'+cid+')');
+    img.setAttribute('preserveAspectRatio','xMidYMid slice');
+    g.appendChild(img);
+  }}
+  if(d.count>0){{
+    var bp=pt(R_OUT-15,am);
+    var bc=mk('circle');
+    bc.setAttribute('cx',bp[0]);bc.setAttribute('cy',bp[1]);
+    bc.setAttribute('r',11);bc.setAttribute('fill','rgba(0,0,0,0.3)');
+    g.appendChild(bc);
+    var bt=mk('text');
+    bt.setAttribute('x',bp[0]);bt.setAttribute('y',bp[1]+3.5);
+    bt.setAttribute('text-anchor','middle');bt.setAttribute('font-size','9.5');
+    bt.setAttribute('font-weight','800');bt.setAttribute('fill','#fff');
+    bt.setAttribute('font-family','Inter,sans-serif');
+    bt.textContent=d.count;
+    g.appendChild(bt);
+    g.addEventListener('mouseenter',function(){{if(activeN!==d.n)g.style.transform='translate('+dx+'px,'+dy+'px)';}});
+    g.addEventListener('mouseleave',function(){{if(activeN!==d.n)g.style.transform='';}});
+    g.addEventListener('click',function(){{openSDG(d,g,dx,dy);}});
+  }}
+  svg.appendChild(g);
+  segs.push({{el:g,count:d.count,dx:dx,dy:dy}});
+  (function(el,cnt){{setTimeout(function(){{el.style.opacity=cnt===0?'0.28':'1';}},60+i*50);}})(g,d.count);
+}});
+var hub2=mk('circle');
+hub2.setAttribute('cx',CX);hub2.setAttribute('cy',CY);hub2.setAttribute('r',R_IN-3);
+hub2.setAttribute('fill','#fff');svg.appendChild(hub2);
+var tot=DATA.reduce(function(s,d){{return s+d.count;}},0);
+var nSDG=DATA.filter(function(d){{return d.count>0;}}).length;
+var tN=mk('text');tN.setAttribute('x',CX);tN.setAttribute('y',CY-6);
+tN.setAttribute('text-anchor','middle');tN.setAttribute('font-size','30');
+tN.setAttribute('font-weight','900');tN.setAttribute('fill','#003660');
+tN.setAttribute('font-family','Inter,sans-serif');tN.textContent=tot;svg.appendChild(tN);
+var tL=mk('text');tL.setAttribute('x',CX);tL.setAttribute('y',CY+13);
+tL.setAttribute('text-anchor','middle');tL.setAttribute('font-size','9');
+tL.setAttribute('font-weight','700');tL.setAttribute('fill','#6b7a8d');
+tL.setAttribute('letter-spacing','0.09em');tL.setAttribute('font-family','Inter,sans-serif');
+tL.textContent='THESES';svg.appendChild(tL);
+var tS=mk('text');tS.setAttribute('x',CX);tS.setAttribute('y',CY+30);
+tS.setAttribute('text-anchor','middle');tS.setAttribute('font-size','9');
+tS.setAttribute('fill','#9aa5b4');tS.setAttribute('font-family','Inter,sans-serif');
+tS.textContent=nSDG+' of 17 SDGs';svg.appendChild(tS);
+function openSDG(d,g,dx,dy){{
+  if(activeN===d.n){{closeDetail();return;}}
+  activeN=d.n;
+  segs.forEach(function(s){{s.el.style.transform='';s.el.style.opacity=s.count===0?'0.28':'0.2';}});
+  g.style.transform='translate('+dx+'px,'+dy+'px)';
+  g.style.opacity='1';
+  var ih=d.icon
+    ?'<img style="width:68px;height:68px;border-radius:12px;object-fit:cover;flex-shrink:0;" src="data:image/png;base64,'+d.icon+'" />'
+    :'<div style="width:68px;height:68px;border-radius:12px;background:'+d.color+';display:flex;align-items:center;justify-content:center;font-size:1.8rem;font-weight:900;color:#fff;flex-shrink:0;">'+d.n+'</div>';
+  var th='';
+  d.theses.forEach(function(t){{
+    var pdfKey=t.pdf?t.pdf.replace(/\.pdf$/i,''):'';
+    var href=pdfKey&&pdfKey!=='nan'?'?program='+PROG+'&details='+encodeURIComponent(pdfKey):'#';
+    th+='<a class="sd-t" href="'+href+'" target="_blank"><div class="sd-title">'+esc(t.title)+'</div>'
+      +'<div class="sd-meta">'+esc(t.author)+' \u00b7 '+esc(t.year)+'</div></a>';
+  }});
+  di.innerHTML='<button onclick="closeDetail()" style="float:right;background:none;border:none;cursor:pointer;font-size:1rem;color:#9aa5b4;padding:0.35rem;border-radius:8px;margin:-0.3rem -0.3rem 0 0;">&#10005;</button>'
+    +'<div style="display:flex;align-items:center;gap:1rem;margin-bottom:1rem;">'+ih
+    +'<div><div style="font-size:1.15rem;font-weight:800;color:#0a2540;">SDG '+d.n+' \u2013 '+esc(d.name)+'</div>'
+    +'<div style="font-size:0.78rem;color:#6b7a8d;margin-top:0.12rem;">'+d.count+' thesis'+(d.count!==1?'es':'')+' in this programme</div>'
+    +'</div></div>'+th;
+  detail.classList.add('open');
+  overlay.classList.add('open');
+}}
+function closeDetail(){{
+  activeN=null;
+  detail.classList.remove('open');
+  overlay.classList.remove('open');
+  segs.forEach(function(s){{s.el.style.transform='';s.el.style.opacity=s.count===0?'0.28':'1';}});
+}}
+overlay.addEventListener('click',closeDetail);
+</script>
+"""
+
+    _ins_comp.html(_sdg_html, height=680, scrolling=False)
+
+    # ══════════════════════════════════════════════════════════════════════
+    # SECTION 2 — PARTNER ORGANISATION GALAXY
+    # ══════════════════════════════════════════════════════════════════════
+    if _ins_data["org_theses"]:
+        st.markdown("""
+        <div class="ins-section">
+          <div class="ins-section-header">
+            <div class="ins-section-number">02</div>
+            <div class="ins-section-text">
+              <div class="ins-section-title">Partner Organisation Galaxy</div>
+              <div class="ins-section-desc">Each node is a partner organisation, clustered by research sector. Hover to identify, click to explore linked theses.</div>
+            </div>
+          </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+        _ORG_LOGOS_DIR = os.path.join(BASE_DIR, "company logos")
+
+        # Derive primary sector for each org from most common thesis sector
+        def _derive_sector(theses_list):
+            from collections import Counter as _C
+            ctr = _C(
+                t.get("sector", "") for t in theses_list
+                if t.get("sector", "").strip().lower() not in ("", "n/a", "nan")
+            )
+            return ctr.most_common(1)[0][0] if ctr else "Other"
+
+        _org_items_raw = sorted(_ins_data["org_theses"].items(), key=lambda x: -len(x[1]))
+        _org_payload = []
+        for _org_name, _org_thlist in _org_items_raw:
+            _psector = _derive_sector(_org_thlist)
+            _logo_b64 = _load_org_logo_b64(_ORG_LOGOS_DIR, _org_name)
+            _initials = "".join(w[0].upper() for w in _org_name.split()[:2] if w)
+            _sec_color = _INS_SECTOR_HEX.get(_psector, "#7a8fa8")
+            _org_payload.append({
+                "name": _org_name,
+                "count": len(_org_thlist),
+                "sector": _psector,
+                "sColor": _sec_color,
+                "logo": _logo_b64,
+                "initials": _initials,
+                "theses": _org_thlist[:10],
+            })
+
+        # Unique sectors
+        _org_sectors_ordered = list(dict.fromkeys(
+            d["sector"] for d in sorted(_org_payload, key=lambda x: -x["count"])
+        ))
+
+        _org_json = _ins_json.dumps(_org_payload, ensure_ascii=False)
+        _org_sectors_json = _ins_json.dumps(_org_sectors_ordered, ensure_ascii=False)
+        _n_orgs_total = len(_org_payload)
+
+        # UU logo for galaxy center
+        _uu_logo_path = os.path.join(BASE_DIR, "Utrecht_University_logo_round.svg")
+        _uu_logo_uri = _load_org_logo_b64.__wrapped__(
+            os.path.join(BASE_DIR, "company logos"), "Utrecht University"
+        ) if False else (
+            f"data:image/svg+xml;base64,{_load_image_b64(_uu_logo_path)}"
+            if os.path.exists(_uu_logo_path) else ""
+        )
+
+        _org_html = f"""
+<style>
+*{{box-sizing:border-box;margin:0;padding:0;}}
+html,body{{font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+  background:transparent;overflow:hidden;-webkit-font-smoothing:antialiased;}}
+/* ── Galaxy ── */
+#galaxy-wrap{{
+  position:relative;width:100%;height:640px;overflow:hidden;
+  background:transparent;
+}}
+#galaxy-svg{{position:absolute;inset:0;width:100%;height:100%;}}
+/* Tooltip */
+#gt{{
+  position:absolute;pointer-events:none;display:none;
+  background:rgba(255,255,255,0.96);backdrop-filter:blur(8px);
+  border:1px solid rgba(0,0,0,0.1);border-radius:12px;
+  padding:9px 13px;color:#1a2535;font-size:0.8rem;line-height:1.4;
+  max-width:200px;z-index:20;box-shadow:0 4px 16px rgba(0,0,0,0.1);
+}}
+#gt-name{{font-weight:800;margin-bottom:2px;}}
+#gt-sec{{font-size:0.7rem;opacity:0.6;}}
+#gt-cnt{{font-size:0.72rem;color:#003660;margin-top:2px;font-weight:700;}}
+/* Side panel */
+#op{{
+  position:absolute;top:0;right:-380px;width:360px;height:100%;
+  background:rgba(255,255,255,0.98);backdrop-filter:blur(12px);
+  border-left:1px solid rgba(0,0,0,0.1);
+  overflow-y:auto;z-index:30;
+  transition:right 0.38s cubic-bezier(.4,0,.2,1);
+  padding:0;box-shadow:-4px 0 24px rgba(0,0,0,0.08);
+}}
+#op.open{{right:0;}}
+#op-inner{{padding:1.2rem 1.3rem 2rem;}}
+.op-close{{
+  position:sticky;top:0;display:flex;justify-content:flex-end;
+  padding:0.7rem 0.8rem 0;background:rgba(255,255,255,0.98);
+  margin:-1.2rem -1.3rem 0.8rem;
+}}
+.op-close button{{
+  background:none;border:none;color:rgba(0,0,0,0.3);cursor:pointer;
+  font-size:1.1rem;padding:0.3rem;border-radius:8px;
+}}
+.op-close button:hover{{color:#1a2535;background:rgba(0,0,0,0.05);}}
+.op-hdr{{display:flex;align-items:center;gap:0.9rem;margin-bottom:1rem;}}
+.op-logo-wrap{{
+  width:56px;height:56px;border-radius:12px;overflow:hidden;
+  background:rgba(255,255,255,0.07);display:flex;align-items:center;
+  justify-content:center;flex-shrink:0;border:1px solid rgba(255,255,255,0.1);
+}}
+.op-logo{{max-width:50px;max-height:50px;object-fit:contain;}}
+.op-ini{{font-size:1.2rem;font-weight:900;color:#fff;}}
+.op-name{{font-size:1rem;font-weight:800;color:#0a2540;line-height:1.3;}}
+.op-meta{{display:flex;align-items:center;gap:6px;margin-top:4px;}}
+.op-sec-dot{{width:7px;height:7px;border-radius:50%;flex-shrink:0;}}
+.op-sec-label{{font-size:0.7rem;color:rgba(0,0,0,0.45);font-weight:600;}}
+.op-count{{
+  margin-left:4px;background:#e8f0fe;color:#003660;
+  border-radius:99px;padding:1px 7px;font-size:0.68rem;font-weight:700;
+}}
+.op-divider{{border:none;border-top:1px solid rgba(0,0,0,0.08);margin:0.9rem 0;}}
+.op-thesis{{
+  display:block;padding:0.6rem 0.5rem;border-radius:8px;
+  text-decoration:none;transition:background 0.12s;margin-bottom:2px;
+}}
+.op-thesis:hover{{background:rgba(0,0,0,0.04);}}
+.op-tt{{font-size:0.83rem;font-weight:700;color:#0a2540;line-height:1.35;}}
+.op-tm{{font-size:0.71rem;color:rgba(0,0,0,0.4);margin-top:2px;}}
+.op-sdot{{display:inline-block;width:6px;height:6px;border-radius:50%;margin-right:4px;vertical-align:middle;}}
+</style>
+<div id="galaxy-wrap">
+  <svg id="galaxy-svg"></svg>
+  <div id="gt"><div id="gt-name"></div><div id="gt-sec"></div><div id="gt-cnt"></div></div>
+  <div id="op"><div id="op-inner"></div></div>
+</div>
+<script src="https://d3js.org/d3.v7.min.js"></script>
+<script>
+var OD={_org_json};
+var SECTORS={_org_sectors_json};
+var PROG="{_sdg_enc_prog}";
+var UU_LOGO="{_uu_logo_uri}";
+var SDG_HEX={{1:"#E5243B",2:"#DDA63A",3:"#4C9F38",4:"#C5192D",5:"#FF3A21",6:"#26BDE2",7:"#FCC30B",8:"#A21942",9:"#FD6925",10:"#DD1367",11:"#FD9D24",12:"#BF8B2E",13:"#3F7E44",14:"#0A97D9",15:"#56C02B",16:"#00689D",17:"#19486A"}};
+var wrap=document.getElementById('galaxy-wrap');
+var W=wrap.clientWidth||800,H=640;
+var svgEl=document.getElementById('galaxy-svg');
+var gt=document.getElementById('gt');
+var op=document.getElementById('op');
+var opInner=document.getElementById('op-inner');
+var activeSector=null,activeOrg=null;
+function esc(s){{return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}}
+function sdgC(s){{var m=String(s).match(/(\d+)/);return m?SDG_HEX[+m[1]]||'#888':'#888';}}
+// radius scale — sqrt so larger orgs are meaningfully bigger
+var maxCnt=d3.max(OD,function(d){{return d.count;}});
+var rScale=d3.scaleSqrt().domain([1,maxCnt]).range([22,52]);
+// sector colour lookup only — no positional anchors, free-floating galaxy
+var secMap={{}};
+SECTORS.forEach(function(s){{
+  var col=OD.find(function(o){{return o.sector===s;}}).sColor;
+  secMap[s]={{color:col}};
+}});
+// nodes: scatter randomly across the canvas
+var nodes=OD.map(function(d){{
+  return Object.assign({{r:rScale(d.count)}},d,{{
+    x:W*0.15+Math.random()*W*0.7,
+    y:H*0.15+Math.random()*H*0.7
+  }});
+}});
+var svg=d3.select('#galaxy-svg')
+  .attr('viewBox',[0,0,W,H])
+  .attr('width',W).attr('height',H);
+// defs
+var defs=svg.append('defs');
+// glow filter
+var glowF=defs.append('filter').attr('id','glow').attr('x','-50%').attr('y','-50%').attr('width','200%').attr('height','200%');
+glowF.append('feGaussianBlur').attr('stdDeviation','6').attr('result','blur');
+var feMerge=glowF.append('feMerge');
+feMerge.append('feMergeNode').attr('in','blur');
+feMerge.append('feMergeNode').attr('in','SourceGraphic');
+// active glow
+var agF=defs.append('filter').attr('id','aglow').attr('x','-80%').attr('y','-80%').attr('width','260%').attr('height','260%');
+agF.append('feGaussianBlur').attr('stdDeviation','12').attr('result','blur');
+var aFM=agF.append('feMerge');
+aFM.append('feMergeNode').attr('in','blur');
+aFM.append('feMergeNode').attr('in','SourceGraphic');
+// subtle dust particles (light mode — very faint)
+var stars=d3.range(120).map(function(){{
+  return {{x:Math.random()*W,y:Math.random()*H,r:Math.random()*1.2+0.3,op:Math.random()*0.12+0.04}};
+}});
+svg.append('g').selectAll('circle').data(stars).enter().append('circle')
+  .attr('cx',function(d){{return d.x;}}).attr('cy',function(d){{return d.y;}})
+  .attr('r',function(d){{return d.r;}})
+  .attr('fill','#aab').attr('opacity',function(d){{return d.op;}});
+
+// UU logo centered in galaxy
+if(UU_LOGO){{
+  var uuSize=160;
+  svg.append('image')
+    .attr('href',UU_LOGO)
+    .attr('x',W/2-uuSize/2).attr('y',H/2-uuSize/2)
+    .attr('width',uuSize).attr('height',uuSize)
+    .attr('preserveAspectRatio','xMidYMid meet')
+    .attr('opacity',0.12)
+    .attr('pointer-events','none');
+}}
+
+// node groups
+var nodeG=svg.append('g').attr('class','nodes');
+var nodeEls=nodeG.selectAll('g.node').data(nodes).enter().append('g')
+  .attr('class','node').style('cursor','pointer');
+// outer glow ring
+nodeEls.append('circle')
+  .attr('class','glow-ring')
+  .attr('r',function(d){{return d.r+6;}})
+  .attr('fill','none')
+  .attr('stroke',function(d){{return d.sColor;}})
+  .attr('stroke-width',1.5)
+  .attr('opacity',0.0)
+  .attr('filter','url(#glow)');
+// main circle
+nodeEls.append('circle')
+  .attr('class','main-circle')
+  .attr('r',function(d){{return d.r;}})
+  .attr('fill',function(d){{
+    return d.logo?'#fff':'none';
+  }})
+  .attr('stroke','none');
+// gradient fill for no-logo nodes
+nodes.forEach(function(d,i){{
+  if(!d.logo){{
+    var lg=defs.append('radialGradient').attr('id','ng'+i)
+      .attr('cx','35%').attr('cy','35%').attr('r','65%');
+    var c1=d3.color(d.sColor);c1.opacity=1;
+    var c2=d3.color(d.sColor);c2.l=Math.min(1,c2.l*1.5);c2.opacity=0.7;
+    lg.append('stop').attr('offset','0%').attr('stop-color',d3.hsl(d3.color(d.sColor)).brighter(0.8)).attr('stop-opacity',1);
+    lg.append('stop').attr('offset','100%').attr('stop-color',d.sColor).attr('stop-opacity',1);
+    d3.select(nodeEls.nodes()[i]).select('.main-circle').attr('fill','url(#ng'+i+')');
+  }}
+}});
+// clip + logo or initials
+nodes.forEach(function(d,i){{
+  var gEl=d3.select(nodeEls.nodes()[i]);
+  defs.append('clipPath').attr('id','cp'+i).append('circle').attr('r',d.r-1);
+  if(d.logo){{
+    gEl.append('image')
+      .attr('href',d.logo)
+      .attr('x',-d.r+2).attr('y',-d.r+2)
+      .attr('width',(d.r-2)*2).attr('height',(d.r-2)*2)
+      .attr('preserveAspectRatio','xMidYMid meet')
+      .attr('clip-path','url(#cp'+i+')');
+  }}else{{
+    var fs=Math.max(9,Math.min(16,d.r*0.55));
+    gEl.append('text')
+      .attr('text-anchor','middle').attr('dominant-baseline','central')
+      .attr('font-size',fs).attr('font-weight','900')
+      .attr('fill','rgba(255,255,255,0.95)')
+      .attr('font-family','Inter,sans-serif')
+      .attr('clip-path','url(#cp'+i+')')
+      .text(d.initials);
+  }}
+  // count badge (small circle top-right)
+  if(d.count>1){{
+    gEl.append('circle').attr('cx',d.r-6).attr('cy',-d.r+6).attr('r',9)
+      .attr('fill','#FFCD00').attr('stroke','#080f1e').attr('stroke-width',1.5);
+    gEl.append('text').attr('x',d.r-6).attr('y',-d.r+6)
+      .attr('text-anchor','middle').attr('dominant-baseline','central')
+      .attr('font-size',7.5).attr('font-weight','900').attr('fill','#003660')
+      .attr('font-family','Inter,sans-serif').text(d.count);
+  }}
+}});
+// interaction
+nodeEls
+  .on('mouseenter',function(event,d){{
+    var idx=nodes.indexOf(d);
+    d3.select(this).select('.glow-ring').attr('opacity',0.7);
+    d3.select(this).select('.main-circle').attr('stroke-width',3);
+    gt.style.display='block';
+    document.getElementById('gt-name').textContent=d.name;
+    document.getElementById('gt-sec').textContent=d.sector;
+    document.getElementById('gt-cnt').textContent=d.count+' thesis'+(d.count!==1?'es':'');
+    moveTip(event);
+  }})
+  .on('mousemove',moveTip)
+  .on('mouseleave',function(event,d){{
+    if(activeOrg!==d.name){{
+      d3.select(this).select('.glow-ring').attr('opacity',0);
+    }}
+    gt.style.display='none';
+  }})
+  .on('click',function(event,d){{
+    event.stopPropagation();
+    if(activeOrg===d.name){{closePanel();return;}}
+    openPanel(d,this);
+  }});
+svg.on('click',function(){{closePanel();}});
+function moveTip(event){{
+  var bounds=wrap.getBoundingClientRect();
+  var bx=event.clientX-bounds.left,by=event.clientY-bounds.top;
+  var tw=gt.offsetWidth+16,th=gt.offsetHeight+16;
+  gt.style.left=(bx+12+tw>W?bx-tw:bx+12)+'px';
+  gt.style.top=(by+12+th>H?by-th:by+12)+'px';
+}}
+function openPanel(d,el){{
+  activeOrg=d.name;
+  nodeEls.select('.glow-ring').attr('opacity',0);
+  nodeEls.select('.main-circle').attr('opacity',0.25);
+  var me=d3.select(el);
+  me.select('.glow-ring').attr('opacity',0.9).attr('filter','url(#aglow)');
+  me.select('.main-circle').attr('stroke-width',3).attr('opacity',1);
+  // build panel content
+  var lhHtml='';
+  if(d.logo){{
+    lhHtml='<div class="op-logo-wrap"><img class="op-logo" src="'+d.logo+'" /></div>';
+  }}else{{
+    lhHtml='<div class="op-logo-wrap"><div class="op-ini">'+esc(d.initials)+'</div></div>';
+  }}
+  var th='';
+  d.theses.forEach(function(t){{
+    var pdfKey=t.pdf?t.pdf.replace('.pdf',''):'';
+    var href=pdfKey?'?program='+PROG+'&details='+encodeURIComponent(pdfKey):'#';
+    var sc=sdgC(t.sdg);
+    th+='<a class="op-thesis" href="'+href+'" target="_blank">'
+      +'<div class="op-tt"><span class="op-sdot" style="background:'+sc+'"></span>'+esc(t.title)+'</div>'
+      +'<div class="op-tm">'+esc(t.author)+' \u00b7 '+esc(t.year)
+      +(t.sector&&t.sector.toLowerCase()!=='n/a'?' \u00b7 '+esc(t.sector):'')+'</div></a>';
+  }});
+  opInner.innerHTML=
+    '<div class="op-close"><button onclick="closePanel()" title="Close">&#10005;</button></div>'
+    +'<div class="op-hdr">'+lhHtml
+    +'<div><div class="op-name">'+esc(d.name)+'</div>'
+    +'<div class="op-meta">'
+    +'<span class="op-sec-dot" style="background:'+d.sColor+'"></span>'
+    +'<span class="op-sec-label">'+esc(d.sector)+'</span>'
+    +'<span class="op-count">'+d.count+' thesis'+(d.count!==1?'es':'')+'</span>'
+    +'</div></div></div>'
+    +'<hr class="op-divider">'+th;
+  op.classList.add('open');
+}}
+function closePanel(){{
+  activeOrg=null;
+  op.classList.remove('open');
+  nodeEls.select('.glow-ring').attr('opacity',0).attr('filter','url(#glow)');
+  nodeEls.select('.main-circle').attr('opacity',1);
+}}
+
+// force sim — stronger center pull, weaker repulsion to keep nodes grouped centrally
+var sim=d3.forceSimulation(nodes)
+  .force('charge',d3.forceManyBody().strength(-55))
+  .force('collide',d3.forceCollide().radius(function(d){{return d.r+6;}}).iterations(3))
+  .force('center',d3.forceCenter(W/2,H/2).strength(0.12))
+  .force('radial',d3.forceRadial(Math.min(W,H)*0.28,W/2,H/2).strength(0.06))
+  .force('bounds',function(){{
+    nodes.forEach(function(d){{
+      var pad=d.r+4;
+      d.x=Math.max(pad,Math.min(W-pad,d.x));
+      d.y=Math.max(pad,Math.min(H-pad,d.y));
+    }});
+  }})
+  .on('tick',function(){{
+    nodeEls.attr('transform',function(d){{return 'translate('+d.x+','+d.y+')';}});
+  }});
+// gentle float drift animation after sim cools
+var driftFrames=0;
+function drift(){{
+  if(driftFrames++%240===0){{
+    nodes.forEach(function(d){{
+      d.vx+=(Math.random()-0.5)*0.4;
+      d.vy+=(Math.random()-0.5)*0.4;
+    }});
+    sim.alpha(0.06).restart();
+  }}
+  requestAnimationFrame(drift);
+}}
+sim.on('end',function(){{drift();}});
+</script>
+"""
+        _ins_comp.html(_org_html, height=680, scrolling=False)
+        st.markdown("<div style='margin-bottom:3rem;'></div>", unsafe_allow_html=True)
+
+    # ══════════════════════════════════════════════════════════════════════
+    # SECTION 3 — RESEARCH GEOGRAPHY
+    # ══════════════════════════════════════════════════════════════════════
+    _country_counts = {k: v for k, v in _ins_data["country_counts"].items()
+                       if k.lower() not in ("global", "multi-region", "europe", "africa", "asia",
+                                            "latin america", "middle east", "n/a", "nan", "")
+                       and v >= 1}
+    if _country_counts:
+        st.markdown("""
+        <div class="ins-section">
+          <div class="ins-section-header">
+            <div class="ins-section-number">03</div>
+            <div class="ins-section-text">
+              <div class="ins-section-title">Research Geography</div>
+              <div class="ins-section-desc">Where in the world does the research take place? Bubble size reflects thesis count per country.</div>
+            </div>
+          </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+        _sorted_countries = sorted(_country_counts.items(), key=lambda x: -x[1])[:30]
+        _max_count = max(v for _, v in _sorted_countries)
+
+        _COUNTRY_ISO2 = {
+            "afghanistan":"af","albania":"al","algeria":"dz","angola":"ao","argentina":"ar",
+            "armenia":"am","australia":"au","austria":"at","azerbaijan":"az","bangladesh":"bd",
+            "belarus":"by","belgium":"be","benin":"bj","bolivia":"bo","bosnia":"ba",
+            "botswana":"bw","brazil":"br","bulgaria":"bg","burkina faso":"bf","burundi":"bi",
+            "cambodia":"kh","cameroon":"cm","canada":"ca","central african republic":"cf",
+            "chad":"td","chile":"cl","china":"cn","colombia":"co","congo":"cg",
+            "democratic republic of the congo":"cd","dr congo":"cd","democratic republic congo":"cd",
+            "republic of the congo":"cg","costa rica":"cr","croatia":"hr","cuba":"cu",
+            "czech republic":"cz","czechia":"cz","denmark":"dk","djibouti":"dj",
+            "dominican republic":"do","ecuador":"ec","egypt":"eg","el salvador":"sv",
+            "eritrea":"er","estonia":"ee","ethiopia":"et","eswatini":"sz","swaziland":"sz",
+            "fiji":"fj","finland":"fi","france":"fr","gabon":"ga","georgia":"ge",
+            "germany":"de","ghana":"gh","greece":"gr","guatemala":"gt","guinea":"gn",
+            "guinea-bissau":"gw","haiti":"ht","honduras":"hn","hungary":"hu","iceland":"is",
+            "india":"in","indonesia":"id","iran":"ir","iraq":"iq","ireland":"ie",
+            "israel":"il","italy":"it","ivory coast":"ci","cote d'ivoire":"ci",
+            "côte d'ivoire":"ci","cote divoire":"ci","jamaica":"jm","japan":"jp",
+            "jordan":"jo","kazakhstan":"kz","kenya":"ke","kosovo":"xk","kyrgyzstan":"kg",
+            "laos":"la","latvia":"lv","lebanon":"lb","lesotho":"ls","liberia":"lr",
+            "libya":"ly","lithuania":"lt","luxembourg":"lu","madagascar":"mg","malawi":"mw",
+            "malaysia":"my","mali":"ml","mauritania":"mr","mauritius":"mu","mexico":"mx",
+            "moldova":"md","mongolia":"mn","montenegro":"me","morocco":"ma","mozambique":"mz",
+            "myanmar":"mm","burma":"mm","namibia":"na","nepal":"np","netherlands":"nl",
+            "new zealand":"nz","nicaragua":"ni","niger":"ne","nigeria":"ng",
+            "north korea":"kp","north macedonia":"mk","norway":"no","pakistan":"pk",
+            "palestine":"ps","panama":"pa","papua new guinea":"pg","paraguay":"py",
+            "peru":"pe","philippines":"ph","poland":"pl","portugal":"pt","romania":"ro",
+            "russia":"ru","rwanda":"rw","saudi arabia":"sa","senegal":"sn","serbia":"rs",
+            "sierra leone":"sl","singapore":"sg","slovakia":"sk","slovenia":"si",
+            "somalia":"so","south africa":"za","south korea":"kr","south sudan":"ss",
+            "spain":"es","sri lanka":"lk","sudan":"sd","suriname":"sr","sweden":"se",
+            "switzerland":"ch","syria":"sy","taiwan":"tw","tajikistan":"tj","tanzania":"tz",
+            "thailand":"th","togo":"tg","tunisia":"tn","turkey":"tr","turkiye":"tr",
+            "uganda":"ug","ukraine":"ua","united arab emirates":"ae","uae":"ae",
+            "united kingdom":"gb","uk":"gb","united states":"us","usa":"us",
+            "united states of america":"us","uruguay":"uy","uzbekistan":"uz",
+            "venezuela":"ve","vietnam":"vn","viet nam":"vn","yemen":"ye",
+            "zambia":"zm","zimbabwe":"zw","hong kong":"hk","timor-leste":"tl",
+            "east timor":"tl","cabo verde":"cv","cape verde":"cv",
+        }
+        _COUNTRY_LATLNG = {
+            "afghanistan":(33.9,67.7),"albania":(41.15,20.17),"algeria":(28.0,3.0),
+            "angola":(-11.2,17.9),"argentina":(-38.4,-63.6),"armenia":(40.07,45.04),
+            "australia":(-25.3,133.8),"austria":(47.5,14.6),"azerbaijan":(40.14,47.58),
+            "bangladesh":(23.7,90.4),"belarus":(53.7,27.95),"belgium":(50.5,4.47),
+            "benin":(9.31,2.32),"bolivia":(-16.3,-63.6),"bosnia":(44.2,17.9),
+            "botswana":(-22.3,24.7),"brazil":(-14.2,-51.9),"bulgaria":(42.73,25.49),
+            "burkina faso":(12.36,-1.54),"burundi":(-3.37,29.92),
+            "cambodia":(12.57,104.99),"cameroon":(3.85,11.5),"canada":(56.13,-106.35),
+            "central african republic":(6.61,20.94),"chad":(15.45,18.73),
+            "chile":(-35.68,-71.54),"china":(35.86,104.2),"colombia":(4.57,-74.3),
+            "congo":(-0.23,15.83),"democratic republic of the congo":(-4.04,21.76),
+            "dr congo":(-4.04,21.76),"democratic republic congo":(-4.04,21.76),
+            "republic of the congo":(-0.23,15.83),"costa rica":(9.75,-83.75),
+            "croatia":(45.1,15.2),"cuba":(21.52,-77.78),"czech republic":(49.82,15.47),
+            "czechia":(49.82,15.47),"denmark":(56.26,9.5),"djibouti":(11.83,42.59),
+            "dominican republic":(18.74,-70.16),"ecuador":(-1.83,-78.18),
+            "egypt":(26.82,30.8),"el salvador":(13.79,-88.9),"eritrea":(15.18,39.78),
+            "estonia":(58.60,25.01),"ethiopia":(9.14,40.49),"eswatini":(-26.52,31.47),
+            "swaziland":(-26.52,31.47),"fiji":(-17.71,178.07),"finland":(61.92,25.75),
+            "france":(46.23,2.21),"gabon":(-0.80,11.61),"georgia":(42.32,43.36),
+            "germany":(51.17,10.45),"ghana":(7.95,-1.02),"greece":(39.07,21.82),
+            "guatemala":(15.78,-90.23),"guinea":(11.0,-10.9),"guinea-bissau":(11.8,-15.18),
+            "haiti":(18.97,-72.29),"honduras":(15.2,-86.24),"hungary":(47.16,19.5),
+            "iceland":(64.96,-19.02),"india":(20.59,78.96),"indonesia":(-0.79,113.92),
+            "iran":(32.43,53.69),"iraq":(33.22,43.68),"ireland":(53.41,-8.24),
+            "israel":(31.05,34.85),"italy":(41.87,12.57),
+            "ivory coast":(7.54,-5.55),"cote d'ivoire":(7.54,-5.55),
+            "côte d'ivoire":(7.54,-5.55),"cote divoire":(7.54,-5.55),
+            "jamaica":(18.11,-77.3),"japan":(36.2,138.25),"jordan":(30.59,36.24),
+            "kazakhstan":(48.02,66.92),"kenya":(-0.02,37.91),"kosovo":(42.6,20.9),
+            "kyrgyzstan":(41.2,74.77),"laos":(19.86,102.50),"latvia":(56.88,24.60),
+            "lebanon":(33.85,35.86),"lesotho":(-29.61,28.23),"liberia":(6.43,-9.43),
+            "libya":(26.34,17.23),"lithuania":(55.17,23.88),"luxembourg":(49.82,6.13),
+            "madagascar":(-18.77,46.87),"malawi":(-13.25,34.3),"malaysia":(4.21,101.98),
+            "mali":(17.57,-4.0),"mauritania":(21.01,-10.94),"mauritius":(-20.35,57.55),
+            "mexico":(23.63,-102.55),"moldova":(47.41,28.37),"mongolia":(46.86,103.85),
+            "montenegro":(42.71,19.37),"morocco":(31.79,-7.09),"mozambique":(-18.67,35.53),
+            "myanmar":(21.92,95.96),"burma":(21.92,95.96),"namibia":(-22.96,18.49),
+            "nepal":(28.39,84.12),"netherlands":(52.13,5.29),"new zealand":(-40.9,174.89),
+            "nicaragua":(12.87,-85.21),"niger":(17.61,8.08),"nigeria":(9.08,8.68),
+            "north korea":(40.34,127.51),"north macedonia":(41.61,21.75),
+            "norway":(60.47,8.47),"pakistan":(30.38,69.35),"palestine":(31.95,35.23),
+            "panama":(8.54,-80.78),"papua new guinea":(-6.31,143.96),
+            "paraguay":(-23.44,-58.44),"peru":(-9.19,-75.02),"philippines":(12.88,121.77),
+            "poland":(51.92,19.15),"portugal":(39.4,-8.22),"romania":(45.94,24.97),
+            "russia":(61.52,105.32),"rwanda":(-1.94,29.87),"saudi arabia":(23.89,45.08),
+            "senegal":(14.5,-14.45),"serbia":(44.02,21.01),"sierra leone":(8.46,-11.78),
+            "singapore":(1.35,103.82),"slovakia":(48.67,19.7),"slovenia":(46.15,14.99),
+            "somalia":(5.15,46.2),"south africa":(-30.56,22.94),"south korea":(35.91,127.77),
+            "south sudan":(6.88,31.31),"spain":(40.46,-3.75),"sri lanka":(7.87,80.77),
+            "sudan":(12.86,30.22),"suriname":(3.92,-56.03),"sweden":(60.13,18.64),
+            "switzerland":(46.82,8.23),"syria":(34.8,38.99),"taiwan":(23.7,121.0),
+            "tajikistan":(38.86,71.28),"tanzania":(-6.37,34.89),"thailand":(15.87,100.99),
+            "togo":(8.62,0.82),"tunisia":(33.89,9.54),"turkey":(38.96,35.24),
+            "turkiye":(38.96,35.24),"uganda":(1.37,32.29),"ukraine":(48.38,31.17),
+            "united arab emirates":(23.42,53.85),"uae":(23.42,53.85),
+            "united kingdom":(55.38,-3.44),"uk":(55.38,-3.44),
+            "united states":(37.09,-95.71),"usa":(37.09,-95.71),
+            "united states of america":(37.09,-95.71),
+            "uruguay":(-32.52,-55.77),"uzbekistan":(41.38,64.59),
+            "venezuela":(6.42,-66.59),"vietnam":(14.06,108.28),"viet nam":(14.06,108.28),
+            "yemen":(15.55,48.52),"zambia":(-13.13,27.85),"zimbabwe":(-19.02,29.15),
+            "hong kong":(22.32,114.17),"timor-leste":(-8.87,125.73),
+            "east timor":(-8.87,125.73),"cabo verde":(16.54,-23.04),
+            "cape verde":(16.54,-23.04),
+        }
+        _geo_data = [{"name": k, "count": v,
+                      "code": _COUNTRY_ISO2.get(k.lower().strip(), ""),
+                      "lat": _COUNTRY_LATLNG.get(k.lower().strip(), (None, None))[0],
+                      "lng": _COUNTRY_LATLNG.get(k.lower().strip(), (None, None))[1],
+                      "theses": _ins_data["country_theses"].get(k, [])[:10]}
+                     for k, v in _sorted_countries]
+        _geo_json = _ins_json.dumps(_geo_data, ensure_ascii=False)
+        _prog_color = {
+            "sbi": "#003660", "energy_science": "#c45c00",
+            "sustainable_development": "#2e7d32", "innovation_sciences": "#5c3d9e",
+            "water_management": "#0077b6",
+        }.get(PROGRAM, "#003660")
+
+        _geo_html = f"""<!DOCTYPE html>
+<html><head><style>
+*{{box-sizing:border-box;margin:0;padding:0;}}
+html,body{{width:100%;height:100%;background:transparent;overflow:hidden;}}
+#gc{{width:100%;height:560px;}}
+.tip{{
+  position:fixed;background:rgba(20,20,40,0.88);color:#fff;
+  padding:6px 14px;border-radius:8px;font-size:13px;font-weight:600;
+  pointer-events:none;z-index:9999;display:none;
+  font-family:Inter,-apple-system,sans-serif;white-space:nowrap;
+  backdrop-filter:blur(4px);
+}}
+#pop{{
+  position:fixed;top:50%;left:50%;transform:translate(-50%,-50%) scale(0.9);
+  background:#fff;border-radius:18px;padding:0;
+  box-shadow:0 8px 40px rgba(0,0,0,0.22);z-index:10000;
+  display:none;opacity:0;width:360px;max-height:480px;
+  font-family:Inter,-apple-system,sans-serif;
+  transition:opacity 0.18s,transform 0.18s;
+  flex-direction:column;
+  overflow:hidden;
+}}
+#pop.open{{display:flex;opacity:1;transform:translate(-50%,-50%) scale(1);}}
+#pop-header{{
+  padding:16px 20px 12px;border-bottom:1px solid #e8ecf0;
+  display:flex;align-items:center;gap:10px;flex-shrink:0;
+}}
+#pop-flag{{width:32px;height:22px;background-size:cover;background-position:center;border-radius:3px;border:1px solid #e0e0e0;}}
+#pop-title{{font-size:15px;font-weight:800;color:#1a202c;flex:1;}}
+#pop-close{{
+  width:26px;height:26px;border-radius:50%;background:#f0f2f5;
+  border:none;cursor:pointer;font-size:14px;color:#666;
+  display:flex;align-items:center;justify-content:center;flex-shrink:0;
+}}
+#pop-list{{overflow-y:auto;flex:1;padding:8px 0;}}
+.pop-item{{
+  padding:10px 20px;border-bottom:1px solid #f0f2f5;
+  cursor:pointer;transition:background 0.15s;
+}}
+.pop-item:last-child{{border-bottom:none;}}
+.pop-item:hover{{background:#f7f9fc;}}
+.pop-item-title{{font-size:12.5px;font-weight:700;color:#1a202c;line-height:1.35;margin-bottom:2px;}}
+.pop-item-meta{{font-size:11px;color:#6b7a8d;}}
+.pop-more{{
+  padding:10px 20px;text-align:center;font-size:12px;font-weight:700;
+  color:{_prog_color};cursor:pointer;background:#f7f9fc;
+  border-top:1px solid #e8ecf0;flex-shrink:0;
+}}
+.pop-more:hover{{background:#eef2f7;}}
+#pop-overlay{{
+  position:fixed;inset:0;z-index:9999;display:none;
+  background:rgba(0,0,0,0.18);
+}}
+#pop-overlay.open{{display:block;}}
+</style></head><body>
+<div id="gc"></div>
+<div class="tip" id="tip"></div>
+<div id="pop-overlay"></div>
+<div id="pop">
+  <div id="pop-header">
+    <div id="pop-flag"></div>
+    <div id="pop-title"></div>
+    <button id="pop-close">&#x2715;</button>
+  </div>
+  <div id="pop-list"></div>
+</div>
+<script src="https://unpkg.com/globe.gl@2/dist/globe.gl.min.js"></script>
+<script>
+var GDATA={_geo_json};
+var MAX={_max_count};
+var COL="{_prog_color}";
+var PROG="{PROGRAM}";
+var tip=document.getElementById('tip');
+var container=document.getElementById('gc');
+var pop=document.getElementById('pop');
+var overlay=document.getElementById('pop-overlay');
+var popFlag=document.getElementById('pop-flag');
+var popTitle=document.getElementById('pop-title');
+var popList=document.getElementById('pop-list');
+var popClose=document.getElementById('pop-close');
+var W=container.clientWidth||900,H=560;
+
+// ── globe setup ──────────────────────────────────────────────────────────
+var globe=Globe()(container);
+globe.width(W).height(H);
+globe.backgroundColor('rgba(0,0,0,0)');
+globe.renderer().setClearColor(0x000000,0);
+globe.globeImageUrl('https://unpkg.com/three-globe/example/img/earth-blue-marble.jpg');
+globe.bumpImageUrl('https://unpkg.com/three-globe/example/img/earth-topology.png');
+globe.atmosphereColor('#b8d4f0');
+globe.atmosphereAltitude(0.15);
+
+// ── altitude tracking ────────────────────────────────────────────────────
+var filtered=GDATA.filter(function(d){{return d.lat!=null&&d.lng!=null;}});
+
+globe.htmlElementsData(filtered);
+globe.htmlLat(function(d){{return d.lat;}});
+globe.htmlLng(function(d){{return d.lng;}});
+globe.htmlAltitude(0.01);
+
+// ── DOM builder ──────────────────────────────────────────────────────────
+globe.htmlElement(function(d){{
+  var size=Math.round(22+Math.pow(d.count/MAX,0.5)*46);
+  var wrap=document.createElement('div');
+  wrap.style.cssText='position:relative;width:'+size+'px;height:'+size+'px;'
+    +'border-radius:50%;overflow:visible;cursor:pointer;pointer-events:auto;';
+  var circle=document.createElement('div');
+  circle.style.cssText='width:'+size+'px;height:'+size+'px;border-radius:50%;'
+    +'background-size:cover;background-position:center;overflow:hidden;'
+    +'border:2px solid rgba(255,255,255,0.85);'
+    +'box-shadow:0 2px 10px rgba(0,0,0,0.5);'
+    +'transition:transform 0.22s cubic-bezier(.34,1.56,.64,1),box-shadow 0.22s;';
+  if(d.code){{
+    circle.style.backgroundImage="url('https://flagcdn.com/w80/"+d.code+".webp')";
+  }} else {{
+    circle.style.background=COL;
+    circle.style.display='flex';
+    circle.style.alignItems='center';
+    circle.style.justifyContent='center';
+    circle.style.color='#fff';
+    circle.style.fontSize=Math.max(8,Math.round(size/5))+'px';
+    circle.style.fontWeight='800';
+    circle.style.fontFamily='Inter,-apple-system,sans-serif';
+    circle.textContent=d.name.split(' ').map(function(w){{return w[0];}}).join('').slice(0,3).toUpperCase();
+  }}
+  if(d.count>1){{
+    var bs=Math.max(14,Math.round(size*0.34));
+    var badge=document.createElement('div');
+    badge.style.cssText='position:absolute;bottom:-3px;right:-3px;z-index:2;'
+      +'width:'+bs+'px;height:'+bs+'px;border-radius:50%;'
+      +'background:'+COL+';color:#fff;'
+      +'font-size:'+Math.max(8,Math.round(bs*0.58))+'px;'
+      +'font-weight:800;display:flex;align-items:center;justify-content:center;'
+      +'border:1.5px solid #fff;pointer-events:none;'
+      +'font-family:Inter,-apple-system,sans-serif;';
+    badge.textContent=d.count;
+    wrap.appendChild(circle);
+    wrap.appendChild(badge);
+  }} else {{
+    wrap.appendChild(circle);
+  }}
+
+  // hover: scale up
+  wrap.addEventListener('mouseenter',function(e){{
+    circle.style.transform='scale(1.18) translateY(-4px)';
+    circle.style.boxShadow='0 8px 20px rgba(0,0,0,0.45)';
+    tip.textContent=d.name+': '+d.count+' '+(d.count!==1?'theses':'thesis');
+    tip.style.display='block';
+  }});
+  wrap.addEventListener('mousemove',function(e){{
+    tip.style.left=(e.clientX+14)+'px';
+    tip.style.top=(e.clientY-32)+'px';
+  }});
+  wrap.addEventListener('mouseleave',function(){{
+    circle.style.transform='scale(1) translateY(0)';
+    circle.style.boxShadow='0 2px 10px rgba(0,0,0,0.5)';
+    tip.style.display='none';
+  }});
+
+  // click: popout
+  wrap.addEventListener('click',function(e){{
+    e.stopPropagation();
+    openPopout(d);
+  }});
+
+  return wrap;
+}});
+
+// ── popout logic ──────────────────────────────────────────────────────────
+function openPopout(d){{
+  tip.style.display='none';
+  popFlag.style.backgroundImage=d.code?"url('https://flagcdn.com/w80/"+d.code+".webp')":'';
+  popFlag.style.background=d.code?'':'#e0e4ea';
+  popTitle.textContent=d.name+' \u2014 '+d.count+' '+(d.count!==1?'theses':'thesis');
+  popList.innerHTML='';
+  var theses=d.theses||[];
+  var total=d.count;
+  theses.forEach(function(t){{
+    var item=document.createElement('div');
+    item.className='pop-item';
+    var tit=document.createElement('div');
+    tit.className='pop-item-title';
+    tit.textContent=t.title||'Untitled';
+    var meta=document.createElement('div');
+    meta.className='pop-item-meta';
+    meta.textContent=(t.author||'')+(t.year?' \u00b7 '+t.year:'');
+    item.appendChild(tit);
+    item.appendChild(meta);
+    if(t.pdf&&t.pdf!=='nan'&&t.pdf!=='')item.addEventListener('click',function(){{
+      var key=t.pdf.replace(/\.pdf$/i,'');
+      var base=window.parent.location.href.split('?')[0];
+      window.open(base+'?program='+PROG+'&details='+encodeURIComponent(key),'_blank');
+    }});
+    popList.appendChild(item);
+  }});
+  var existMore=pop.querySelector('.pop-more');
+  if(existMore)pop.removeChild(existMore);
+  if(total>10){{
+    var more=document.createElement('div');
+    more.className='pop-more';
+    more.textContent='+'+(total-10)+' more theses';
+    pop.appendChild(more);
+  }}
+  overlay.classList.add('open');
+  pop.classList.add('open');
+}}
+
+// close pop
+function closePop(){{
+  pop.classList.remove('open');
+  overlay.classList.remove('open');
+  var more=pop.querySelector('.pop-more');
+  if(more)pop.removeChild(more);
+}}
+popClose.addEventListener('click',closePop);
+overlay.addEventListener('click',closePop);
+
+// ── controls ─────────────────────────────────────────────────────────────
+globe.controls().autoRotate=true;
+globe.controls().autoRotateSpeed=0.5;
+globe.controls().enableZoom=true;
+globe.controls().minDistance=150;
+globe.controls().maxDistance=500;
+globe.pointOfView({{lat:20,lng:15,altitude:2.0}});
+
+// stop rotation on first globe drag (not on flag click)
+globe.controls().addEventListener('start',function(){{
+  globe.controls().autoRotate=false;
+}});
+
+// ── pointer-events fix ────────────────────────────────────────────────────
+// globe.gl creates an HTML overlay div (sibling of canvas) that intercepts
+// wheel events, preventing OrbitControls from receiving them for zoom.
+// Setting pointer-events:none on that overlay lets wheel events reach the canvas.
+// Child flag elements with inline pointer-events:auto are unaffected by CSS rules.
+setTimeout(function(){{
+  globe.renderer().domElement.style.pointerEvents='auto';
+  Array.from(container.children).forEach(function(el){{
+    if(el.tagName!=='CANVAS'){{el.style.pointerEvents='none';}}
+  }});
+}},600);
+
+// ── scroll parent page when mouse is NOT over the globe ───────────────────
+var _overGc=false;
+container.addEventListener('mouseenter',function(){{_overGc=true;}});
+container.addEventListener('mouseleave',function(){{_overGc=false;}});
+document.addEventListener('wheel',function(e){{
+  if(!_overGc){{
+    try{{window.parent.scrollBy({{top:e.deltaY,behavior:'auto'}});}}catch(ex){{}}
+  }}
+}},{{passive:true}});
+
+window.addEventListener('resize',function(){{
+  globe.width(container.clientWidth||900);
+}});
+</script></body></html>
+"""
+        _ins_comp.html(_geo_html, height=580, scrolling=False)
+        st.markdown("<div style='margin-bottom:3rem;'></div>", unsafe_allow_html=True)
+
+    # ══════════════════════════════════════════════════════════════════════
+    # SECTION 4 — METHODOLOGY DNA
+    # ══════════════════════════════════════════════════════════════════════
+    _meth_counts = {k: v for k, v in _ins_data["method_counts"].items()
+                    if k.lower() not in ("n/a", "nan", "") and v >= 1}
+    if _meth_counts:
+        st.markdown("""
+        <div class="ins-section">
+          <div class="ins-section-header">
+            <div class="ins-section-number">04</div>
+            <div class="ins-section-text">
+              <div class="ins-section-title">Methodology DNA</div>
+              <div class="ins-section-desc">The research methods that define how this programme investigates the world.</div>
+            </div>
+          </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+        _meth_sorted = sorted(_meth_counts.items(), key=lambda x: -x[1])
+        _meth_total = sum(v for _, v in _meth_sorted)
+        _meth_payload = []
+        for _mk, _mv in _meth_sorted:
+            _meth_payload.append({
+                "name": _mk,
+                "count": _mv,
+                "pct": round(100 * _mv / max(_meth_total, 1), 1),
+                "color": _INS_METHOD_HEX.get(_mk, "#7a8fa8"),
+            })
+        _meth_json = _ins_json.dumps(_meth_payload, ensure_ascii=False)
+
+        _meth_html = f"""
+<style>
+*{{box-sizing:border-box;margin:0;padding:0;}}
+body{{font-family:'Inter',-apple-system,sans-serif;background:transparent;}}
+#meth-wrap{{padding:4px;}}
+.meth-row{{
+  display:flex;align-items:center;gap:1rem;margin-bottom:1rem;
+  opacity:0;transform:translateX(-24px);
+  animation:methIn 0.55s cubic-bezier(.34,1.56,.64,1) forwards;
+}}
+@keyframes methIn{{to{{opacity:1;transform:translateX(0);}}}}
+.meth-label{{
+  min-width:220px;max-width:220px;font-size:0.82rem;font-weight:700;
+  color:#0a2540;line-height:1.3;flex-shrink:0;
+}}
+.meth-bar-bg{{
+  flex:1;background:#f0f4f9;border-radius:99px;height:20px;overflow:hidden;
+  position:relative;
+}}
+.meth-bar-fill{{
+  height:100%;border-radius:99px;width:0;
+  transition:width 1.2s cubic-bezier(.4,0,.2,1);
+}}
+.meth-count{{
+  min-width:90px;text-align:right;font-size:0.8rem;font-weight:700;
+  color:#0a2540;flex-shrink:0;
+}}
+.meth-pct{{font-size:0.72rem;color:#9aa5b4;font-weight:500;}}
+</style>
+<div id="meth-wrap"></div>
+<script>
+var MDATA={_meth_json};
+var wrap=document.getElementById('meth-wrap');
+var maxCount=MDATA[0].count;
+
+MDATA.forEach(function(d,i){{
+  var row=document.createElement('div');
+  row.className='meth-row';
+  row.style.animationDelay=(i*80)+'ms';
+  var pct=Math.round(100*d.count/maxCount);
+  row.innerHTML=
+    '<div class="meth-label">'+d.name+'</div>'
+    +'<div class="meth-bar-bg"><div class="meth-bar-fill" id="mbar'+i+'" style="background:'+d.color+'"></div></div>'
+    +'<div class="meth-count">'+d.count+' <span class="meth-pct">('+d.pct+'%)</span></div>';
+  wrap.appendChild(row);
+}});
+
+// Animate bars after paint
+requestAnimationFrame(function(){{
+  requestAnimationFrame(function(){{
+    MDATA.forEach(function(d,i){{
+      var pct=Math.round(100*d.count/maxCount);
+      var el=document.getElementById('mbar'+i);
+      if(el)el.style.width=pct+'%';
+    }});
+  }});
+}});
+</script>
+"""
+        _ins_comp.html(_meth_html, height=max(120, len(_meth_sorted) * 60 + 20), scrolling=False)
+        st.markdown("<div style='margin-bottom:3rem;'></div>", unsafe_allow_html=True)
+
+    # ══════════════════════════════════════════════════════════════════════
+    # SECTION 5 — SECTOR TIMELINE
+    # ══════════════════════════════════════════════════════════════════════
+    _sector_year = _ins_data["sector_year"]
+    _timeline_years = _ins_data["years"]
+    if _sector_year and len(_timeline_years) >= 2:
+        st.markdown("""
+        <div class="ins-section">
+          <div class="ins-section-header">
+            <div class="ins-section-number">05</div>
+            <div class="ins-section-text">
+              <div class="ins-section-title">Sector Timeline</div>
+              <div class="ins-section-desc">How research focus has shifted across sectors over the years. Hover a line to highlight.</div>
+            </div>
+          </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+        _sec_payload = []
+        for _sec, _sec_counts in sorted(
+            _sector_year.items(),
+            key=lambda x: -sum(x[1]),
+        ):
+            if sum(_sec_counts) == 0:
+                continue
+            _sec_payload.append({
+                "name": _sec,
+                "color": _INS_SECTOR_HEX.get(_sec, "#7a8fa8"),
+                "counts": _sec_counts,
+            })
+        _sec_json = _ins_json.dumps({
+            "sectors": _sec_payload,
+            "years": _timeline_years,
+        }, ensure_ascii=False)
+
+        _timeline_html = f"""
+<style>
+*{{box-sizing:border-box;margin:0;padding:0;}}
+body{{font-family:'Inter',-apple-system,sans-serif;background:transparent;overflow:hidden;}}
+#tl-wrap{{position:relative;width:100%;}}
+#tl-svg{{width:100%;display:block;}}
+#tl-legend{{
+  display:flex;flex-wrap:wrap;gap:0.8rem 1.4rem;
+  margin-top:0.8rem;padding:0 8px;
+}}
+.tl-legend-item{{
+  display:flex;align-items:center;gap:0.4rem;
+  font-size:0.75rem;font-weight:600;color:#4a5568;cursor:pointer;
+  padding:0.2rem 0.4rem;border-radius:6px;transition:background 0.15s;
+}}
+.tl-legend-item:hover{{background:#f0f4f9;}}
+.tl-legend-dot{{width:10px;height:10px;border-radius:50%;flex-shrink:0;}}
+#tl-tooltip{{
+  position:fixed;background:#fff;border:1px solid #e2e8f0;
+  border-radius:10px;padding:0.6rem 0.9rem;pointer-events:none;
+  box-shadow:0 4px 18px rgba(0,54,96,0.13);font-size:0.78rem;
+  display:none;z-index:999;min-width:140px;
+}}
+</style>
+<div id="tl-wrap">
+  <svg id="tl-svg" height="300"></svg>
+  <div id="tl-legend"></div>
+</div>
+<div id="tl-tooltip"></div>
+<script>
+var TL={_sec_json};
+var svg=document.getElementById('tl-svg');
+var legend=document.getElementById('tl-legend');
+var tooltip=document.getElementById('tl-tooltip');
+var W=800,H=300,PAD={{t:20,r:20,b:40,l:48}};
+var years=TL.years;
+var sectors=TL.sectors;
+var maxVal=0;
+sectors.forEach(function(s){{s.counts.forEach(function(c){{if(c>maxVal)maxVal=c;}});}});
+if(maxVal===0)maxVal=1;
+var xStep=(W-PAD.l-PAD.r)/(Math.max(years.length-1,1));
+
+function xPos(i){{return PAD.l+i*xStep;}}
+function yPos(v){{return PAD.t+(H-PAD.t-PAD.b)*(1-v/maxVal);}}
+
+function makePath(counts){{
+  var pts=counts.map(function(c,i){{return xPos(i)+','+yPos(c);}});
+  return 'M'+pts.join(' L');
+}}
+
+svg.setAttribute('viewBox','0 0 '+W+' '+H);
+svg.setAttribute('preserveAspectRatio','xMidYMid meet');
+
+// Grid lines
+for(var gi=0;gi<=4;gi++){{
+  var gy=PAD.t+(H-PAD.t-PAD.b)*gi/4;
+  var gl=document.createElementNS('http://www.w3.org/2000/svg','line');
+  gl.setAttribute('x1',PAD.l);gl.setAttribute('x2',W-PAD.r);
+  gl.setAttribute('y1',gy);gl.setAttribute('y2',gy);
+  gl.setAttribute('stroke','#e8edf3');gl.setAttribute('stroke-width','1');
+  svg.appendChild(gl);
+  var gv=Math.round(maxVal*(1-gi/4));
+  var gt=document.createElementNS('http://www.w3.org/2000/svg','text');
+  gt.setAttribute('x',PAD.l-6);gt.setAttribute('y',gy+4);
+  gt.setAttribute('text-anchor','end');gt.setAttribute('font-size','10');
+  gt.setAttribute('fill','#9aa5b4');gt.textContent=gv;
+  svg.appendChild(gt);
+}}
+
+// X axis labels
+years.forEach(function(y,i){{
+  var xt=document.createElementNS('http://www.w3.org/2000/svg','text');
+  xt.setAttribute('x',xPos(i));xt.setAttribute('y',H-PAD.b+16);
+  xt.setAttribute('text-anchor','middle');xt.setAttribute('font-size','11');
+  xt.setAttribute('fill','#6b7a8d');xt.setAttribute('font-weight','600');
+  xt.textContent=y;
+  svg.appendChild(xt);
+}});
+
+var pathEls={{}};
+sectors.forEach(function(s,si){{
+  var path=document.createElementNS('http://www.w3.org/2000/svg','path');
+  path.setAttribute('d',makePath(s.counts));
+  path.setAttribute('fill','none');
+  path.setAttribute('stroke',s.color);
+  path.setAttribute('stroke-width','2.5');
+  path.setAttribute('stroke-linecap','round');
+  path.setAttribute('stroke-linejoin','round');
+  path.setAttribute('opacity','0.85');
+  path.style.transition='opacity 0.2s,stroke-width 0.2s';
+  // animate draw
+  var len=path.getTotalLength?path.getTotalLength():1000;
+  path.style.strokeDasharray=len;
+  path.style.strokeDashoffset=len;
+  path.style.animation='drawLine 1.4s cubic-bezier(.4,0,.2,1) '+(si*120)+'ms forwards';
+  svg.appendChild(path);
+  pathEls[s.name]=path;
+
+  // dots
+  s.counts.forEach(function(c,i){{
+    if(c===0)return;
+    var circle=document.createElementNS('http://www.w3.org/2000/svg','circle');
+    circle.setAttribute('cx',xPos(i));circle.setAttribute('cy',yPos(c));
+    circle.setAttribute('r','4');circle.setAttribute('fill',s.color);
+    circle.setAttribute('stroke','#fff');circle.setAttribute('stroke-width','2');
+    circle.style.cursor='default';
+    circle.addEventListener('mouseenter',function(e){{
+      showTip(e,s.name,years[i],c);
+    }});
+    circle.addEventListener('mouseleave',hideTip);
+    svg.appendChild(circle);
+  }});
+}});
+
+// CSS animation keyframe via style tag
+var styleEl=document.createElement('style');
+styleEl.textContent='@keyframes drawLine{{to{{stroke-dashoffset:0}}}}';
+document.head.appendChild(styleEl);
+
+// Legend
+sectors.forEach(function(s){{
+  var item=document.createElement('div');
+  item.className='tl-legend-item';
+  item.innerHTML='<div class="tl-legend-dot" style="background:'+s.color+'"></div>'+s.name;
+  item.addEventListener('mouseenter',function(){{
+    Object.values(pathEls).forEach(function(p){{p.style.opacity='0.15';p.style.strokeWidth='2';}});
+    if(pathEls[s.name]){{pathEls[s.name].style.opacity='1';pathEls[s.name].style.strokeWidth='3.5';}}
+  }});
+  item.addEventListener('mouseleave',function(){{
+    Object.values(pathEls).forEach(function(p){{p.style.opacity='0.85';p.style.strokeWidth='2.5';}});
+  }});
+  legend.appendChild(item);
+}});
+
+function showTip(e,sector,year,count){{
+  tooltip.style.display='block';
+  tooltip.innerHTML='<b>'+sector+'</b><br/>'+year+': <b>'+count+'</b> thesis'+(count!==1?'es':'');
+  moveTip(e);
+}}
+function moveTip(e){{tooltip.style.left=(e.clientX+12)+'px';tooltip.style.top=(e.clientY-38)+'px';}}
+function hideTip(){{tooltip.style.display='none';}}
+svg.addEventListener('mousemove',moveTip);
+</script>
+"""
+        _ins_comp.html(_timeline_html, height=420, scrolling=False)
 
 elif page == "Supervisors":
     import re as _re

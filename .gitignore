@@ -1,0 +1,12 @@
+
+# PDF files — too large for git; serve via local static folder or copy manually to programs/*/pdfs/
+programs/*/pdfs/*.pdf
+
+# macOS metadata
+.DS_Store
+**/.DS_Store
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
