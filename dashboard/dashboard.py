@@ -5973,6 +5973,9 @@ elif page == "Supervisors":
         if st.button("← Back to Supervisors", key="sup_back_to_dir"):
             st.session_state.sup_view = 'directory'
             st.session_state.sup_selected = None
+            st.query_params.clear()
+            st.query_params["program"] = PROGRAM
+            st.query_params["nav"] = "Supervisors"
             st.rerun()
 
         st.markdown(
@@ -6122,6 +6125,9 @@ elif page == "Supervisors":
         if st.button("← Back to Directory", key="sup_finder_back"):
             st.session_state.sup_view = 'directory'
             st.session_state.sup_finder_results = False
+            st.query_params.clear()
+            st.query_params["program"] = PROGRAM
+            st.query_params["nav"] = "Supervisors"
             st.rerun()
 
         st.markdown("""<div class="sup-finder-hero">
@@ -6154,6 +6160,9 @@ elif page == "Supervisors":
             st.session_state.sup_finder_method = _fmethod
             st.session_state.sup_finder_sector = _fsector
             st.session_state.sup_finder_results = True
+            st.query_params.clear()
+            st.query_params["program"] = PROGRAM
+            st.query_params["nav"] = "Supervisors"
             st.rerun()
 
         if st.session_state.sup_finder_results and (
@@ -6258,6 +6267,9 @@ elif page == "Supervisors":
         with _cta_c:
             if st.button("🎯 Find My Supervisor", key="sup_open_finder", type="primary"):
                 st.session_state.sup_view = 'finder'
+                st.query_params.clear()
+                st.query_params["program"] = PROGRAM
+                st.query_params["nav"] = "Supervisors"
                 st.rerun()
 
         st.markdown("")
