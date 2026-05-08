@@ -189,11 +189,13 @@ def _load_org_logo_b64(logos_dir: str, org_name: str) -> str:
     if not index:
         return ''
     _LEGAL = r'\b(b\.?v\.?|n\.?v\.?|ltd\.?|inc\.?|llc|gmbh|ag|plc|s\.a\.?|rcv|co|kg)\b'
+    # Pre-process: collapse dotted acronyms like D.O.R.C. → DORC so token splitting works
+    org_name_proc = _rl.sub(r'\b([A-Za-z]\.){2,}', lambda m: m.group(0).replace('.', ''), org_name)
     # Extract parenthesised acronym e.g. "(RVO)", "(MCC)", "(DORC)"
-    _acr_m = _rl.search(r'\(([A-Z]{2,8})\)', org_name)
+    _acr_m = _rl.search(r'\(([A-Z]{2,8})\)', org_name_proc)
     _acronym = _acr_m.group(1).lower() if _acr_m else ''
     # Remove parenthesised parts before further cleaning
-    cleaned = _rl.sub(r'\([^)]*\)', '', org_name.lower())
+    cleaned = _rl.sub(r'\([^)]*\)', '', org_name_proc.lower())
     cleaned = _rl.sub(_LEGAL, '', cleaned)
     org_tokens = set(
         t for t in _rl.sub(r'[^a-z0-9]', ' ', cleaned).split()
@@ -201,12 +203,14 @@ def _load_org_logo_b64(logos_dir: str, org_name: str) -> str:
     )
     org_tokens -= {'the', 'de', 'van', 'het', 'and', 'of', 'for', 'en', 'an', 'on', 'in'}
     org_joined = _rl.sub(r'[^a-z0-9]', '', cleaned)
-    # Build initials acronym from all words (including short stop words like "de")
-    _raw_words = _rl.sub(r'[^a-z0-9\s]', '', org_name.lower()).split()
+    # Build initials acronym variants for different filtering levels
+    _raw_words = _rl.sub(r'[^a-z0-9\s]', '', org_name_proc.lower()).split()
     _acr_stop = {'the', 'van', 'het', 'and', 'of', 'for', 'an', 'on', 'in',
                  'bv', 'nv', 'ltd', 'inc', 'llc', 'gmbh', 'ag', 'plc', 'sa', 'rcv', 'co', 'kg'}
     _acr_words = [w for w in _raw_words if w and w not in _acr_stop]
     _initials_acr = ''.join(w[0] for w in _acr_words) if len(_acr_words) >= 2 else ''
+    # Full initials keeping all words (e.g. HDSR = Hoogheemraadschap De Stichtse Rijnlanden)
+    _initials_full = ''.join(w[0] for w in _raw_words if w) if len(_raw_words) >= 2 else ''
     if not org_tokens and not _acronym:
         return ''
     best_path, best_score = '', 0.0
@@ -235,10 +239,14 @@ def _load_org_logo_b64(logos_dir: str, org_name: str) -> str:
         if _acronym and file_joined:
             if file_joined == _acronym or _acronym in file_joined:
                 score = max(score, 0.82)
-        # Phase 4b: initials acronym match (e.g. "hdsr" → Hoogheemraadschap De Stichtse Rijnlanden)
+        # Phase 4b: initials acronym match (stop-words excluded)
         if _initials_acr and len(_initials_acr) >= 3 and file_joined:
             if file_joined == _initials_acr or _initials_acr in file_joined:
                 score = max(score, 0.76)
+        # Phase 4c: full initials including stop words like 'de' (Dutch acronyms: HDSR, BVOR)
+        if _initials_full and len(_initials_full) >= 3 and _initials_full != _initials_acr and file_joined:
+            if file_joined == _initials_full or _initials_full in file_joined:
+                score = max(score, 0.74)
         # Phase 5: difflib fuzzy match on slugs (catches typos like greylable → graylabel)
         if file_joined and org_joined and len(file_joined) >= 4 and len(org_joined) >= 4:
             ratio = _SM(None, file_joined, org_joined).ratio()
