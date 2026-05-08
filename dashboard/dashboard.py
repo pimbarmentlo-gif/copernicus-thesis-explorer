@@ -1089,6 +1089,22 @@ st.markdown(
         margin-bottom: 6px;
         line-height: 1.5;
     }
+    .detail-org-row {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 6px;
+    }
+    .detail-org-logo {
+        width: 36px;
+        height: 36px;
+        border-radius: 50%;
+        object-fit: contain;
+        background: #f5f5f5;
+        border: 1px solid #e0e0e0;
+        flex-shrink: 0;
+        padding: 3px;
+    }
     .detail-sdg-slot {
         display: flex;
         justify-content: flex-start;
@@ -1953,7 +1969,27 @@ def render_structured_details_sections(row):
     with col_partnerships:
         with st.container(border=True, key="detail_partnerships"):
             st.markdown("<div class='detail-section-header'>Partnerships</div>", unsafe_allow_html=True)
-            _detail_field("Internship Organization", row.get("Internship Organization", "n/a"))
+
+            # ── Internship Organization with optional round logo ──
+            _intern_org = row.get("Internship Organization", "n/a")
+            _intern_org_str = str(_intern_org).strip() if _has_value(_intern_org) else "n/a"
+            st.markdown("<div class='detail-label'>Internship Organization</div>", unsafe_allow_html=True)
+            if _intern_org_str != "n/a":
+                _logos_dir = os.path.join(BASE_DIR, "company logos")
+                _intern_logo_b64 = _load_org_logo_b64(_logos_dir, _intern_org_str)
+                if _intern_logo_b64:
+                    st.markdown(
+                        f"<div class='detail-org-row'>"
+                        f"<img src='{_intern_logo_b64}' class='detail-org-logo' alt='{_intern_org_str}'/>"
+                        f"<span class='detail-field-value' style='margin:0'>{_intern_org_str}</span>"
+                        f"</div>",
+                        unsafe_allow_html=True,
+                    )
+                else:
+                    st.markdown(f"<div class='detail-field-value'>{_intern_org_str}</div>", unsafe_allow_html=True)
+            else:
+                st.markdown("<div class='detail-field-value'>n/a</div>", unsafe_allow_html=True)
+
             _detail_field("Organizations Studied", row.get("Organizations Studied", "n/a"))
 
 
