@@ -222,8 +222,10 @@ def _load_org_logo_b64(logos_dir: str, org_name: str) -> str:
             if overlap:
                 score = max(score, overlap / len(org_tokens | file_tokens))
         # Phase 2a: org tokens as substrings of file_joined (compound filenames)
+        # Require token len >= 4 to avoid 3-letter org acronyms (e.g. "dwa") matching
+        # as accidental substrings of unrelated filenames (e.g. "worldwaternet")
         if file_joined and org_tokens:
-            sub_hits = sum(1 for t in org_tokens if t in file_joined)
+            sub_hits = sum(1 for t in org_tokens if len(t) >= 4 and t in file_joined)
             if sub_hits:
                 score = max(score, sub_hits / max(1, len(org_tokens)) * 0.75)
         # Phase 2b: file_joined as substring of org_joined (acronym files: "dorc", "mcc", "cfp")
