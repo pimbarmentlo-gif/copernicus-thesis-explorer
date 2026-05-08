@@ -315,44 +315,67 @@ if 'page' not in st.session_state:
 if 'program' not in st.session_state:
     st.session_state.program = "sbi"
 
-# Allow deep-links from homepage/thesis cards using query params.
+# Derive navigation state from URL — this keeps the browser back/forward button working.
+# URL params are preserved (not cleared) so each navigation step has its own history entry.
 _VALID_PROGRAMS = {"sbi", "energy_science", "sustainable_development", "innovation_sciences", "water_management"}
 _program_from_query = st.query_params.get("program")
 _details_from_query = st.query_params.get("details")
+_pdf_from_query     = st.query_params.get("pdf")
 
-# Prioritize details links so clicking a thesis card always opens details first.
-if _details_from_query:
-    if _program_from_query and _program_from_query in _VALID_PROGRAMS:
-        st.session_state.program = _program_from_query
-    st.session_state.page = "dashboard"
-    st.session_state.selected_details = str(_details_from_query)
+# Logo / back-home link (explicit override — always honoured first)
+if st.query_params.get("back_home") == "1":
+    st.session_state.page = "home"
+    st.session_state.selected_details = None
     st.session_state.selected_pdf = None
     st.query_params.clear()
     st.rerun()
 
-# Supervisor card click → open profile (must be before the generic program handler)
-_sup_selected_from_query = st.query_params.get("sup_selected")
-if _sup_selected_from_query:
+# Thesis details view  — URL: ?program=PROG&details=KEY
+elif _details_from_query:
     if _program_from_query and _program_from_query in _VALID_PROGRAMS:
         st.session_state.program = _program_from_query
     st.session_state.page = "dashboard"
-    st.session_state.page_nav = "Supervisors"
-    st.session_state.sup_selected = _sup_selected_from_query
-    st.session_state.sup_view = 'profile'
-    st.query_params.clear()
-    st.rerun()
+    # Only reset PDF state when switching to a *different* thesis (not on every rerun)
+    if str(_details_from_query) != str(st.session_state.get("selected_details", "")):
+        st.session_state.selected_pdf = None
+    st.session_state.selected_details = str(_details_from_query)
 
-if _program_from_query and _program_from_query in _VALID_PROGRAMS:
-    st.session_state.program = _program_from_query
+# Full-page PDF viewer — URL: ?program=PROG&pdf=FILENAME
+elif _pdf_from_query:
+    if _program_from_query and _program_from_query in _VALID_PROGRAMS:
+        st.session_state.program = _program_from_query
     st.session_state.page = "dashboard"
-    st.query_params.clear()
-    st.rerun()
+    st.session_state.selected_pdf = str(_pdf_from_query)
+    st.session_state.selected_details = None
 
-# Logo click → back to programmes
-if st.query_params.get("back_home") == "1":
-    st.session_state.page = "home"
-    st.query_params.clear()
-    st.rerun()
+else:
+    # Supervisor card click → open profile (must be before the generic program handler)
+    _sup_selected_from_query = st.query_params.get("sup_selected")
+    if _sup_selected_from_query:
+        if _program_from_query and _program_from_query in _VALID_PROGRAMS:
+            st.session_state.program = _program_from_query
+        st.session_state.page = "dashboard"
+        st.session_state.page_nav = "Supervisors"
+        st.session_state.sup_selected = _sup_selected_from_query
+        st.session_state.sup_view = 'profile'
+        st.query_params.clear()
+        st.rerun()
+
+    elif _program_from_query and _program_from_query in _VALID_PROGRAMS:
+        # Programme dashboard — URL: ?program=PROG[&nav=SECTION]
+        st.session_state.program = _program_from_query
+        st.session_state.page = "dashboard"
+        st.session_state.selected_details = None
+        st.session_state.selected_pdf = None
+        _nav_from_query = st.query_params.get("nav")
+        if _nav_from_query in ("Explorer", "Supervisors", "Insights"):
+            st.session_state.page_nav = _nav_from_query
+
+    else:
+        # No URL params → home page (handles browser back-button to home)
+        st.session_state.page = "home"
+        st.session_state.selected_details = None
+        st.session_state.selected_pdf = None
 
 THESES_PER_PAGE = 16
 
@@ -2204,6 +2227,30 @@ def show_homepage():
             )
 
 
+# Browser back/forward button support.
+# On every render we push a history entry so each navigation step is bookmarkable.
+# On popstate (back/forward), we force a full reload so Streamlit reads the new URL.
+st.components.v1.html("""
+<script>
+(function() {
+    var w = window.parent;
+    var url = w.location.href;
+    // Install popstate handler only once per browser tab
+    if (!w._stNavInit) {
+        w._stNavInit = true;
+        w.addEventListener('popstate', function() {
+            w.location.replace(w.location.href);
+        });
+    }
+    // Convert Streamlit's replaceState into a pushState so back button records the entry
+    if (w._stLastNavUrl && w._stLastNavUrl !== url) {
+        w.history.pushState({url: url}, '', url);
+    }
+    w._stLastNavUrl = url;
+})();
+</script>
+""", height=0)
+
 # ----- page routing ---------------------------------------------------------
 if st.session_state.page == "home":
     show_homepage()
@@ -2282,6 +2329,7 @@ if st.sidebar.button(
     use_container_width=True,
 ):
     st.session_state.page = "home"
+    st.query_params.clear()
     st.rerun()
 
 st.sidebar.markdown("<div class='sidebar-programme-label'>Navigation</div>", unsafe_allow_html=True)
@@ -2294,6 +2342,10 @@ for _np in _VALID_PAGES:
         type="primary" if _is_active else "secondary",
     ):
         st.session_state.page_nav = _np
+        st.query_params.clear()
+        st.query_params["program"] = PROGRAM
+        if _np != "Explorer":
+            st.query_params["nav"] = _np
         st.rerun()
 
 st.sidebar.markdown("<hr style='border-color:rgba(255,255,255,0.09);margin:10px 0;'>", unsafe_allow_html=True)
@@ -2667,6 +2719,8 @@ if page == "Explorer":
             st.markdown("### Thesis Viewer")
             if st.button("\u2190 Back to Explorer", key="reader_back_to_explorer"):
                 st.session_state.selected_pdf = None
+                st.query_params.clear()
+                st.query_params["program"] = PROGRAM
                 st.rerun()
 
             st.caption("Full-page thesis viewer. Use the viewer controls to navigate and inspect the document in detail.")
@@ -2715,6 +2769,8 @@ if page == "Explorer":
             )
             if st.button("\u2190 Back to Explorer", key="back_to_explorer_pdf_err"):
                 st.session_state.selected_pdf = None
+                st.query_params.clear()
+                st.query_params["program"] = PROGRAM
                 st.rerun()
 
     elif selected_details:
@@ -2737,6 +2793,8 @@ if page == "Explorer":
                 if st.button("\u2190 Back to Explorer", key="details_reader_back_to_explorer"):
                     st.session_state.selected_details = None
                     st.session_state.selected_pdf = None
+                    st.query_params.clear()
+                    st.query_params["program"] = PROGRAM
                     st.rerun()
 
                 # ── Hero header ──
@@ -2776,6 +2834,9 @@ if page == "Explorer":
                             if st.button("Full-Page Viewer", key="details_open_full_page_viewer", width='stretch'):
                                 st.session_state.selected_pdf = pdf_name
                                 st.session_state.selected_details = None
+                                st.query_params.clear()
+                                st.query_params["program"] = PROGRAM
+                                st.query_params["pdf"] = pdf_name
                                 st.rerun()
                         with btn_c2:
                             if _det_dl_bytes:
@@ -2795,6 +2856,8 @@ if page == "Explorer":
             else:
                 if st.button("\u2190 Back to Explorer", key="back_to_explorer_no_pdf"):
                     st.session_state.selected_details = None
+                    st.query_params.clear()
+                    st.query_params["program"] = PROGRAM
                     st.rerun()
 
                 # ── Hero header ──
@@ -2826,6 +2889,9 @@ if page == "Explorer":
                         if st.button("📖 Open Thesis", key="details_nopdf_open"):
                             st.session_state.selected_pdf = pdf_name
                             st.session_state.selected_details = None
+                            st.query_params.clear()
+                            st.query_params["program"] = PROGRAM
+                            st.query_params["pdf"] = pdf_name
                             st.rerun()
                         st.markdown(
                             f"[Browse all theses on Google Drive]({_DRIVE_ROOT_FALLBACK})",
@@ -2842,6 +2908,8 @@ if page == "Explorer":
             st.error("The requested thesis details could not be found.")
             if st.button("\u2190 Back to Explorer", key="back_to_explorer_not_found"):
                 st.session_state.selected_details = None
+                st.query_params.clear()
+                st.query_params["program"] = PROGRAM
                 st.rerun()
 
     else:
@@ -2984,6 +3052,9 @@ if page == "Explorer":
                             if _sel_key and _sel_key not in ("n/a", "nan", ""):
                                 st.session_state.selected_details = _sel_key
                                 st.session_state.selected_pdf = None
+                                st.query_params.clear()
+                                st.query_params["program"] = PROGRAM
+                                st.query_params["details"] = _sel_key
                                 st.rerun()
                 except ImportError:
                     pass
