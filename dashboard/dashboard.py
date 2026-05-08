@@ -56,12 +56,12 @@ def _load_thesis_data(program_dir: str, program: str) -> tuple:
     # Featured theses for Innovation Sciences — matched by Thesis_PDF filename (same as SBI).
     # Bentum, Craen, Tim Dekker, Janssen not yet in metadata; will activate once rows are added.
     _featured_is = {
-        "schuitemaker_2023.pdf",   # Nena Schuitemaker
+        "schuitemaker_2025.pdf",   # Nena Schuitemaker
         "conijn_2025.pdf",         # Maike Conijn
-        "trooijen_2023.pdf",       # Steven van Trooijen
-        "jongh_2023.pdf",          # Luc (Lodewijk) de Jongh
+        "trooijen_2025.pdf",       # Steven van Trooijen
+        "jongh_2025.pdf",          # Luc (Lodewijk) de Jongh
         "khachatryan_2025.pdf",    # Lilya Khachatryan
-        "raedts_2023.pdf",         # Cas Raedts
+        "raedts_2025.pdf",         # Cas Raedts
         "bentum_2025.pdf",         # Caspar van Bentum (not yet in metadata)
         "craen_2025.pdf",          # Teun de Craen (not yet in metadata)
         "dekker_2025.pdf",         # Tim Dekker (not yet in metadata)
