@@ -151,7 +151,7 @@ def _build_logo_index(logos_dir: str) -> list:
     """Scan logos_dir and return list of (token_set, joined_slug, filepath) tuples."""
     import re as _rl
     _NOISE = {
-        "logo","brand","svg","png","jpg","jpeg","webp","avif","rgb","seeklogo",
+        "logo","favicon","brand","svg","png","jpg","jpeg","webp","avif","rgb","seeklogo",
         "wine","pos","bg","voorkant","corelogo","colour","teal","claim","rz",
         "smarter","last","mile","logistics","horizontaal","worldwide","north",
         "bv","nv","ltd","inc","llc","gmbh","ag","plc","sa","the","de","van",
