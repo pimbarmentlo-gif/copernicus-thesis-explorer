@@ -53,19 +53,21 @@ def _load_thesis_data(program_dir: str, program: str) -> tuple:
         "schutter_2025.pdf",
         "soltys_2023.pdf",
     }
-    # Featured theses for Innovation Sciences (Caspar van Bentum, Teun de Craen, Tim Dekker,
-    # Bart Janssen, Luc de Jongh not yet in metadata — will activate once PDFs are added).
-    _featured_is = {
-        "conijn_2025.pdf",        # Maike Conijn
-        "khachatryan_2025.pdf",   # Lilya Khachatryan
-        "raedts_2023.pdf",        # Cas Raedts
-        "schuitemaker_2023.pdf",  # Nena Schuitemaker
-        "trooijen_2023.pdf",      # Steven van Trooijen
-        "bentum_2025.pdf",        # Caspar van Bentum (PDF not yet in system)
-        "craen_2025.pdf",         # Teun de Craen (PDF not yet in system)
-        "dekker_2025.pdf",        # Tim Dekker (PDF not yet in system)
-        "janssen_2025.pdf",       # Bart Janssen (PDF not yet in system)
-        "jongh_2025.pdf",         # Luc de Jongh (PDF not yet in system)
+    # Featured theses for Innovation Sciences — matched by author name because Thesis_PDF
+    # is not yet populated for these rows. Authors not yet in metadata (Caspar van Bentum,
+    # Teun de Craen, Tim Dekker, Bart Janssen, Luc de Jongh) will be featured automatically
+    # once their rows are added to thesis_metadata_matched.csv.
+    _featured_is_authors = {
+        "Caspar van Bentum",
+        "Maike Conijn",
+        "Teun de Craen",
+        "Tim Dekker",
+        "Bart Janssen",
+        "Luc de Jongh",
+        "Lilya Khachatryan",
+        "Cas Raedts",
+        "Nena Schuitemaker",
+        "Steven van Trooijen",
     }
 
     metadata_path = os.path.join(program_dir, "thesis_metadata_matched.csv")
@@ -121,7 +123,7 @@ def _load_thesis_data(program_dir: str, program: str) -> tuple:
     if program == "sbi":
         df["Featured"] = df["Thesis_PDF"].astype(str).str.strip().isin(_featured_sbi)
     elif program == "innovation_sciences":
-        df["Featured"] = df["Thesis_PDF"].astype(str).str.strip().isin(_featured_is)
+        df["Featured"] = df["Author(s)"].astype(str).str.strip().isin(_featured_is_authors)
     else:
         df["Featured"] = False
 
