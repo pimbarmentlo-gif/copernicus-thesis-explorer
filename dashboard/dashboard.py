@@ -4957,7 +4957,7 @@ function esc(s){{return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').rep
 function sdgC(s){{var m=String(s).match(/(\d+)/);return m?SDG_HEX[+m[1]]||'#888':'#888';}}
 // radius scale — sqrt so larger orgs are meaningfully bigger
 var maxCnt=d3.max(OD,function(d){{return d.count;}});
-var rScale=d3.scaleSqrt().domain([1,maxCnt]).range([36,80]);
+var rScale=d3.scaleSqrt().domain([1,maxCnt]).range([32,72]);
 // sector colour lookup only — no positional anchors, free-floating galaxy
 var secMap={{}};
 SECTORS.forEach(function(s){{
