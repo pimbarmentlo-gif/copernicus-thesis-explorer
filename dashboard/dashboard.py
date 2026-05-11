@@ -4947,7 +4947,7 @@ var PROG="{_sdg_enc_prog}";
 var UU_LOGO="{_uu_logo_uri}";
 var SDG_HEX={{1:"#E5243B",2:"#DDA63A",3:"#4C9F38",4:"#C5192D",5:"#FF3A21",6:"#26BDE2",7:"#FCC30B",8:"#A21942",9:"#FD6925",10:"#DD1367",11:"#FD9D24",12:"#BF8B2E",13:"#3F7E44",14:"#0A97D9",15:"#56C02B",16:"#00689D",17:"#19486A"}};
 var wrap=document.getElementById('galaxy-wrap');
-var W=wrap.clientWidth||800,H=640;
+var W=wrap.clientWidth||800,H=900;
 var svgEl=document.getElementById('galaxy-svg');
 var gt=document.getElementById('gt');
 var op=document.getElementById('op');
@@ -5179,7 +5179,7 @@ function drift(){{
 sim.on('end',function(){{drift();}});
 </script>
 """
-        _ins_comp.html(_org_html, height=680, scrolling=False)
+        _ins_comp.html(_org_html, height=960, scrolling=False)
         st.markdown("<div style='margin-bottom:3rem;'></div>", unsafe_allow_html=True)
 
     # ══════════════════════════════════════════════════════════════════════
@@ -5406,7 +5406,7 @@ var popFlag=document.getElementById('pop-flag');
 var popTitle=document.getElementById('pop-title');
 var popList=document.getElementById('pop-list');
 var popClose=document.getElementById('pop-close');
-var W=container.clientWidth||900,H=560;
+var W=container.clientWidth||900,H=900;
 
 // ── globe setup ──────────────────────────────────────────────────────────
 var globe=Globe()(container);
@@ -5583,7 +5583,7 @@ window.addEventListener('resize',function(){{
 }});
 </script></body></html>
 """
-        _ins_comp.html(_geo_html, height=580, scrolling=False)
+        _ins_comp.html(_geo_html, height=960, scrolling=False)
         st.markdown("<div style='margin-bottom:3rem;'></div>", unsafe_allow_html=True)
 
     # ══════════════════════════════════════════════════════════════════════
