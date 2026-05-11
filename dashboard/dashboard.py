@@ -4947,7 +4947,7 @@ var PROG="{_sdg_enc_prog}";
 var UU_LOGO="{_uu_logo_uri}";
 var SDG_HEX={{1:"#E5243B",2:"#DDA63A",3:"#4C9F38",4:"#C5192D",5:"#FF3A21",6:"#26BDE2",7:"#FCC30B",8:"#A21942",9:"#FD6925",10:"#DD1367",11:"#FD9D24",12:"#BF8B2E",13:"#3F7E44",14:"#0A97D9",15:"#56C02B",16:"#00689D",17:"#19486A"}};
 var wrap=document.getElementById('galaxy-wrap');
-var W=wrap.clientWidth||800,H=900;
+var W=wrap.clientWidth||800,H=1100;
 var svgEl=document.getElementById('galaxy-svg');
 var gt=document.getElementById('gt');
 var op=document.getElementById('op');
@@ -4957,7 +4957,7 @@ function esc(s){{return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').rep
 function sdgC(s){{var m=String(s).match(/(\d+)/);return m?SDG_HEX[+m[1]]||'#888':'#888';}}
 // radius scale — sqrt so larger orgs are meaningfully bigger
 var maxCnt=d3.max(OD,function(d){{return d.count;}});
-var rScale=d3.scaleSqrt().domain([1,maxCnt]).range([22,52]);
+var rScale=d3.scaleSqrt().domain([1,maxCnt]).range([36,80]);
 // sector colour lookup only — no positional anchors, free-floating galaxy
 var secMap={{}};
 SECTORS.forEach(function(s){{
@@ -5153,7 +5153,7 @@ var sim=d3.forceSimulation(nodes)
   .force('charge',d3.forceManyBody().strength(-55))
   .force('collide',d3.forceCollide().radius(function(d){{return d.r+6;}}).iterations(3))
   .force('center',d3.forceCenter(W/2,H/2).strength(0.12))
-  .force('radial',d3.forceRadial(Math.min(W,H)*0.28,W/2,H/2).strength(0.06))
+  .force('radial',d3.forceRadial(Math.min(W,H)*0.38,W/2,H/2).strength(0.06))
   .force('bounds',function(){{
     nodes.forEach(function(d){{
       var pad=d.r+4;
@@ -5179,7 +5179,7 @@ function drift(){{
 sim.on('end',function(){{drift();}});
 </script>
 """
-        _ins_comp.html(_org_html, height=960, scrolling=False)
+        _ins_comp.html(_org_html, height=1160, scrolling=False)
         st.markdown("<div style='margin-bottom:3rem;'></div>", unsafe_allow_html=True)
 
     # ══════════════════════════════════════════════════════════════════════
