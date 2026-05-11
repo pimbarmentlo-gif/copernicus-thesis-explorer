@@ -391,6 +391,7 @@ else:
         st.session_state.sup_selected = _sup_selected_from_query
         st.session_state.sup_view = 'profile'
         st.query_params.clear()
+        st.query_params["program"] = st.session_state.program
         st.rerun()
 
     elif _program_from_query and _program_from_query in _VALID_PROGRAMS:
@@ -1192,6 +1193,16 @@ st.markdown(
     }
     .ds-val  { font-size: 0.9em;  color: #1a1a1a; line-height: 1.5; }
     .ds-na   { font-size: 0.87em; color: #ccc;    font-style: italic; }
+    .ds-sup-link {
+        color: #1a1a1a !important;
+        font-size: 0.9em;
+        text-decoration: none !important;
+        cursor: pointer;
+        line-height: 1.5;
+        border-bottom: 1px dotted #bbb;
+        padding-bottom: 1px;
+    }
+    .ds-sup-link:hover { text-decoration: none !important; color: #1a1a1a !important; border-bottom-color: #555; }
     .ds-rq {
         font-size: 0.92em;
         font-style: italic;
@@ -1438,6 +1449,15 @@ st.markdown(
         box-shadow: 0 7px 20px rgba(255,205,0,0.46) !important;
         transform: translateY(-2px) !important;
         border: none !important;
+    }
+
+    /* ── PDF viewer iframe — remove browser default border, add modern card look ── */
+    iframe[data-testid="stCustomComponentV1"] {
+        border: none !important;
+        border-radius: 12px !important;
+        box-shadow: 0 4px 24px rgba(0,0,0,0.13) !important;
+        overflow: hidden !important;
+        display: block !important;
     }
 
     /* ── Details Download PDF button — yellow brand ── */
@@ -1807,7 +1827,7 @@ def _pdf_iframe_html(static_url: str, height: int = 1100) -> str:
 *{{box-sizing:border-box;margin:0;padding:0;}}
 html,body{{width:100%;height:{height}px;overflow:hidden;font-family:Inter,system-ui,sans-serif;}}
 #tb{{display:flex;align-items:center;gap:5px;padding:0 12px;height:{tb}px;
-     background:#003660;color:#fff;flex-shrink:0;box-shadow:0 2px 8px rgba(0,0,0,.32);}}
+     background:#1a2e3d;color:#fff;flex-shrink:0;border-bottom:1px solid rgba(255,255,255,.08);}}
 #sw{{display:flex;align-items:center;gap:4px;background:rgba(255,255,255,.12);
      border-radius:6px;padding:3px 9px;min-width:160px;flex:1;max-width:260px;}}
 #si{{background:transparent;border:none;outline:none;color:#fff;font-size:13px;flex:1;width:0;}}
@@ -2208,6 +2228,21 @@ def render_structured_details_sections(row):
         if _has_value(master_track) else ""
     )
 
+    # Supervisor / Second-reader clickable links
+    def _sup_link_html(name_str) -> str:
+        if not _has_value(name_str):
+            return "<span class='ds-na'>\u2014</span>"
+        _enc_p = urllib.parse.quote(PROGRAM, safe='')
+        _names = [n.strip() for n in str(name_str).split(',') if n.strip() and n.strip().lower() not in ('n/a', 'nan')]
+        if not _names:
+            return "<span class='ds-na'>\u2014</span>"
+        _parts = []
+        for _nm in _names:
+            _enc_nm = urllib.parse.quote(_nm, safe='')
+            _safe_nm = _html.escape(_nm)
+            _parts.append(f"<a href='?program={_enc_p}&sup_selected={_enc_nm}' class='ds-sup-link' target='_self'>{_safe_nm}</a>")
+        return "<span class='ds-val'>" + ", ".join(_parts) + "</span>"
+
     st.markdown(f"""
 <div class="ds-cards-wrap">
 
@@ -2249,9 +2284,9 @@ def render_structured_details_sections(row):
   <div class="ds-row-pair">
     <div class="ds-card">
       <div class="ds-title">Academic Context</div>
-      {master_html}<div class="ds-field"><span class="ds-lbl">Supervisor</span>{_v(supervisor)}</div>
+      {master_html}<div class="ds-field"><span class="ds-lbl">Supervisor</span>{_sup_link_html(supervisor)}</div>
       <div class="ds-divider"></div>
-      <div class="ds-field"><span class="ds-lbl">Second Reader</span>{_v(second_rdr)}</div>
+      <div class="ds-field"><span class="ds-lbl">Second Reader</span>{_sup_link_html(second_rdr)}</div>
     </div>
     <div class="ds-card">
       <div class="ds-title">Partnerships</div>
@@ -6276,7 +6311,16 @@ elif page == "Supervisors":
     # PROFILE PAGE
     # ══════════════════════════════════════════════════════════════════════
     if _view == 'profile' and st.session_state.sup_selected:
-        _sname = st.session_state.sup_selected
+        # Resolve raw name (e.g. from thesis detail link) to canonical display name
+        _raw_sel = st.session_state.sup_selected
+        _sname = _raw_sel if _raw_sel in _sups else _norm(_raw_sel)
+        # If still not found, try a case-insensitive scan as last resort
+        if _sname not in _sups:
+            _fold = _raw_sel.strip().lower()
+            for _k in _sups:
+                if _k.lower() == _fold:
+                    _sname = _k
+                    break
         _sst   = _stats(_sname)
         _scol  = _avatar_color(_sname)
         _sini  = _initials(_sname)
