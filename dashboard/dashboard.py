@@ -4872,7 +4872,7 @@ html,body{{font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-
   background:transparent;overflow:hidden;-webkit-font-smoothing:antialiased;}}
 /* ── Galaxy ── */
 #galaxy-wrap{{
-  position:relative;width:100%;height:640px;overflow:hidden;
+  position:relative;width:100%;height:1100px;overflow:hidden;
   background:transparent;
 }}
 #galaxy-svg{{position:absolute;inset:0;width:100%;height:100%;}}
