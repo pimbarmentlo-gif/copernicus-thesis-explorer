@@ -257,20 +257,42 @@ def _load_org_logo_b64(logos_dir: str, org_name: str) -> str:
         if score > best_score:
             best_score, best_path = score, path
     if best_score >= 0.42:
-        b64 = _load_image_b64(best_path)
-        if not b64:
-            return ''
-        # Correct MIME type (SVG and WebP need explicit types)
         ext = os.path.splitext(best_path)[1].lower()
-        mime = {
-            '.svg': 'image/svg+xml',
-            '.webp': 'image/webp',
-            '.avif': 'image/avif',
-            '.jpg': 'image/jpeg',
-            '.jpeg': 'image/jpeg',
-            '.png': 'image/png',
-        }.get(ext, 'image/*')
-        return f"data:{mime};base64,{b64}"
+        # SVG: pass through as-is (already small text)
+        if ext == '.svg':
+            b64 = _load_image_b64(best_path)
+            return f"data:image/svg+xml;base64,{b64}" if b64 else ''
+        # Raster images: resize to 64×64 thumbnail so base64 stays tiny
+        try:
+            from PIL import Image as _PILImage
+            import io as _io
+            with _PILImage.open(best_path) as _img:
+                # Always go via RGBA so palette-mode images ('P') with a
+                # transparent index are handled correctly — skipping RGBA
+                # causes the transparent pixels to map to whatever colour
+                # sits at the transparent palette slot (often green/black).
+                _img = _img.convert('RGBA')
+                # Composite on white so transparent areas render cleanly
+                # (galaxy nodes with logos already have a white circle fill).
+                _white = _PILImage.new('RGBA', _img.size, (255, 255, 255, 255))
+                _white.paste(_img, mask=_img.split()[3])
+                _img = _white.convert('RGB')
+                _img.thumbnail((64, 64), _PILImage.LANCZOS)
+                _buf = _io.BytesIO()
+                # Always save as PNG — avoids RGBA→JPEG failures and keeps quality
+                _img.save(_buf, format='PNG', optimize=True)
+                import base64 as _b64
+                b64 = _b64.b64encode(_buf.getvalue()).decode()
+            return f"data:image/png;base64,{b64}"
+        except Exception:
+            # Fallback: load raw (may be large but better than nothing)
+            b64 = _load_image_b64(best_path)
+            if not b64:
+                return ''
+            mime = {'.webp': 'image/webp', '.avif': 'image/avif',
+                    '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg',
+                    '.png': 'image/png'}.get(ext, 'image/*')
+            return f"data:{mime};base64,{b64}"
     return ''
 
 
@@ -1138,6 +1160,113 @@ st.markdown(
         white-space: nowrap;
     }
 
+    /* ── Detail sections: ds-* component system ── */
+    .ds-cards-wrap { display: flex; flex-direction: column; gap: 10px; }
+    .ds-card {
+        background: #fff;
+        border-radius: 12px;
+        border: 1px solid #eaeaea;
+        padding: 18px 20px;
+        box-shadow: 0 2px 10px rgba(0,0,0,.05);
+    }
+    .ds-title {
+        font-size: 0.72em;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+        color: var(--uu-blue);
+        padding-bottom: 9px;
+        margin-bottom: 14px;
+        border-bottom: 2px solid var(--uu-yellow);
+    }
+    .ds-grid   { display: grid; grid-template-columns: 1fr 1fr;       gap: 10px 20px; }
+    .ds-grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr;   gap: 10px 14px; }
+    .ds-row-pair { display: grid; grid-template-columns: 1fr 1fr;      gap: 10px; }
+    .ds-field  { display: flex; flex-direction: column; gap: 3px; }
+    .ds-lbl {
+        font-size: 0.69em;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: #aaa;
+    }
+    .ds-val  { font-size: 0.9em;  color: #1a1a1a; line-height: 1.5; }
+    .ds-na   { font-size: 0.87em; color: #ccc;    font-style: italic; }
+    .ds-rq {
+        font-size: 0.92em;
+        font-style: italic;
+        color: #222;
+        border-left: 3px solid var(--uu-yellow);
+        padding: 8px 12px;
+        margin: 5px 0 14px 0;
+        line-height: 1.65;
+        background: #fffdf0;
+        border-radius: 0 6px 6px 0;
+    }
+    .ds-divider { height: 1px; background: #f2f2f2; margin: 12px 0; }
+    .ds-pill-wrap { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 5px; }
+    .ds-kw {
+        display: inline-block;
+        padding: 3px 10px;
+        border-radius: 999px;
+        background: #eef3f8;
+        border: 1px solid #cfdce8;
+        color: var(--uu-blue);
+        font-size: 0.80em;
+        font-weight: 500;
+    }
+    .ds-abstract-wrap {
+        margin: 6px 0 14px 0;
+        border: 1px solid #eee;
+        border-radius: 8px;
+        overflow: hidden;
+    }
+    .ds-abstract-toggle {
+        padding: 9px 14px;
+        font-size: 0.78em;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.07em;
+        color: #666;
+        cursor: pointer;
+        list-style: none;
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        background: #f8f8f8;
+        user-select: none;
+    }
+    .ds-abstract-toggle::-webkit-details-marker { display: none; }
+    .ds-abstract-toggle::before {
+        content: '▸';
+        font-size: 0.85em;
+        color: var(--uu-blue);
+        transition: transform 0.18s ease;
+        display: inline-block;
+        flex-shrink: 0;
+    }
+    details[open] > .ds-abstract-toggle::before { transform: rotate(90deg); }
+    .ds-abstract-body {
+        padding: 12px 14px;
+        font-size: 0.9em;
+        line-height: 1.7;
+        color: #333;
+        max-height: 240px;
+        overflow-y: auto;
+        border-top: 1px solid #eee;
+    }
+    .ds-org-row { display: flex; align-items: center; gap: 10px; margin-top: 2px; }
+    .ds-org-logo {
+        width: 30px;
+        height: 30px;
+        border-radius: 50%;
+        object-fit: contain;
+        background: #f5f5f5;
+        border: 1px solid #e0e0e0;
+        flex-shrink: 0;
+        padding: 2px;
+    }
+
     /* ── Homepage styles ── */
     .homepage-title,
     .stMarkdown h1.homepage-title {
@@ -1311,18 +1440,19 @@ st.markdown(
         border: none !important;
     }
 
-    /* ── Details action buttons (Full-Page Viewer + Download) — yellow brand ── */
-    .st-key-details_action_buttons .stButton > button,
+    /* ── Details Download PDF button — yellow brand ── */
     .st-key-details_action_buttons .stDownloadButton > button {
         background: var(--uu-yellow) !important;
         border: none !important;
         color: var(--uu-blue) !important;
         font-weight: 700 !important;
         box-shadow: 0 4px 14px rgba(255,205,0,0.35) !important;
-        font-size: 0.9rem !important;
-        padding: 0.54rem 1rem !important;
+        font-size: 0.95rem !important;
+        padding: 0.62rem 1.4rem !important;
+        border-radius: 8px !important;
+        letter-spacing: 0.01em !important;
+        transition: background 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease !important;
     }
-    .st-key-details_action_buttons .stButton > button:hover,
     .st-key-details_action_buttons .stDownloadButton > button:hover {
         background: #f0c200 !important;
         box-shadow: 0 7px 20px rgba(255,205,0,0.46) !important;
@@ -1481,9 +1611,21 @@ def sdg_badge(sdg_text: str) -> str:
 
     icon_html = ""
     if number is not None and 1 <= number <= 17:
-        # Load local icon from the project folder and base64 encode it
+        # Load local icon, resize to 24×24 thumbnail so base64 stays tiny (~0.5 KB)
         local_file = os.path.join(PROGRAM_DIR, "sdg_icons", f"Goal-{number:02d}.png")
-        icon_b64 = _load_image_b64(local_file)
+        icon_b64 = ""
+        if os.path.exists(local_file):
+            try:
+                from PIL import Image as _PILIcon
+                import io as _io_icon, base64 as _b64_icon
+                with _PILIcon.open(local_file) as _im:
+                    _im = _im.convert("RGBA")
+                    _im = _im.resize((24, 24), _PILIcon.LANCZOS)
+                    _buf = _io_icon.BytesIO()
+                    _im.save(_buf, format="PNG", optimize=True)
+                    icon_b64 = _b64_icon.b64encode(_buf.getvalue()).decode()
+            except Exception:
+                icon_b64 = _load_image_b64(local_file)
         if icon_b64:
             icon_html = (
                 f"<img src=\"data:image/png;base64,{icon_b64}\" width=24 "
@@ -1657,180 +1799,263 @@ def _load_pdf_bytes_cached(pdf_path: str) -> bytes | None:
 
 
 def _pdf_iframe_html(static_url: str, height: int = 1100) -> str:
-    """Modern continuous-scroll PDF viewer with text layer and Ctrl+F search."""
-    tb = 46
+    """Inline PDF.js viewer: lazy rendering, HiDPI canvas, auto-fit-to-width, page nav."""
+    tb = 44
     vh = height - tb
     return f"""<!DOCTYPE html>
 <html><head><meta charset="utf-8"><style>
 *{{box-sizing:border-box;margin:0;padding:0;}}
-html,body{{width:100%;height:{height}px;background:#eef0f4;overflow:hidden;font-family:Inter,system-ui,sans-serif;}}
-/* ── toolbar ── */
-#tb{{display:flex;align-items:center;gap:6px;padding:0 14px;height:{tb}px;background:#003660;color:#fff;flex-shrink:0;}}
-#sw{{display:flex;align-items:center;gap:5px;background:rgba(255,255,255,0.13);border-radius:6px;padding:4px 10px;}}
-#si{{background:transparent;border:none;outline:none;color:#fff;font-size:13px;width:170px;}}
-#si::placeholder{{color:rgba(255,255,255,0.48);}}
-.tbtn{{background:rgba(255,255,255,0.13);border:none;color:#fff;border-radius:4px;padding:3px 10px;cursor:pointer;font-size:12px;line-height:1.5;}}
-.tbtn:hover{{background:rgba(255,255,255,0.26);}}
-#sc{{font-size:11px;color:rgba(255,255,255,0.58);min-width:52px;}}
-#zs{{background:rgba(255,255,255,0.13);border:1px solid rgba(255,255,255,0.18);color:#fff;border-radius:4px;padding:3px 7px;font-size:12px;cursor:pointer;}}
-#zs option{{background:#003660;color:#fff;}}
-#pi{{font-size:12px;color:rgba(255,255,255,0.68);white-space:nowrap;}}
-/* ── scroll container ── */
-#viewer{{height:{vh}px;overflow-y:auto;overflow-x:auto;display:flex;flex-direction:column;align-items:center;gap:10px;padding:14px;background:#eef0f4;}}
-/* ── page wrappers ── */
-.pg{{position:relative;background:#fff;flex-shrink:0;box-shadow:0 1px 8px rgba(0,0,0,0.18);}}
+html,body{{width:100%;height:{height}px;overflow:hidden;font-family:Inter,system-ui,sans-serif;}}
+#tb{{display:flex;align-items:center;gap:5px;padding:0 12px;height:{tb}px;
+     background:#003660;color:#fff;flex-shrink:0;box-shadow:0 2px 8px rgba(0,0,0,.32);}}
+#sw{{display:flex;align-items:center;gap:4px;background:rgba(255,255,255,.12);
+     border-radius:6px;padding:3px 9px;min-width:160px;flex:1;max-width:260px;}}
+#si{{background:transparent;border:none;outline:none;color:#fff;font-size:13px;flex:1;width:0;}}
+#si::placeholder{{color:rgba(255,255,255,.42);}}
+#sc{{font-size:11px;color:rgba(255,255,255,.52);white-space:nowrap;}}
+.tb2{{background:rgba(255,255,255,.11);border:none;color:#fff;border-radius:4px;
+      padding:3px 8px;cursor:pointer;font-size:12px;line-height:1.5;}}
+.tb2:hover{{background:rgba(255,255,255,.22);}}
+.sep{{width:1px;height:20px;background:rgba(255,255,255,.18);flex-shrink:0;margin:0 2px;}}
+#pi{{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);color:#fff;
+     border-radius:4px;padding:2px 5px;font-size:12px;width:36px;text-align:center;outline:none;}}
+#pt{{font-size:12px;color:rgba(255,255,255,.55);white-space:nowrap;}}
+#zs{{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);color:#fff;
+     border-radius:4px;padding:3px 5px;font-size:12px;cursor:pointer;outline:none;}}
+#zs option{{background:#003660;}}
+#viewer{{height:{vh}px;overflow-y:scroll;overflow-x:auto;display:flex;flex-direction:column;
+         align-items:center;gap:10px;padding:16px 12px;background:#525659;}}
+.pg{{position:relative;background:#fff;flex-shrink:0;
+     box-shadow:0 2px 14px rgba(0,0,0,.38);border-radius:1px;}}
 .pg canvas{{display:block;}}
-/* ── text layer (transparent text for selection + search) ── */
-.tl{{position:absolute;inset:0;overflow:hidden;line-height:1;pointer-events:auto;}}
-.tl span{{color:transparent;position:absolute;white-space:pre;transform-origin:0% 0%;cursor:text;}}
-.tl span::selection{{background:rgba(0,110,255,0.28);}}
-.tl .hl{{background:rgba(255,210,0,0.52)!important;border-radius:2px;}}
-.tl .hl.sel{{background:rgba(255,140,0,0.72)!important;}}
-#msg{{color:#666;padding:2.5rem 1rem;font-size:14px;}}
+.tl{{position:absolute;top:0;left:0;overflow:hidden;line-height:1;pointer-events:auto;}}
+.tl span{{color:transparent;position:absolute;white-space:pre;transform-origin:0 0;cursor:text;}}
+.tl span::selection{{background:rgba(0,110,255,.28);}}
+.tl .hl{{background:rgba(255,210,0,.55)!important;border-radius:2px;}}
+.tl .hl.cur{{background:rgba(255,140,0,.78)!important;}}
+.skel{{background:#636669;border-radius:1px;
+       background:linear-gradient(90deg,#5a5d60 25%,#6d7073 50%,#5a5d60 75%);
+       background-size:400% 100%;animation:sh 1.5s ease infinite;}}
+@keyframes sh{{0%{{background-position:100% 0}}100%{{background-position:-100% 0}}}}
+#msg{{color:rgba(255,255,255,.7);padding:3rem;font-size:14px;text-align:center;}}
 </style></head><body>
 <div id="tb">
   <div id="sw">
-    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.6)" stroke-width="2.5" style="flex-shrink:0"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-    <input id="si" placeholder="Search document (Ctrl+F)" autocomplete="off" spellcheck="false"/>
+    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.5)" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+    <input id="si" placeholder="Search (Ctrl+F)" autocomplete="off" spellcheck="false"/>
+    <span id="sc"></span>
   </div>
-  <button class="tbtn" onclick="findPrev()" title="Previous match">↑</button>
-  <button class="tbtn" onclick="findNext()" title="Next match">↓</button>
-  <span id="sc"></span>
-  <div style="margin-left:auto;display:flex;align-items:center;gap:10px;">
-    <select id="zs" onchange="setZoom(this.value)">
-      <option value="0.7">70%</option>
-      <option value="0.85">85%</option>
-      <option value="1.0" selected>100%</option>
-      <option value="1.25">125%</option>
-      <option value="1.5">150%</option>
-    </select>
-    <span id="pi">Loading…</span>
-  </div>
+  <button class="tb2" onclick="findPrev()" title="Prev match">↑</button>
+  <button class="tb2" onclick="findNext()" title="Next match">↓</button>
+  <div class="sep"></div>
+  <button class="tb2" id="btnPrev" onclick="stepPage(-1)">‹</button>
+  <input id="pi" type="text" value="1" onkeydown="pageKey(event)" onblur="pageBlur()"/>
+  <span id="pt">/ –</span>
+  <button class="tb2" id="btnNext" onclick="stepPage(1)">›</button>
+  <div class="sep"></div>
+  <select id="zs" onchange="applyZoom(this.value)">
+    <option value="auto" selected>Fit width</option>
+    <option value="0.75">75 %</option>
+    <option value="1.0">100 %</option>
+    <option value="1.25">125 %</option>
+    <option value="1.5">150 %</option>
+    <option value="2.0">200 %</option>
+  </select>
 </div>
-<div id="viewer"><div id="msg">Loading PDF…</div></div>
+<div id="viewer"><div id="msg">Loading…</div></div>
+
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script>
-pdfjsLib.GlobalWorkerOptions.workerSrc=
+pdfjsLib.GlobalWorkerOptions.workerSrc =
   'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
-var sc=1.0,doc=null,pgEls=[],matches=[],mIdx=-1;
-var viewer=document.getElementById('viewer');
-var si=document.getElementById('si');
-var scEl=document.getElementById('sc');
-var pi=document.getElementById('pi');
-var origin=(window.parent&&window.parent.location&&window.parent.location.origin)||window.location.origin;
-var pdfUrl=origin+'{static_url}';
+var origin = (window.parent && window.parent.location)
+               ? window.parent.location.origin : window.location.origin;
+var pdfUrl  = origin + '{static_url}';
+var DPR     = window.devicePixelRatio || 1;
+
+var doc = null, pgEls = [], rendered = {{}};
+var curScale = 1.0, zoomVal = 'auto';
+var matches = [], mIdx = -1;
+var viewer = document.getElementById('viewer');
+var si = document.getElementById('si'), scEl = document.getElementById('sc');
+var piEl = document.getElementById('pi'), ptEl = document.getElementById('pt');
 
 // ── Load ──────────────────────────────────────────────────────────────────
-pdfjsLib.getDocument({{url:pdfUrl,withCredentials:false,isEvalSupported:false}}).promise
-  .then(function(pdf){{
-    doc=pdf;
-    var el=document.getElementById('msg'); if(el)el.remove();
-    // Create placeholders in DOM order first, then render in parallel
-    for(var i=0;i<pdf.numPages;i++){{
-      var ph=document.createElement('div');
-      ph.className='pg'; ph.dataset.n=i+1;
-      ph.style.cssText='width:100px;height:140px;background:#e8eaed;';
-      pgEls[i]=ph; viewer.appendChild(ph);
-    }}
-    var promises=[];
-    for(var j=1;j<=pdf.numPages;j++){{(function(n){{promises.push(renderPage(n));}})(j);}}
-    return Promise.all(promises);
+pdfjsLib.getDocument({{url: pdfUrl, isEvalSupported: false}}).promise
+  .then(function(pdf) {{
+    doc = pdf;
+    var msg = document.getElementById('msg');
+    if (msg) msg.remove();
+    ptEl.textContent = '/ ' + pdf.numPages;
+
+    return pdf.getPage(1).then(function(p1) {{
+      var vw  = viewer.clientWidth - 24;
+      var nat = p1.getViewport({{scale: 1}});
+      curScale = vw / nat.width;
+
+      for (var i = 1; i <= pdf.numPages; i++) {{
+        var ph = document.createElement('div');
+        ph.className = 'pg skel';
+        ph.dataset.n = i;
+        ph.style.width  = Math.round(nat.width  * curScale) + 'px';
+        ph.style.height = Math.round(nat.height * curScale) + 'px';
+        pgEls[i-1] = ph;
+        viewer.appendChild(ph);
+      }}
+      setupObserver();
+    }});
   }})
-  .then(function(){{updatePageInfo();pi.style.opacity='1';}})
-  .catch(function(e){{
-    var el=document.getElementById('msg');
-    if(el)el.textContent='Could not load PDF: '+e.message;
-    else viewer.insertAdjacentHTML('afterbegin','<div id="msg">'+e.message+'</div>');
-    pi.textContent='Error';
+  .catch(function(e) {{
+    var el = document.getElementById('msg') || viewer;
+    el.textContent = 'Could not load PDF: ' + (e.message || e);
   }});
 
+// ── Intersection observer (lazy render) ───────────────────────────────────
+function setupObserver() {{
+  var obs = new IntersectionObserver(function(entries) {{
+    entries.forEach(function(e) {{
+      if (e.isIntersecting) {{
+        var n = parseInt(e.target.dataset.n, 10);
+        if (!rendered[n]) renderPage(n);
+      }}
+    }});
+  }}, {{root: viewer, rootMargin: '300px 0px'}});
+  pgEls.forEach(function(el) {{ obs.observe(el); }});
+}}
+
 // ── Render one page ───────────────────────────────────────────────────────
-function renderPage(n){{
-  return doc.getPage(n).then(function(page){{
-    var vp=page.getViewport({{scale:sc}});
-    var wrap=pgEls[n-1];
-    wrap.style.cssText='position:relative;background:#fff;flex-shrink:0;'
-      +'box-shadow:0 1px 8px rgba(0,0,0,0.18);width:'+vp.width+'px;height:'+vp.height+'px;';
-    wrap.innerHTML='';
-    var cv=document.createElement('canvas');
-    cv.width=vp.width; cv.height=vp.height; wrap.appendChild(cv);
-    return page.render({{canvasContext:cv.getContext('2d'),viewport:vp}}).promise
-      .then(function(){{return page.getTextContent();}} )
-      .then(function(tc){{
-        var tl=document.createElement('div'); tl.className='tl'; wrap.appendChild(tl);
-        if(typeof pdfjsLib.renderTextLayer==='function'){{
-          var task=pdfjsLib.renderTextLayer({{textContentSource:tc,container:tl,viewport:vp,textDivs:[]}});
-          var p=task&&task.promise?task.promise:(task instanceof Promise?task:Promise.resolve());
-          return p.catch(function(){{}});
+function renderPage(n) {{
+  rendered[n] = true;
+  doc.getPage(n).then(function(page) {{
+    var vp   = page.getViewport({{scale: curScale}});
+    var wrap = pgEls[n-1];
+    wrap.classList.remove('skel');
+    wrap.style.cssText =
+      'position:relative;background:#fff;flex-shrink:0;border-radius:1px;' +
+      'box-shadow:0 2px 14px rgba(0,0,0,.38);' +
+      'width:' + vp.width + 'px;height:' + vp.height + 'px;';
+    wrap.innerHTML = '';
+
+    var cv = document.createElement('canvas');
+    cv.width  = Math.round(vp.width  * DPR);
+    cv.height = Math.round(vp.height * DPR);
+    cv.style.width  = vp.width  + 'px';
+    cv.style.height = vp.height + 'px';
+    wrap.appendChild(cv);
+    var ctx = cv.getContext('2d');
+    ctx.scale(DPR, DPR);
+
+    return page.render({{canvasContext: ctx, viewport: vp}}).promise
+      .then(function() {{ return page.getTextContent(); }})
+      .then(function(tc) {{
+        var tl = document.createElement('div');
+        tl.className = 'tl';
+        tl.style.width  = vp.width  + 'px';
+        tl.style.height = vp.height + 'px';
+        wrap.appendChild(tl);
+        if (typeof pdfjsLib.renderTextLayer === 'function') {{
+          var task = pdfjsLib.renderTextLayer({{
+            textContentSource: tc, container: tl, viewport: vp, textDivs: []
+          }});
+          var p = (task && task.promise) ? task.promise
+                : (task instanceof Promise ? task : Promise.resolve());
+          p.catch(function() {{}});
         }}
       }});
   }});
 }}
 
-// ── Page counter ─────────────────────────────────────────────────────────
-viewer.addEventListener('scroll',updatePageInfo,{{passive:true}});
-function updatePageInfo(){{
-  if(!doc||!pgEls.length)return;
-  var mid=viewer.scrollTop+viewer.clientHeight*0.4;
-  for(var i=pgEls.length-1;i>=0;i--){{
-    if(pgEls[i]&&pgEls[i].offsetTop<=mid){{pi.textContent=(i+1)+' / '+doc.numPages;return;}}
-  }}
-  pi.textContent='1 / '+(doc?doc.numPages:'…');
-}}
-
-// ── Zoom ─────────────────────────────────────────────────────────────────
-function setZoom(v){{
-  sc=parseFloat(v);
-  matches=[];mIdx=-1;scEl.textContent='';si.value='';
-  var scrollPct=viewer.scrollTop/(viewer.scrollHeight||1);
-  // Reset placeholders
-  pgEls=[];
-  viewer.innerHTML='';
-  for(var i=0;i<doc.numPages;i++){{
-    var ph=document.createElement('div');
-    ph.className='pg'; ph.dataset.n=i+1;
-    ph.style.cssText='width:100px;height:140px;background:#e8eaed;';
-    pgEls[i]=ph; viewer.appendChild(ph);
-  }}
-  var promises=[];
-  for(var j=1;j<=doc.numPages;j++){{(function(n){{promises.push(renderPage(n));}})(j);}}
-  Promise.all(promises).then(function(){{
-    viewer.scrollTop=scrollPct*viewer.scrollHeight;
-    updatePageInfo();
+// ── Zoom ──────────────────────────────────────────────────────────────────
+function applyZoom(v) {{
+  zoomVal = v;
+  if (!doc) return;
+  doc.getPage(1).then(function(p1) {{
+    var nat = p1.getViewport({{scale: 1}});
+    curScale = (v === 'auto')
+      ? (viewer.clientWidth - 24) / nat.width
+      : parseFloat(v);
+    rendered = {{}};
+    pgEls    = [];
+    viewer.innerHTML = '';
+    for (var i = 1; i <= doc.numPages; i++) {{
+      var ph = document.createElement('div');
+      ph.className = 'pg skel';
+      ph.dataset.n = i;
+      ph.style.width  = Math.round(nat.width  * curScale) + 'px';
+      ph.style.height = Math.round(nat.height * curScale) + 'px';
+      pgEls[i-1] = ph;
+      viewer.appendChild(ph);
+    }}
+    setupObserver();
   }});
 }}
 
-// ── Search ───────────────────────────────────────────────────────────────
-document.addEventListener('keydown',function(e){{
-  if((e.ctrlKey||e.metaKey)&&e.key==='f'){{e.preventDefault();si.focus();si.select();}}
-}});
-si.addEventListener('keydown',function(e){{
-  if(e.key==='Enter'){{e.shiftKey?findPrev():findNext();e.preventDefault();}}
-  if(e.key==='Escape'){{si.value='';doSearch('');si.blur();}}
-}});
-si.addEventListener('input',function(){{doSearch(this.value);}});
+// ── Page nav ──────────────────────────────────────────────────────────────
+viewer.addEventListener('scroll', function() {{
+  if (!pgEls.length) return;
+  var mid = viewer.scrollTop + viewer.clientHeight * 0.3;
+  for (var i = pgEls.length - 1; i >= 0; i--) {{
+    if (pgEls[i] && pgEls[i].offsetTop <= mid) {{
+      piEl.value = i + 1; break;
+    }}
+  }}
+}}, {{passive: true}});
 
-function doSearch(q){{
-  viewer.querySelectorAll('.hl').forEach(function(s){{s.classList.remove('hl','sel');}});
-  matches=[];mIdx=-1;scEl.textContent='';
-  if(!q||q.length<2)return;
-  var ql=q.toLowerCase();
-  viewer.querySelectorAll('.tl span').forEach(function(s){{
-    if(s.textContent&&s.textContent.toLowerCase().includes(ql)){{s.classList.add('hl');matches.push(s);}}
+function stepPage(d) {{
+  var n = parseInt(piEl.value, 10) + d;
+  if (doc && n >= 1 && n <= doc.numPages) gotoPage(n);
+}}
+function gotoPage(n) {{
+  if (!pgEls[n-1]) return;
+  pgEls[n-1].scrollIntoView({{behavior: 'smooth'}});
+  piEl.value = n;
+}}
+function pageKey(e) {{
+  if (e.key === 'Enter') {{
+    var n = parseInt(piEl.value, 10);
+    if (doc && n >= 1 && n <= doc.numPages) gotoPage(n);
+    else piEl.value = piEl.dataset.last || '1';
+  }}
+}}
+function pageBlur() {{
+  var n = parseInt(piEl.value, 10);
+  if (!doc || n < 1 || n > doc.numPages) piEl.value = piEl.dataset.last || '1';
+  else piEl.dataset.last = n;
+}}
+
+// ── Search ────────────────────────────────────────────────────────────────
+document.addEventListener('keydown', function(e) {{
+  if ((e.ctrlKey||e.metaKey) && e.key === 'f') {{ e.preventDefault(); si.focus(); si.select(); }}
+}});
+si.addEventListener('keydown', function(e) {{
+  if (e.key === 'Enter') {{ e.shiftKey ? findPrev() : findNext(); e.preventDefault(); }}
+  if (e.key === 'Escape') {{ si.value = ''; doSearch(''); si.blur(); }}
+}});
+si.addEventListener('input', function() {{ doSearch(this.value); }});
+
+function doSearch(q) {{
+  viewer.querySelectorAll('.hl,.cur').forEach(function(s) {{ s.classList.remove('hl','cur'); }});
+  matches = []; mIdx = -1; scEl.textContent = '';
+  if (!q || q.length < 2) return;
+  var ql = q.toLowerCase();
+  viewer.querySelectorAll('.tl span').forEach(function(s) {{
+    if (s.textContent && s.textContent.toLowerCase().includes(ql)) {{
+      s.classList.add('hl'); matches.push(s);
+    }}
   }});
-  if(matches.length){{mIdx=0;selectMatch(0);}}
-  else scEl.textContent='Not found';
+  if (matches.length) {{ mIdx = 0; selectMatch(0); }}
+  else scEl.textContent = 'No match';
 }}
-function selectMatch(i){{
-  viewer.querySelectorAll('.sel').forEach(function(s){{s.classList.remove('sel');}});
-  if(!matches[i])return;
-  matches[i].classList.add('sel');
-  matches[i].scrollIntoView({{behavior:'smooth',block:'center'}});
-  scEl.textContent=(i+1)+'/'+matches.length;
+function selectMatch(i) {{
+  viewer.querySelectorAll('.cur').forEach(function(s) {{ s.classList.remove('cur'); }});
+  if (!matches[i]) return;
+  matches[i].classList.add('cur');
+  matches[i].scrollIntoView({{behavior: 'smooth', block: 'center'}});
+  scEl.textContent = (i+1) + ' / ' + matches.length;
 }}
-function findNext(){{if(!matches.length)return;mIdx=(mIdx+1)%matches.length;selectMatch(mIdx);}}
-function findPrev(){{if(!matches.length)return;mIdx=(mIdx-1+matches.length)%matches.length;selectMatch(mIdx);}}
+function findNext() {{ if (!matches.length) return; mIdx=(mIdx+1)%matches.length; selectMatch(mIdx); }}
+function findPrev() {{ if (!matches.length) return; mIdx=(mIdx-1+matches.length)%matches.length; selectMatch(mIdx); }}
 </script></body></html>"""
 
 
@@ -1913,84 +2138,134 @@ def _detail_field(label: str, value) -> None:
 
 
 def render_structured_details_sections(row):
-    # ── Research Overview ──
-    with st.container(border=True, key="detail_overview"):
-        st.markdown("<div class='detail-section-header'>Research Overview</div>", unsafe_allow_html=True)
-        rq = row.get("Main Research Question", "n/a")
-        if _has_value(rq):
-            st.markdown(f"<div class='detail-label'>Main Research Question</div>"
-                        f"<div class='detail-rq'>{rq}</div>", unsafe_allow_html=True)
-        else:
-            _detail_field("Main Research Question", "n/a")
+    import html as _html
 
-        abstract = row.get("Abstract/Summary", "n/a")
-        if _has_value(abstract):
-            with st.expander("Summary", expanded=False):
-                st.markdown(f"<div class='detail-abstract'>{abstract}</div>", unsafe_allow_html=True)
-        else:
-            _detail_field("Summary", "n/a")
+    def _v(val) -> str:
+        safe = _html.escape(str(val).strip()) if _has_value(val) else ""
+        return f"<span class='ds-val'>{safe}</span>" if safe else "<span class='ds-na'>—</span>"
 
-        st.markdown("<div class='detail-label'>Keywords</div>", unsafe_allow_html=True)
-        render_keyword_pills(row.get("Keywords", "n/a"))
+    rq           = row.get("Main Research Question", "")
+    abstract     = row.get("Abstract/Summary", "")
+    keywords     = row.get("Keywords", "")
+    mtype        = row.get("Methodology Type", "")
+    methods      = row.get("Specific Methods", "")
+    theories     = row.get("Theories", "")
+    geo          = row.get("Geographical scope", "")
+    sdg_raw      = str(row.get("SDG", "")).strip()
+    scale        = row.get("Scale", row.get("Research Scale", row.get("Research scale", "")))
+    master_track = row.get("Master Track", "")
+    supervisor   = row.get("Supervisor", "")
+    second_rdr   = row.get("Second reader", row.get("Second Reader", ""))
+    intern_org   = row.get("Internship Organization", "")
+    intern_str   = str(intern_org).strip() if _has_value(intern_org) else ""
+    orgs_studied = row.get("Organizations Studied", "")
 
-    # ── Methodology & Theory ──
-    with st.container(border=True, key="detail_methodology"):
-        st.markdown("<div class='detail-section-header'>Methodology & Theory</div>", unsafe_allow_html=True)
-        mc1, mc2 = st.columns(2)
-        with mc1:
-            _detail_field("Methodology Type", row.get("Methodology Type", "n/a"))
-            _detail_field("Specific Methods", row.get("Specific Methods", "n/a"))
-        with mc2:
-            _detail_field("Theories", row.get("Theories", "n/a"))
+    # Research question — escape to prevent broken HTML from < > & in content
+    rq_html = (
+        f"<div class='ds-rq'>{_html.escape(str(rq).strip())}</div>" if _has_value(rq)
+        else "<span class='ds-na'>—</span>"
+    )
 
-    # ── Research Context + Academic ──
-    with st.container(border=True, key="detail_context"):
-        st.markdown("<div class='detail-section-header'>Research Context</div>", unsafe_allow_html=True)
-        cc1, cc2 = st.columns(2)
-        with cc1:
-            _detail_field("Geographical Scope", row.get("Geographical scope", "n/a"))
-            st.markdown("<div class='detail-label'>SDG</div>", unsafe_allow_html=True)
-            st.markdown(f"<div class='detail-sdg-slot'>{sdg_badge(str(row.get('SDG', 'n/a')))}</div>", unsafe_allow_html=True)
-        with cc2:
-            _detail_field("Research Scale", row.get("Scale", row.get("Research Scale", row.get("Research scale", "n/a"))))
+    # Abstract collapsible — escape content so < > & don't break structure
+    if _has_value(abstract):
+        abs_html = (
+            f"<details class='ds-abstract-wrap'>"
+            f"<summary class='ds-abstract-toggle'>Abstract / Summary</summary>"
+            f"<div class='ds-abstract-body'>{_html.escape(str(abstract).strip())}</div>"
+            f"</details>"
+        )
+    else:
+        abs_html = "<div class='ds-field' style='margin-bottom:10px'><span class='ds-lbl'>Summary</span><span class='ds-na'>—</span></div>"
 
-    # ── Academic context and partnerships are shown separately for clarity ──
-    col_academic, col_partnerships = st.columns(2, gap="medium")
-    with col_academic:
-        with st.container(border=True, key="detail_academic"):
-            st.markdown("<div class='detail-section-header'>Academic Context</div>", unsafe_allow_html=True)
-            # Master Track is specific to Sustainable Development
-            master_track = row.get("Master Track", None)
-            if _has_value(master_track):
-                _detail_field("Master Track", master_track)
-            _detail_field("Supervisor", row.get("Supervisor", "n/a"))
-            _detail_field("Second Reader", row.get("Second reader", row.get("Second Reader", "n/a")))
+    # Keywords
+    kw_html = "<span class='ds-na'>—</span>"
+    if _has_value(keywords):
+        kws = [k.strip() for k in str(keywords).split(",") if k.strip() and k.strip().lower() != "n/a"]
+        if kws:
+            kw_html = "".join(f"<span class='ds-kw'>{_html.escape(k)}</span>" for k in kws)
 
-    with col_partnerships:
-        with st.container(border=True, key="detail_partnerships"):
-            st.markdown("<div class='detail-section-header'>Partnerships</div>", unsafe_allow_html=True)
+    # SDG badge
+    sdg_html = sdg_badge(sdg_raw) if _has_value(sdg_raw) else "<span class='ds-na'>—</span>"
 
-            # ── Internship Organization with optional round logo ──
-            _intern_org = row.get("Internship Organization", "n/a")
-            _intern_org_str = str(_intern_org).strip() if _has_value(_intern_org) else "n/a"
-            st.markdown("<div class='detail-label'>Internship Organization</div>", unsafe_allow_html=True)
-            if _intern_org_str != "n/a":
-                _logos_dir = os.path.join(BASE_DIR, "company logos")
-                _intern_logo_b64 = _load_org_logo_b64(_logos_dir, _intern_org_str)
-                if _intern_logo_b64:
-                    st.markdown(
-                        f"<div class='detail-org-row'>"
-                        f"<img src='{_intern_logo_b64}' class='detail-org-logo' alt='{_intern_org_str}'/>"
-                        f"<span class='detail-field-value' style='margin:0'>{_intern_org_str}</span>"
-                        f"</div>",
-                        unsafe_allow_html=True,
-                    )
-                else:
-                    st.markdown(f"<div class='detail-field-value'>{_intern_org_str}</div>", unsafe_allow_html=True)
-            else:
-                st.markdown("<div class='detail-field-value'>n/a</div>", unsafe_allow_html=True)
+    # Internship org logo
+    if intern_str:
+        _logos_dir = os.path.join(BASE_DIR, "company logos")
+        logo_b64 = _load_org_logo_b64(_logos_dir, intern_str)
+        intern_safe = _html.escape(intern_str)
+        intern_html = (
+            f"<div class='ds-org-row'><img src='{logo_b64}' class='ds-org-logo' alt='{intern_safe}'/>"
+            f"<span class='ds-val'>{intern_safe}</span></div>"
+            if logo_b64
+            else f"<span class='ds-val'>{intern_safe}</span>"
+        )
+    else:
+        intern_html = "<span class='ds-na'>—</span>"
 
-            _detail_field("Organizations Studied", row.get("Organizations Studied", "n/a"))
+    # Master Track row (programme-specific)
+    master_html = (
+        f"<div class='ds-field'><span class='ds-lbl'>Master Track</span>{_v(master_track)}</div>"
+        f"<div class='ds-divider'></div>"
+        if _has_value(master_track) else ""
+    )
+
+    st.markdown(f"""
+<div class="ds-cards-wrap">
+
+  <div class="ds-card">
+    <div class="ds-title">Research Overview</div>
+    <div class="ds-field">
+      <span class="ds-lbl">Main Research Question</span>
+      {rq_html}
+    </div>
+    {abs_html}
+    <div class="ds-field">
+      <span class="ds-lbl">Keywords</span>
+      <div class="ds-pill-wrap">{kw_html}</div>
+    </div>
+  </div>
+
+  <div class="ds-card">
+    <div class="ds-title">Methodology &amp; Theory</div>
+    <div class="ds-grid-3">
+      <div class="ds-field"><span class="ds-lbl">Methodology Type</span>{_v(mtype)}</div>
+      <div class="ds-field"><span class="ds-lbl">Specific Methods</span>{_v(methods)}</div>
+      <div class="ds-field"><span class="ds-lbl">Theories</span>{_v(theories)}</div>
+    </div>
+  </div>
+
+  <div class="ds-card">
+    <div class="ds-title">Research Context</div>
+    <div class="ds-grid">
+      <div class="ds-field"><span class="ds-lbl">Geographical Scope</span>{_v(geo)}</div>
+      <div class="ds-field"><span class="ds-lbl">Research Scale</span>{_v(scale)}</div>
+    </div>
+    <div class="ds-divider"></div>
+    <div class="ds-field">
+      <span class="ds-lbl">SDG</span>
+      <div style="margin-top:5px">{sdg_html}</div>
+    </div>
+  </div>
+
+  <div class="ds-row-pair">
+    <div class="ds-card">
+      <div class="ds-title">Academic Context</div>
+      {master_html}<div class="ds-field"><span class="ds-lbl">Supervisor</span>{_v(supervisor)}</div>
+      <div class="ds-divider"></div>
+      <div class="ds-field"><span class="ds-lbl">Second Reader</span>{_v(second_rdr)}</div>
+    </div>
+    <div class="ds-card">
+      <div class="ds-title">Partnerships</div>
+      <div class="ds-field">
+        <span class="ds-lbl">Internship Organization</span>
+        {intern_html}
+      </div>
+      <div class="ds-divider"></div>
+      <div class="ds-field"><span class="ds-lbl">Organizations Studied</span>{_v(orgs_studied)}</div>
+    </div>
+  </div>
+
+</div>
+""", unsafe_allow_html=True)
 
 
 def _normalized_set(value: str) -> set[str]:
@@ -2875,25 +3150,15 @@ if page == "Explorer":
                     # Download button uses cached bytes (read once per session)
                     _det_dl_bytes = _load_pdf_bytes_cached(pdf_path)
                     with st.container(key="details_action_buttons"):
-                        btn_c1, btn_c2 = st.columns(2)
-                        with btn_c1:
-                            if st.button("Full-Page Viewer", key="details_open_full_page_viewer", width='stretch'):
-                                st.session_state.selected_pdf = pdf_name
-                                st.session_state.selected_details = None
-                                st.query_params.clear()
-                                st.query_params["program"] = PROGRAM
-                                st.query_params["pdf"] = pdf_name
-                                st.rerun()
-                        with btn_c2:
-                            if _det_dl_bytes:
-                                st.download_button(
-                                    label=download_label,
-                                    data=_det_dl_bytes,
-                                    file_name=pdf_name,
-                                    mime="application/pdf",
-                                    key=f"details_download_{pdf_name}",
-                                    width='stretch',
-                                )
+                        if _det_dl_bytes:
+                            st.download_button(
+                                label=download_label,
+                                data=_det_dl_bytes,
+                                file_name=pdf_name,
+                                mime="application/pdf",
+                                key=f"details_download_{pdf_name}",
+                                width='stretch',
+                            )
 
                 with col_meta:
                     render_structured_details_sections(matching_row)
