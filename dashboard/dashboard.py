@@ -359,6 +359,149 @@ def _push_nav_history() -> None:
     if not _hist or _hist[-1] != _entry:
         st.session_state.nav_history = (_hist + [_entry])[-10:]
 
+# Map of saved_* session keys ↔ short URL param keys for the Explorer.
+# Browser back/forward only restores state that lives in the URL, so we
+# round-trip every filter through query params.
+_FILTER_URL_KEYS = {
+    "saved_search_query":          ("q",        "str"),
+    "saved_year_filter":           ("years",    "list"),
+    "saved_sdg_filter":            ("sdgs",     "list"),
+    "saved_sector_filter":         ("sectors",  "list"),
+    "saved_method_filter":         ("methods",  "list"),
+    "saved_theory_filter":         ("theories", "list"),
+    "saved_geo_filter":            ("geos",     "list"),
+    "saved_scale_filter":          ("scales",   "list"),
+    "saved_internship_org_filter": ("orgs",     "list"),
+    "saved_master_track_filter":   ("tracks",   "list"),
+    "saved_featured_only":         ("featured", "bool"),
+}
+
+# Maps each saved_* key to the widget key that displays it, so we can seed
+# the widget's session-state entry on a hard reload (Streamlit reads from
+# the widget key once it exists, ignoring the `default=` argument).
+_FILTER_WIDGET_KEYS = {
+    "saved_search_query":          "explorer_search_input",
+    "saved_year_filter":           "filter_year",
+    "saved_sdg_filter":            "filter_sdg",
+    "saved_sector_filter":         "filter_sector",
+    "saved_method_filter":         "filter_method",
+    "saved_theory_filter":         "filter_theory",
+    "saved_geo_filter":            "filter_geo",
+    "saved_scale_filter":          "filter_scale",
+    "saved_internship_org_filter": "filter_internship_org",
+    "saved_master_track_filter":   "filter_master_track",
+    "saved_featured_only":         "filter_featured",
+}
+
+def _sync_explorer_url() -> None:
+    """Mirror the current Explorer filter + page state into st.query_params.
+
+    Streamlit assigns to query_params via replaceState (no new history entry),
+    so this is silent — the user only sees a history entry when a major
+    navigation (detail / pdf / supervisor / nav switch) happens.
+    """
+    if st.session_state.get('page') != 'dashboard':
+        return
+    if st.session_state.get('selected_details') or st.session_state.get('selected_pdf'):
+        return
+    if st.session_state.get('page_nav') != 'Explorer':
+        return
+    qp = {"program": st.session_state.get('program', 'sbi')}
+    for saved_key, (short, kind) in _FILTER_URL_KEYS.items():
+        val = st.session_state.get(saved_key)
+        if kind == "str" and val:
+            qp[short] = str(val)
+        elif kind == "list" and val:
+            qp[short] = ",".join(str(v) for v in val)
+        elif kind == "bool" and val:
+            qp[short] = "1"
+    page_num = int(st.session_state.get('explorer_page', 0) or 0)
+    if page_num > 0:
+        qp["page"] = str(page_num)
+    # Only rewrite if something changed; otherwise Streamlit re-applies the
+    # same URL each rerun, which is wasted work.
+    current = {k: st.query_params[k] for k in st.query_params}
+    if current != qp:
+        st.query_params.clear()
+        for k, v in qp.items():
+            st.query_params[k] = v
+
+
+def _sync_supervisor_url() -> None:
+    """Mirror Supervisor directory/finder state into st.query_params."""
+    if st.session_state.get('page') != 'dashboard':
+        return
+    if st.session_state.get('page_nav') != 'Supervisors':
+        return
+    if st.session_state.get('sup_selected'):
+        # Profile view has its own URL shape (sup_selected=...) which is
+        # written by the click handler — don't overwrite.
+        return
+    sup_view = st.session_state.get('sup_view', 'directory')
+    qp = {"program": st.session_state.get('program', 'sbi'), "nav": "Supervisors"}
+    if sup_view == 'finder':
+        qp["sup_view"] = "finder"
+        _topic = st.session_state.get('sup_finder_topic', '')
+        _method = st.session_state.get('sup_finder_method', '')
+        _sector = st.session_state.get('sup_finder_sector', '')
+        if _topic:
+            qp["sup_topic"] = str(_topic)
+        if _method and _method != "Any":
+            qp["sup_method"] = str(_method)
+        if _sector and _sector != "Any":
+            qp["sup_sector"] = str(_sector)
+        if st.session_state.get('sup_finder_results'):
+            qp["sup_results"] = "1"
+    else:
+        _search = st.session_state.get('sup_search', '')
+        if _search:
+            qp["sup_search"] = str(_search)
+    current = {k: st.query_params[k] for k in st.query_params}
+    if current != qp:
+        st.query_params.clear()
+        for k, v in qp.items():
+            st.query_params[k] = v
+
+
+def _restore_filters_from_url() -> None:
+    """Populate saved_* filter keys (and widget keys) from URL query params.
+
+    Called during init when the URL describes an Explorer grid view (no
+    details/pdf/sup_selected). After a hard reload (browser back/forward via
+    location.replace), session_state is empty so widget defaults must come
+    from the URL — that's why we also seed the widget keys.
+
+    Subtlety: we only seed widget keys *when they don't yet exist*. On a
+    plain rerun (e.g. the user just changed a filter), Streamlit has already
+    stored the new widget value into session_state[widget_key]; the URL still
+    holds the previous value because _sync_explorer_url hasn't fired yet for
+    this run. Seeding unconditionally would clobber the user's change.
+    """
+    for saved_key, (short, kind) in _FILTER_URL_KEYS.items():
+        raw = st.query_params.get(short)
+        if raw is None:
+            continue
+        if kind == "str":
+            parsed = str(raw)
+        elif kind == "list":
+            parsed = [p for p in str(raw).split(",") if p]
+        elif kind == "bool":
+            parsed = str(raw) == "1"
+        else:
+            continue
+        # saved_* is recomputed from the widget later in the render — safe to
+        # set here unconditionally.
+        st.session_state[saved_key] = parsed
+        widget_key = _FILTER_WIDGET_KEYS.get(saved_key)
+        if widget_key and widget_key not in st.session_state:
+            st.session_state[widget_key] = parsed
+    _page_raw = st.query_params.get("page")
+    if _page_raw is not None:
+        try:
+            st.session_state.explorer_page = max(0, int(_page_raw))
+        except (TypeError, ValueError):
+            pass
+
 # session state for homepage navigation
 if 'page' not in st.session_state:
     st.session_state.page = "home"
@@ -407,14 +550,16 @@ else:
     if _sup_selected_from_query:
         if _program_from_query and _program_from_query in _VALID_PROGRAMS:
             st.session_state.program = _program_from_query
-        _push_nav_history()  # record where we came from before opening this supervisor profile
+        # Only push nav history when we're newly entering this profile (not on
+        # every rerun of the same URL).
+        if str(_sup_selected_from_query) != str(st.session_state.get("sup_selected", "")):
+            _push_nav_history()
         st.session_state.page = "dashboard"
         st.session_state.page_nav = "Supervisors"
         st.session_state.sup_selected = _sup_selected_from_query
         st.session_state.sup_view = 'profile'
-        st.query_params.clear()
-        st.query_params["program"] = st.session_state.program
-        st.rerun()
+        # Keep the URL as-is (?program=…&sup_selected=…) so browser back/
+        # forward and reloads land on the same profile.
 
     elif _program_from_query and _program_from_query in _VALID_PROGRAMS:
         # Programme dashboard — URL: ?program=PROG[&nav=SECTION]
@@ -425,6 +570,31 @@ else:
         _nav_from_query = st.query_params.get("nav")
         if _nav_from_query in ("Explorer", "Supervisors", "Insights"):
             st.session_state.page_nav = _nav_from_query
+
+        # Restore Explorer filter / pagination state from URL — required so
+        # that a browser back/forward (which triggers location.replace) lands
+        # the user on the same filtered, paginated grid they left.
+        if st.session_state.get("page_nav", "Explorer") == "Explorer":
+            _restore_filters_from_url()
+
+        # Restore Supervisor directory / finder state from URL.
+        if st.session_state.get("page_nav") == "Supervisors":
+            _sup_view_q = st.query_params.get("sup_view")
+            if _sup_view_q == "finder":
+                st.session_state.sup_view = "finder"
+                st.session_state.sup_finder_topic = st.query_params.get("sup_topic", "") or ""
+                st.session_state.sup_finder_method = st.query_params.get("sup_method", "Any") or "Any"
+                st.session_state.sup_finder_sector = st.query_params.get("sup_sector", "Any") or "Any"
+                st.session_state.sup_finder_results = st.query_params.get("sup_results") == "1"
+            else:
+                # Directory view — restore search box only when not currently
+                # on a supervisor profile (which is identified by sup_selected).
+                if not st.session_state.get("sup_selected"):
+                    st.session_state.sup_view = "directory"
+                    _sup_search_q = st.query_params.get("sup_search")
+                    if _sup_search_q is not None:
+                        st.session_state.sup_search = str(_sup_search_q)
+                        st.session_state["sup_search_input"] = str(_sup_search_q)
 
     else:
         # No URL params → home page (handles browser back-button to home)
@@ -2598,22 +2768,36 @@ def show_homepage():
 
 
 # Browser back/forward button support.
-# On every render we push a history entry so each navigation step is bookmarkable.
-# On popstate (back/forward), we force a full reload so Streamlit reads the new URL.
+# On popstate (back/forward) we force a full reload so Streamlit reads the new URL
+# and rebuilds session state from the query params.
+# We only pushState on *major* navigation transitions (program / nav section / detail /
+# pdf / supervisor profile change). Filter, pagination and search updates stay
+# inside the current history entry — they round-trip through the URL via Streamlit's
+# native replaceState, so a back press skips straight past them.
 st.components.v1.html("""
 <script>
 (function() {
     var w = window.parent;
     var url = w.location.href;
-    // Install popstate handler only once per browser tab
     if (!w._stNavInit) {
         w._stNavInit = true;
         w.addEventListener('popstate', function() {
             w.location.replace(w.location.href);
         });
     }
-    // Convert Streamlit's replaceState into a pushState so back button records the entry
-    if (w._stLastNavUrl && w._stLastNavUrl !== url) {
+    function _majorKey(u) {
+        try {
+            var x = new URL(u);
+            return [x.pathname,
+                    x.searchParams.get('program') || '',
+                    x.searchParams.get('nav') || '',
+                    x.searchParams.get('details') || '',
+                    x.searchParams.get('pdf') || '',
+                    x.searchParams.get('sup_selected') || '',
+                    x.searchParams.get('sup_view') || ''].join('|');
+        } catch (e) { return u; }
+    }
+    if (w._stLastNavUrl && _majorKey(w._stLastNavUrl) !== _majorKey(url)) {
         w.history.pushState({url: url}, '', url);
     }
     w._stLastNavUrl = url;
@@ -2983,6 +3167,10 @@ if show_explorer_filters:
                          "filter_master_track", "filter_featured", "explorer_search_input"]:
                 if _wk in st.session_state:
                     del st.session_state[_wk]
+            st.session_state.explorer_page = 0
+            # Strip filter params from the URL so the next render's init pass
+            # doesn't re-restore the values we just cleared.
+            _sync_explorer_url()
 
         st.sidebar.button("Reset filters", on_click=_reset_filters, key="reset_filters_btn")
 
@@ -3100,6 +3288,9 @@ if show_explorer_filters:
     st.session_state.saved_internship_org_filter = internship_org_filter
     st.session_state.saved_master_track_filter = master_track_filter
     st.session_state.saved_featured_only = featured_only
+    # Mirror filter state into the URL so browser back/forward (which hard-
+    # reloads the page) can restore it from query params.
+    _sync_explorer_url()
     st.sidebar.markdown("---")
     st.sidebar.markdown(f"**Matching theses:** {len(filtered_df)}")
     st.sidebar.caption(f"Active filters: {active_filters_count}")
@@ -3298,6 +3489,8 @@ if page == "Explorer":
         if current_page >= total_pages:
             current_page = total_pages - 1
             st.session_state.explorer_page = current_page
+        # Mirror pagination into the URL so back/forward restores the page.
+        _sync_explorer_url()
 
         if filtered_df.empty:
             st.info("No theses match the current filters.")
@@ -3443,6 +3636,10 @@ if page == "Explorer":
             def set_explorer_page(new_page: int):
                 new_page = max(0, min(new_page, total_pages - 1))
                 st.session_state.explorer_page = new_page
+                # Mirror to URL immediately so the upcoming rerun's init pass
+                # reads the new page from query_params (otherwise the init
+                # restore would clobber session_state back to the old page).
+                _sync_explorer_url()
 
             # Top pagination controls
             def render_pagination(position):
@@ -6464,9 +6661,7 @@ elif page == "Supervisors":
         if st.button("← Back to Directory", key="sup_finder_back"):
             st.session_state.sup_view = 'directory'
             st.session_state.sup_finder_results = False
-            st.query_params.clear()
-            st.query_params["program"] = PROGRAM
-            st.query_params["nav"] = "Supervisors"
+            _sync_supervisor_url()
             st.rerun()
 
         st.markdown("""<div class="sup-finder-hero">
@@ -6499,9 +6694,7 @@ elif page == "Supervisors":
             st.session_state.sup_finder_method = _fmethod
             st.session_state.sup_finder_sector = _fsector
             st.session_state.sup_finder_results = True
-            st.query_params.clear()
-            st.query_params["program"] = PROGRAM
-            st.query_params["nav"] = "Supervisors"
+            _sync_supervisor_url()
             st.rerun()
 
         if st.session_state.sup_finder_results and (
@@ -6606,9 +6799,7 @@ elif page == "Supervisors":
         with _cta_c:
             if st.button("🎯 Find My Supervisor", key="sup_open_finder", type="primary"):
                 st.session_state.sup_view = 'finder'
-                st.query_params.clear()
-                st.query_params["program"] = PROGRAM
-                st.query_params["nav"] = "Supervisors"
+                _sync_supervisor_url()
                 st.rerun()
 
         st.markdown("")
@@ -6630,6 +6821,8 @@ elif page == "Supervisors":
                 label_visibility="collapsed", key="sup_dir_sort",
             )
         st.session_state.sup_search = _dsearch
+        # Mirror the directory search into the URL so back/forward restores it.
+        _sync_supervisor_url()
 
         _filtered = []
         for _n in _all_sorted:
