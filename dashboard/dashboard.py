@@ -4666,7 +4666,7 @@ body{{font-family:'Inter',-apple-system,sans-serif;background:transparent;overfl
 .sd-meta{{font-size:0.74rem;color:#6b7a8d;margin-top:0.1rem;}}
 </style>
 <div id="whl-wrap">
-  <svg id="whl" viewBox="0 0 480 480" width="760" height="760"></svg>
+  <svg id="whl" viewBox="0 0 480 480" width="960" height="960"></svg>
   <div id="sdg-overlay"></div>
   <div id="sdg-detail"><div id="sdg-di"></div></div>
 </div>
@@ -4801,7 +4801,7 @@ overlay.addEventListener('click',closeDetail);
 </script>
 """
 
-    _ins_comp.html(_sdg_html, height=860, scrolling=False)
+    _ins_comp.html(_sdg_html, height=1060, scrolling=False)
 
     # ══════════════════════════════════════════════════════════════════════
     # SECTION 2 — PARTNER ORGANISATION GALAXY
