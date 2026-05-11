@@ -33,7 +33,7 @@ import urllib.parse
 # change (e.g. a different programme directory is requested).
 
 @st.cache_data(show_spinner=False)
-def _load_thesis_data(program_dir: str, program: str) -> tuple:
+def _load_thesis_data(program_dir: str, program: str, _mtime: float = 0) -> tuple:
     """Load, validate and clean the thesis metadata CSV for a programme directory.
 
     Returns (dataframe, error_message).  On success error_message is ''.
@@ -2664,7 +2664,9 @@ PROGRAM_DIR = os.path.abspath(
 )
 
 # ----- load data ------------------------------------------------------------
-df, _load_error = _load_thesis_data(PROGRAM_DIR, PROGRAM)
+_metadata_path = os.path.join(PROGRAM_DIR, "thesis_metadata_matched.csv")
+_mtime = os.path.getmtime(_metadata_path) if os.path.exists(_metadata_path) else 0
+df, _load_error = _load_thesis_data(PROGRAM_DIR, PROGRAM, _mtime)
 if _load_error:
     st.error(_load_error)
 
