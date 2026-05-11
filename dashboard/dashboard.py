@@ -341,6 +341,24 @@ for _fk in _FILTER_KEYS:
     if _fk not in st.session_state:
         st.session_state[_fk] = [] if _fk != "saved_search_query" and _fk != "saved_featured_only" else ("" if _fk == "saved_search_query" else False)
 
+# session state for navigation history (back button)
+if 'nav_history' not in st.session_state:
+    st.session_state.nav_history = []
+
+def _push_nav_history() -> None:
+    """Capture current page state onto the navigation history stack (max 10 entries)."""
+    _entry = {
+        'program': st.session_state.get('program', 'sbi'),
+        'page_nav': st.session_state.get('page_nav', 'Explorer'),
+        'selected_details': st.session_state.get('selected_details'),
+        'selected_pdf': st.session_state.get('selected_pdf'),
+        'sup_selected': st.session_state.get('sup_selected'),
+        'sup_view': st.session_state.get('sup_view', 'directory'),
+    }
+    _hist = st.session_state.get('nav_history', [])
+    if not _hist or _hist[-1] != _entry:
+        st.session_state.nav_history = (_hist + [_entry])[-10:]
+
 # session state for homepage navigation
 if 'page' not in st.session_state:
     st.session_state.page = "home"
@@ -369,6 +387,7 @@ elif _details_from_query:
     st.session_state.page = "dashboard"
     # Only reset PDF state when switching to a *different* thesis (not on every rerun)
     if str(_details_from_query) != str(st.session_state.get("selected_details", "")):
+        _push_nav_history()  # record where we came from before entering this detail page
         st.session_state.selected_pdf = None
     st.session_state.selected_details = str(_details_from_query)
 
@@ -376,6 +395,8 @@ elif _details_from_query:
 elif _pdf_from_query:
     if _program_from_query and _program_from_query in _VALID_PROGRAMS:
         st.session_state.program = _program_from_query
+    if str(_pdf_from_query) != str(st.session_state.get("selected_pdf", "")):
+        _push_nav_history()  # record where we came from before opening the PDF viewer
     st.session_state.page = "dashboard"
     st.session_state.selected_pdf = str(_pdf_from_query)
     st.session_state.selected_details = None
@@ -386,6 +407,7 @@ else:
     if _sup_selected_from_query:
         if _program_from_query and _program_from_query in _VALID_PROGRAMS:
             st.session_state.program = _program_from_query
+        _push_nav_history()  # record where we came from before opening this supervisor profile
         st.session_state.page = "dashboard"
         st.session_state.page_nav = "Supervisors"
         st.session_state.sup_selected = _sup_selected_from_query
@@ -1424,13 +1446,9 @@ st.markdown(
         transform: translateY(-2px) !important;
     }
 
-    /* ── Back navigation buttons — match yellow UU brand (same as details action buttons) ── */
+    /* ── Back navigation buttons — match yellow UU brand ── */
     .st-key-back_to_home button,
-    .st-key-reader_back_to_explorer button,
-    .st-key-details_reader_back_to_explorer button,
-    .st-key-back_to_explorer_pdf_err button,
-    .st-key-back_to_explorer_no_pdf button,
-    .st-key-back_to_explorer_not_found button {
+    [class*="st-key-back_btn_"] button {
         background: var(--uu-yellow) !important;
         border: none !important;
         color: var(--uu-blue) !important;
@@ -1440,11 +1458,7 @@ st.markdown(
         padding: 0.54rem 1rem !important;
     }
     .st-key-back_to_home button:hover,
-    .st-key-reader_back_to_explorer button:hover,
-    .st-key-details_reader_back_to_explorer button:hover,
-    .st-key-back_to_explorer_pdf_err button:hover,
-    .st-key-back_to_explorer_no_pdf button:hover,
-    .st-key-back_to_explorer_not_found button:hover {
+    [class*="st-key-back_btn_"] button:hover {
         background: #f0c200 !important;
         box-shadow: 0 7px 20px rgba(255,205,0,0.46) !important;
         transform: translateY(-2px) !important;
@@ -2614,6 +2628,37 @@ if st.session_state.page == "home":
 
 # From here on, we are in dashboard mode for the selected programme.
 PROGRAM = st.session_state.program
+
+def _render_back_btn(key: str) -> None:
+    """Universal back button — pops the navigation history stack to return to previous page."""
+    if st.button("← Back", key=key):
+        _hist = st.session_state.get('nav_history', [])
+        if _hist:
+            _prev = _hist[-1]
+            st.session_state.nav_history = _hist[:-1]
+            st.session_state.selected_details = _prev.get('selected_details')
+            st.session_state.selected_pdf = _prev.get('selected_pdf')
+            st.session_state.page_nav = _prev.get('page_nav', 'Explorer')
+            st.session_state.sup_selected = _prev.get('sup_selected')
+            st.session_state.sup_view = _prev.get('sup_view', 'directory')
+            _prev_prog = _prev.get('program', PROGRAM)
+            st.query_params.clear()
+            st.query_params['program'] = _prev_prog
+            if _prev.get('selected_details'):
+                st.query_params['details'] = _prev['selected_details']
+            elif _prev.get('selected_pdf'):
+                st.query_params['pdf'] = _prev['selected_pdf']
+            elif _prev.get('page_nav') == 'Supervisors':
+                st.query_params['nav'] = 'Supervisors'
+        else:
+            # No history: fall back to explorer
+            st.session_state.selected_details = None
+            st.session_state.selected_pdf = None
+            st.session_state.page_nav = 'Explorer'
+            st.query_params.clear()
+            st.query_params['program'] = PROGRAM
+        st.rerun()
+
 PROGRAM_DIR = os.path.abspath(
     os.path.join(BASE_DIR, "..", "programs", _PROGRAMME_FOLDER_MAP.get(PROGRAM, PROGRAM))
 )
@@ -3073,11 +3118,7 @@ if page == "Explorer":
             matching_row = find_row_by_pdf_name(df, selected_pdf)
 
             st.markdown("### Thesis Viewer")
-            if st.button("\u2190 Back to Explorer", key="reader_back_to_explorer"):
-                st.session_state.selected_pdf = None
-                st.query_params.clear()
-                st.query_params["program"] = PROGRAM
-                st.rerun()
+            _render_back_btn("back_btn_pdf_reader")
 
             st.caption("Full-page thesis viewer. Use the viewer controls to navigate and inspect the document in detail.")
 
@@ -3123,11 +3164,7 @@ if page == "Explorer":
                 f"PDF not available in this deployment. "
                 f"[Browse all theses on Google Drive]({_DRIVE_ROOT_FALLBACK})"
             )
-            if st.button("\u2190 Back to Explorer", key="back_to_explorer_pdf_err"):
-                st.session_state.selected_pdf = None
-                st.query_params.clear()
-                st.query_params["program"] = PROGRAM
-                st.rerun()
+            _render_back_btn("back_btn_pdf_err")
 
     elif selected_details:
         # Focused details viewing mode: hide the grid and show detailed metadata.
@@ -3146,12 +3183,7 @@ if page == "Explorer":
             has_pdf = pdf_name not in ("n/a", "", "nan") and os.path.exists(pdf_path)
 
             if has_pdf:
-                if st.button("\u2190 Back to Explorer", key="details_reader_back_to_explorer"):
-                    st.session_state.selected_details = None
-                    st.session_state.selected_pdf = None
-                    st.query_params.clear()
-                    st.query_params["program"] = PROGRAM
-                    st.rerun()
+                _render_back_btn("back_btn_details_pdf")
 
                 # ── Hero header ──
                 st.markdown(
@@ -3200,11 +3232,7 @@ if page == "Explorer":
 
                 render_related_thesis_cards(matching_row, "details_reader_related_view")
             else:
-                if st.button("\u2190 Back to Explorer", key="back_to_explorer_no_pdf"):
-                    st.session_state.selected_details = None
-                    st.query_params.clear()
-                    st.query_params["program"] = PROGRAM
-                    st.rerun()
+                _render_back_btn("back_btn_details_no_pdf")
 
                 # ── Hero header ──
                 cover_path, _ = resolve_cover_and_pdf_paths(matching_row)
@@ -3252,11 +3280,7 @@ if page == "Explorer":
 
         else:
             st.error("The requested thesis details could not be found.")
-            if st.button("\u2190 Back to Explorer", key="back_to_explorer_not_found"):
-                st.session_state.selected_details = None
-                st.query_params.clear()
-                st.query_params["program"] = PROGRAM
-                st.rerun()
+            _render_back_btn("back_btn_details_not_found")
 
     else:
         explorer_df = filtered_df.copy()
@@ -6215,14 +6239,12 @@ elif page == "Supervisors":
     .sup-result-name { font-size: 1.04rem; font-weight: 700; color: #0a2540; }
     .sup-result-reason { font-size: 0.82rem; color: #4a6080; margin-top: 0.4rem; line-height: 1.55; }
     .sup-match-bar { height: 5px; border-radius: 4px; background: #003660; margin-top: 0.55rem; }
-    .st-key-sup_back_to_dir button,
     .st-key-sup_finder_back button {
         background: var(--uu-yellow) !important; border: none !important;
         color: var(--uu-blue) !important; font-weight: 700 !important;
         box-shadow: 0 4px 14px rgba(255,205,0,0.35) !important;
         font-size: 0.9rem !important; padding: 0.54rem 1rem !important;
     }
-    .st-key-sup_back_to_dir button:hover,
     .st-key-sup_finder_back button:hover {
         background: #f0c200 !important;
         box-shadow: 0 7px 20px rgba(255,205,0,0.46) !important;
@@ -6325,13 +6347,7 @@ elif page == "Supervisors":
         _scol  = _avatar_color(_sname)
         _sini  = _initials(_sname)
 
-        if st.button("← Back to Supervisors", key="sup_back_to_dir"):
-            st.session_state.sup_view = 'directory'
-            st.session_state.sup_selected = None
-            st.query_params.clear()
-            st.query_params["program"] = PROGRAM
-            st.query_params["nav"] = "Supervisors"
-            st.rerun()
+        _render_back_btn("back_btn_sup")
 
         st.markdown(
             f"""<div class="sup-profile-hero">
