@@ -6397,76 +6397,42 @@ elif page == "Supervisors":
                 f"📖 Second Reader ({_sst['rc']})",
             ])
 
-            _SDG_CLR = {
-                '1':'#E5243B','2':'#DDA63A','3':'#4C9F38','4':'#C5192D',
-                '5':'#FF3A21','6':'#26BDE2','7':'#FCC30B','8':'#A21942',
-                '9':'#FD6925','10':'#DD1367','11':'#FD9D24','12':'#BF8B2E',
-                '13':'#3F9A44','14':'#0A97D9','15':'#56C02B','16':'#00689D',
-                '17':'#19486A',
-            }
-
             def _render_thesis_list(rows, _tab_key):
                 if not rows:
                     st.caption("No theses in this category.")
                     return
-                for _ri, _r in enumerate(sorted(rows, key=lambda x: str(x.get('Year', '0')), reverse=True)):
-                    _title   = str(_r.get('Title', 'Untitled'))
-                    _year    = str(_r.get('Year', '') or '')
-                    _author  = str(_r.get('Author(s)', '') or '')
-                    _sector  = str(_r.get('Main sector', '') or '')
-                    _method  = str(_r.get('Methodology Type', '') or '')
-                    _org     = str(_r.get('Organizations Studied', '') or '')
-                    _kws     = str(_r.get('Keywords', '') or '')
-                    _country = str(_r.get('Country', '') or '')
-                    _sdg_raw = str(_r.get('SDG', '') or '')
-                    _pdf_raw = str(_r.get('Thesis_PDF', '') or '')
-                    _has_pdf = bool(_pdf_raw and _pdf_raw.lower() not in ('n/a', 'nan', ''))
-                    _pdf_key = _pdf_raw.replace('.pdf', '') if _has_pdf else None
-                    # SDG badge
-                    _sdg_m = _re.search(r'\d+', _sdg_raw)
-                    _sdg_html = ''
-                    if _sdg_m:
-                        _sn = _sdg_m.group(); _sc2 = _SDG_CLR.get(_sn, '#888')
-                        _sdg_html = f"<span class='sup-thesis-sdg' style='background:{_sc2}'>SDG {_sn}</span>"
-                    # keyword tags (up to 3)
-                    _kw_tags = ''
-                    for _kw in _re.split(r'[,;]', _kws)[:3]:
-                        _kw = _kw.strip()
-                        if _kw and _kw.lower() not in ('n/a', 'nan', ''):
-                            _kw_tags += f"<span class='sup-thesis-kwtag'>{_kw[:30]}</span>"
-                    # meta line
-                    _meta_parts = [p for p in [_year, _method, _sector]
-                                   if p and p.lower() not in ('n/a', 'nan', '')]
-                    _meta_str = ' · '.join(_meta_parts[:3])
-                    # org + country
-                    _org_pts = [p.strip() for p in _re.split(r'[;,]', _org)
-                                if p.strip() and p.strip().lower() not in ('n/a','nan','')][:2]
-                    _ctr_pts = [p.strip() for p in _re.split(r'[;,]', _country)
-                                if p.strip() and p.strip().lower() not in ('n/a','nan','')][:2]
-                    _loc = ', '.join(_org_pts)
-                    if _ctr_pts:
-                        _loc += (' — ' if _loc else '') + ', '.join(_ctr_pts)
-                    _pdf_icon = ''
-                    _loc_line = (f"<div class='sup-thesis-meta' style='color:#5a7a9a;margin-top:.28rem'>"
-                                 f"{_loc}</div>") if _loc else ''
-                    _auth_line = (f"<div class='sup-thesis-meta' style='color:#4a6a8a;font-style:italic;margin-top:.12rem'>"
-                                  f"{_author}</div>") if _author and _author.lower() not in ('n/a','nan','') else ''
-                    _row_ck = f"supthrow_{_tab_key}_{_ri}"
-                    _card_inner = f"""<div class='sup-thesis-row' style='cursor:{"pointer" if _pdf_key else "default"}'>
-                              <div style='margin-bottom:.35rem'>{_sdg_html}{_kw_tags}</div>
-                              <div class='sup-thesis-title'>{_pdf_icon}{_title}</div>
-                              <div class='sup-thesis-meta' style='margin-top:.22rem'>{_meta_str}</div>
-                              {_auth_line}{_loc_line}
-                            </div>"""
-                    if _pdf_key:
-                        _enc_p = urllib.parse.quote(PROGRAM, safe='')
-                        _enc_d = urllib.parse.quote(_pdf_key, safe='')
-                        st.markdown(
-                            f'<a href="?program={_enc_p}&details={_enc_d}" class="sup-card-link" target="_self">{_card_inner}</a>',
-                            unsafe_allow_html=True,
-                        )
-                    else:
-                        st.markdown(_card_inner, unsafe_allow_html=True)
+                sorted_rows = sorted(rows, key=lambda x: str(x.get('Year', '0')), reverse=True)
+                for i in range(0, len(sorted_rows), 4):
+                    chunk = sorted_rows[i:i+4]
+                    cols = st.columns(4)
+                    for j, _r in enumerate(chunk):
+                        with cols[j]:
+                            cover_path, resolved_pdf_path = resolve_cover_and_pdf_paths(_r)
+                            _pdf_raw = str(_r.get('Thesis_PDF', '') or '')
+                            _has_pdf = bool(_pdf_raw and _pdf_raw.lower() not in ('n/a', 'nan', ''))
+                            _pdf_key = _pdf_raw.replace('.pdf', '') if _has_pdf else None
+                            _is_featured = bool(_r.get('Featured', False))
+                            _enc_p = urllib.parse.quote(PROGRAM, safe='')
+                            if _pdf_key:
+                                _enc_d = urllib.parse.quote(_pdf_key, safe='')
+                                card_link = f"?program={_enc_p}&details={_enc_d}"
+                                card_html = (
+                                    f'<a href="{card_link}" class="thesis-card-link" target="_self">'
+                                    '<div class="thesis-card">'
+                                    + render_cover_html(cover_path, resolved_pdf_path, featured=_is_featured)
+                                    + f"<div class='thesis-title'>{_r.get('Title','Untitled')}</div>"
+                                    + f"<div class='thesis-meta'>{_r.get('Author(s)','')} &#8226; {_r.get('Year','')}</div>"
+                                    + '</div></a>'
+                                )
+                            else:
+                                card_html = (
+                                    '<div class="thesis-card" style="cursor:default">'
+                                    + render_cover_html(cover_path, resolved_pdf_path, featured=_is_featured)
+                                    + f"<div class='thesis-title'>{_r.get('Title','Untitled')}</div>"
+                                    + f"<div class='thesis-meta'>{_r.get('Author(s)','')} &#8226; {_r.get('Year','')}</div>"
+                                    + '</div>'
+                                )
+                            st.markdown(card_html, unsafe_allow_html=True)
 
             with _tab_s:
                 _render_thesis_list(_sst['s_rows'], 's')
