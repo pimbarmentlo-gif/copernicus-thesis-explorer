@@ -6617,9 +6617,9 @@ elif page == "Supervisors":
                     st.caption("No theses in this category.")
                     return
                 sorted_rows = sorted(rows, key=lambda x: str(x.get('Year', '0')), reverse=True)
-                for i in range(0, len(sorted_rows), 4):
-                    chunk = sorted_rows[i:i+4]
-                    cols = st.columns(4)
+                for i in range(0, len(sorted_rows), 3):
+                    chunk = sorted_rows[i:i+3]
+                    cols = st.columns(3)
                     for j, _r in enumerate(chunk):
                         with cols[j]:
                             cover_path, resolved_pdf_path = resolve_cover_and_pdf_paths(_r)
