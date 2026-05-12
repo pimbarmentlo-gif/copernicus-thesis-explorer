@@ -3252,12 +3252,24 @@ if show_explorer_filters:
 
     if search_query:
         _q = search_query.strip()
-        _title_match    = filtered_df["Title"].str.contains(_q, case=False, regex=False, na=False)
-        _author_match   = filtered_df["Author(s)"].str.contains(_q, case=False, regex=False, na=False)
-        _kw_match       = filtered_df["Keywords"].str.contains(_q, case=False, regex=False, na=False)
-        _abstract_match = filtered_df["Abstract/Summary"].str.contains(_q, case=False, regex=False, na=False)
-        _rq_match       = filtered_df["Main Research Question"].str.contains(_q, case=False, regex=False, na=False)
-        filtered_df = filtered_df[_title_match | _author_match | _kw_match | _abstract_match | _rq_match]
+        # Build one lowercase text blob per thesis from all searchable fields.
+        # Multi-word queries are split into tokens and matched with AND logic so
+        # "sustainable tourism" finds any thesis that contains both words anywhere
+        # across title, author, keywords, abstract, and research question —
+        # rather than requiring the exact phrase to appear verbatim.
+        _search_blob = (
+            filtered_df["Title"].fillna("") + " " +
+            filtered_df["Author(s)"].fillna("") + " " +
+            filtered_df["Keywords"].fillna("") + " " +
+            filtered_df["Abstract/Summary"].fillna("") + " " +
+            filtered_df["Main Research Question"].fillna("")
+        ).str.lower()
+        _tokens = [t for t in _q.lower().split() if len(t) >= 2]
+        if _tokens:
+            _mask = _search_blob.str.contains(_tokens[0], regex=False, na=False)
+            for _tok in _tokens[1:]:
+                _mask = _mask & _search_blob.str.contains(_tok, regex=False, na=False)
+            filtered_df = filtered_df[_mask]
 
     if theory_filter:
         selected_theories = {item.strip().lower() for item in theory_filter}
