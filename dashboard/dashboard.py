@@ -6563,9 +6563,12 @@ elif page == "Supervisors":
             unsafe_allow_html=True,
         )
 
-        _pc1, _pc2 = st.columns([2, 3], gap="large")
+        # Expertise / Methods / Sectors as a compact 3-column band — keeps
+        # the supervisor stats above the fold while leaving the full page
+        # width below for the thesis card grid.
+        _pc_kw, _pc_meth, _pc_sec = st.columns([1, 1, 1], gap="large")
 
-        with _pc1:
+        with _pc_kw:
             st.markdown("<div class='sup-section-title'>Expertise Areas</div>", unsafe_allow_html=True)
             if _sst['kw']:
                 st.markdown(
@@ -6578,6 +6581,7 @@ elif page == "Supervisors":
             else:
                 st.caption("No keyword data.")
 
+        with _pc_meth:
             st.markdown("<div class='sup-section-title'>Methods Experience</div>", unsafe_allow_html=True)
             if _sst['meth']:
                 _mmax = _sst['meth'][0][1]
@@ -6594,6 +6598,7 @@ elif page == "Supervisors":
             else:
                 st.caption("No method data.")
 
+        with _pc_sec:
             st.markdown("<div class='sup-section-title'>Sectors</div>", unsafe_allow_html=True)
             if _sst['sec']:
                 st.markdown(
@@ -6606,53 +6611,57 @@ elif page == "Supervisors":
             else:
                 st.caption("No sector data.")
 
-        with _pc2:
-            _tab_s, _tab_r = st.tabs([
-                f"📘 Supervised ({_sst['sc']})",
-                f"📖 Second Reader ({_sst['rc']})",
-            ])
+        st.markdown("<div style='height:1.2rem'></div>", unsafe_allow_html=True)
 
-            def _render_thesis_list(rows, _tab_key):
-                if not rows:
-                    st.caption("No theses in this category.")
-                    return
-                sorted_rows = sorted(rows, key=lambda x: str(x.get('Year', '0')), reverse=True)
-                for i in range(0, len(sorted_rows), 3):
-                    chunk = sorted_rows[i:i+3]
-                    cols = st.columns(3)
-                    for j, _r in enumerate(chunk):
-                        with cols[j]:
-                            cover_path, resolved_pdf_path = resolve_cover_and_pdf_paths(_r)
-                            _pdf_raw = str(_r.get('Thesis_PDF', '') or '')
-                            _has_pdf = bool(_pdf_raw and _pdf_raw.lower() not in ('n/a', 'nan', ''))
-                            _pdf_key = _pdf_raw.replace('.pdf', '') if _has_pdf else None
-                            _is_featured = bool(_r.get('Featured', False))
-                            _enc_p = urllib.parse.quote(PROGRAM, safe='')
-                            if _pdf_key:
-                                _enc_d = urllib.parse.quote(_pdf_key, safe='')
-                                card_link = f"?program={_enc_p}&details={_enc_d}"
-                                card_html = (
-                                    f'<a href="{card_link}" class="thesis-card-link" target="_self">'
-                                    '<div class="thesis-card">'
-                                    + render_cover_html(cover_path, resolved_pdf_path, featured=_is_featured)
-                                    + f"<div class='thesis-title'>{_r.get('Title','Untitled')}</div>"
-                                    + f"<div class='thesis-meta'>{_r.get('Author(s)','')} &#8226; {_r.get('Year','')}</div>"
-                                    + '</div></a>'
-                                )
-                            else:
-                                card_html = (
-                                    '<div class="thesis-card" style="cursor:default">'
-                                    + render_cover_html(cover_path, resolved_pdf_path, featured=_is_featured)
-                                    + f"<div class='thesis-title'>{_r.get('Title','Untitled')}</div>"
-                                    + f"<div class='thesis-meta'>{_r.get('Author(s)','')} &#8226; {_r.get('Year','')}</div>"
-                                    + '</div>'
-                                )
-                            st.markdown(card_html, unsafe_allow_html=True)
+        # Thesis lists rendered full-width below the stats band so each card
+        # has room for its title (in the previous 2-column layout, cards were
+        # squeezed into 60% of the page and titles wrapped aggressively).
+        _tab_s, _tab_r = st.tabs([
+            f"📘 Supervised ({_sst['sc']})",
+            f"📖 Second Reader ({_sst['rc']})",
+        ])
 
-            with _tab_s:
-                _render_thesis_list(_sst['s_rows'], 's')
-            with _tab_r:
-                _render_thesis_list(_sst['r_rows'], 'r')
+        def _render_thesis_list(rows, _tab_key):
+            if not rows:
+                st.caption("No theses in this category.")
+                return
+            sorted_rows = sorted(rows, key=lambda x: str(x.get('Year', '0')), reverse=True)
+            for i in range(0, len(sorted_rows), 4):
+                chunk = sorted_rows[i:i+4]
+                cols = st.columns(4)
+                for j, _r in enumerate(chunk):
+                    with cols[j]:
+                        cover_path, resolved_pdf_path = resolve_cover_and_pdf_paths(_r)
+                        _pdf_raw = str(_r.get('Thesis_PDF', '') or '')
+                        _has_pdf = bool(_pdf_raw and _pdf_raw.lower() not in ('n/a', 'nan', ''))
+                        _pdf_key = _pdf_raw.replace('.pdf', '') if _has_pdf else None
+                        _is_featured = bool(_r.get('Featured', False))
+                        _enc_p = urllib.parse.quote(PROGRAM, safe='')
+                        if _pdf_key:
+                            _enc_d = urllib.parse.quote(_pdf_key, safe='')
+                            card_link = f"?program={_enc_p}&details={_enc_d}"
+                            card_html = (
+                                f'<a href="{card_link}" class="thesis-card-link" target="_self">'
+                                '<div class="thesis-card">'
+                                + render_cover_html(cover_path, resolved_pdf_path, featured=_is_featured)
+                                + f"<div class='thesis-title'>{_r.get('Title','Untitled')}</div>"
+                                + f"<div class='thesis-meta'>{_r.get('Author(s)','')} &#8226; {_r.get('Year','')}</div>"
+                                + '</div></a>'
+                            )
+                        else:
+                            card_html = (
+                                '<div class="thesis-card" style="cursor:default">'
+                                + render_cover_html(cover_path, resolved_pdf_path, featured=_is_featured)
+                                + f"<div class='thesis-title'>{_r.get('Title','Untitled')}</div>"
+                                + f"<div class='thesis-meta'>{_r.get('Author(s)','')} &#8226; {_r.get('Year','')}</div>"
+                                + '</div>'
+                            )
+                        st.markdown(card_html, unsafe_allow_html=True)
+
+        with _tab_s:
+            _render_thesis_list(_sst['s_rows'], 's')
+        with _tab_r:
+            _render_thesis_list(_sst['r_rows'], 'r')
 
     # ══════════════════════════════════════════════════════════════════════
     # FINDER PAGE
