@@ -6328,8 +6328,7 @@ html,body{{width:100%;height:100%;background:transparent;overflow:hidden;}}
 .pop-item-title{{font-size:12.5px;font-weight:700;color:#1a202c;line-height:1.35;margin-bottom:2px;}}
 .pop-item-meta{{font-size:11px;color:#6b7a8d;}}
 .pop-item-flags{{display:flex;gap:3px;margin-top:4px;flex-wrap:wrap;}}
-.pop-flag-chip{{display:inline-flex;align-items:center;gap:3px;background:#f0f4f8;border-radius:4px;padding:1px 5px;font-size:10px;color:#4a5568;font-weight:600;}}
-.pop-flag-chip img{{width:14px;height:10px;object-fit:cover;border-radius:1px;border:1px solid rgba(0,0,0,0.1);}}
+.pop-flag-chip{{display:inline-flex;align-items:center;gap:2px;background:#f0f4f8;border-radius:4px;padding:1px 6px;font-size:11px;color:#4a5568;font-weight:600;}}
 .pop-more{{
   padding:10px 20px;text-align:center;font-size:12px;font-weight:700;
   color:{_prog_color};cursor:pointer;background:#f7f9fc;
@@ -6476,20 +6475,17 @@ function openPopout(d){{
     meta.textContent=(t.author||'')+(t.year?' \u00b7 '+t.year:'');
     item.appendChild(tit);
     item.appendChild(meta);
-    // per-thesis country flags
-    if(t.countries&&t.countries.length){{  
+    // per-thesis country flags (unicode emoji — no external CDN)
+    if(t.countries&&t.countries.length){{
       var flags=document.createElement('div');
       flags.className='pop-item-flags';
-      t.countries.forEach(function(cn){{  
-        var code=ISO2[cn.toLowerCase().trim()]||'';
-        if(!code)return;
+      t.countries.forEach(function(cn){{
+        var code=(ISO2[cn.toLowerCase().trim()]||'').toUpperCase();
+        if(!code||code.length!==2)return;
+        var emoji=String.fromCodePoint(0x1F1E6+code.charCodeAt(0)-65)+String.fromCodePoint(0x1F1E6+code.charCodeAt(1)-65);
         var chip=document.createElement('span');
         chip.className='pop-flag-chip';
-        var img=document.createElement('img');
-        img.src='https://flagcdn.com/w40/'+code+'.webp';
-        img.alt=cn;
-        chip.appendChild(img);
-        chip.appendChild(document.createTextNode(cn));
+        chip.textContent=emoji+'\u00a0'+cn;
         flags.appendChild(chip);
       }});
       if(flags.children.length)item.appendChild(flags);
