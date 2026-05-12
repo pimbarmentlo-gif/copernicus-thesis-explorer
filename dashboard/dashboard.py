@@ -3174,19 +3174,52 @@ def _render_filter_chips() -> None:
         return
     html_parts = []
     for label, url in chips:
+        # Escape single quotes in URL for the data-href attribute
+        safe_url = url.replace('"', '&quot;')
+        safe_label = label.replace('<', '&lt;').replace('>', '&gt;').replace('"', '&quot;')
         html_parts.append(
-            f'<a class="filter-chip" href="{url}" target="_top"'
-            f' onclick="event.preventDefault();window.location.href=\'{url}\';return false;"'
-            f' title="Remove filter">'
-            f'<span>{label}</span><span class="x">×</span></a>'
+            f'<a class="filter-chip" data-href="{safe_url}" title="Remove filter">'
+            f'<span>{safe_label}</span><span class="x">&#xD7;</span></a>'
         )
     _clear_url = f"?program={PROGRAM}"
     html_parts.append(
-        f'<a class="filter-chip-clear" href="{_clear_url}" target="_top"'
-        f' onclick="event.preventDefault();window.location.href=\'{_clear_url}\';return false;">'
-        f'Clear all</a>'
+        f'<a class="filter-chip-clear" data-href="{_clear_url}">Clear all</a>'
     )
-    st.markdown(f'<div class="filter-chips">{"".join(html_parts)}</div>', unsafe_allow_html=True)
+    # Calculate component height: 1 row ≈ 44px, assume ~4 chips per row
+    _n = len(chips) + 1
+    _chip_h = max(52, ((_n + 3) // 4) * 48 + 12)
+    st.components.v1.html(f"""
+<style>
+*{{box-sizing:border-box;margin:0;padding:0;}}
+body{{font-family:Inter,-apple-system,sans-serif;background:transparent;overflow:hidden;}}
+.filter-chips{{display:flex;flex-wrap:wrap;gap:8px;padding:4px 2px 10px 2px;align-items:center;}}
+.filter-chip{{
+  display:inline-flex;align-items:center;gap:6px;padding:5px 11px;
+  background:#FFCD00;color:#003660;border-radius:999px;
+  font-size:0.82rem;font-weight:600;text-decoration:none;cursor:pointer;
+  transition:filter 0.15s,transform 0.1s;border:none;user-select:none;
+}}
+.filter-chip:hover{{filter:brightness(0.95);transform:translateY(-1px);}}
+.filter-chip .x{{font-weight:700;font-size:1rem;line-height:1;opacity:0.55;}}
+.filter-chip:hover .x{{opacity:1;}}
+.filter-chip-clear{{
+  font-size:0.82rem;color:#888;text-decoration:underline;
+  padding:5px 6px;cursor:pointer;background:none;border:none;
+}}
+.filter-chip-clear:hover{{color:#003660;}}
+</style>
+<div class="filter-chips">{"".join(html_parts)}</div>
+<script>
+document.querySelectorAll('[data-href]').forEach(function(el){{
+  el.addEventListener('click',function(e){{
+    e.preventDefault();
+    e.stopPropagation();
+    try{{window.parent.location.href=el.getAttribute('data-href');}}
+    catch(err){{window.top.location.href=el.getAttribute('data-href');}}
+  }});
+}});
+</script>
+""", height=_chip_h, scrolling=False)
 
 
 def _render_top_bar() -> None:
