@@ -617,6 +617,11 @@ st.markdown(
         --uu-yellow: #FFCD00;
         --uu-blue: #003660;
     }
+    /* Hide the Streamlit toolbar (hamburger menu + deploy button) */
+    [data-testid="stHeader"] { display: none !important; }
+    [data-testid="stToolbar"] { display: none !important; }
+    #MainMenu { display: none !important; }
+
     /* page background */
     .stApp {
         background-color: #f4f4f4;
