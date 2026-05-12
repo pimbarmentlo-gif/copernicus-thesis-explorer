@@ -6547,10 +6547,23 @@ setTimeout(function(){{
   }});
 }},600);
 
-// ── scroll parent page when mouse is NOT over the globe ───────────────────
+// ── scroll isolation ──────────────────────────────────────────────────────
+// When mouse is OVER the globe: capture wheel events so OrbitControls can zoom.
+// When mouse is NOT over: forward wheel delta to parent page.
 var _overGc=false;
 container.addEventListener('mouseenter',function(){{_overGc=true;}});
 container.addEventListener('mouseleave',function(){{_overGc=false;}});
+
+// Non-passive listener on the container so we can preventDefault when over the globe.
+container.addEventListener('wheel',function(e){{
+  if(_overGc){{
+    e.preventDefault(); // stop Streamlit iframe scroll
+    // manually drive OrbitControls zoom
+    globe.controls().object.translateZ(e.deltaY*0.004*globe.controls().object.position.length()*0.1);
+  }}
+}},{{passive:false}});
+
+// Passive listener on document to pass scroll through when mouse is outside.
 document.addEventListener('wheel',function(e){{
   if(!_overGc){{
     try{{window.parent.scrollBy({{top:e.deltaY,behavior:'auto'}});}}catch(ex){{}}
