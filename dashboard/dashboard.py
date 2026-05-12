@@ -2814,34 +2814,40 @@ if st.session_state.page == "home":
 PROGRAM = st.session_state.program
 
 def _render_back_btn(key: str) -> None:
-    """Universal back button — pops the navigation history stack to return to previous page."""
-    if st.button("← Back", key=key):
-        _hist = st.session_state.get('nav_history', [])
-        if _hist:
-            _prev = _hist[-1]
-            st.session_state.nav_history = _hist[:-1]
-            st.session_state.selected_details = _prev.get('selected_details')
-            st.session_state.selected_pdf = _prev.get('selected_pdf')
-            st.session_state.page_nav = _prev.get('page_nav', 'Explorer')
-            st.session_state.sup_selected = _prev.get('sup_selected')
-            st.session_state.sup_view = _prev.get('sup_view', 'directory')
-            _prev_prog = _prev.get('program', PROGRAM)
-            st.query_params.clear()
-            st.query_params['program'] = _prev_prog
-            if _prev.get('selected_details'):
-                st.query_params['details'] = _prev['selected_details']
-            elif _prev.get('selected_pdf'):
-                st.query_params['pdf'] = _prev['selected_pdf']
-            elif _prev.get('page_nav') == 'Supervisors':
-                st.query_params['nav'] = 'Supervisors'
-        else:
-            # No history: fall back to explorer
-            st.session_state.selected_details = None
-            st.session_state.selected_pdf = None
-            st.session_state.page_nav = 'Explorer'
-            st.query_params.clear()
-            st.query_params['program'] = PROGRAM
-        st.rerun()
+    """Yellow back button — calls window.history.back(), identical to the browser back button."""
+    st.components.v1.html(
+        """
+        <style>
+          body { margin:0; padding:0; background:transparent; }
+          button {
+            background: #FFCD00;
+            border: none;
+            color: #003660;
+            font-weight: 700;
+            font-size: 0.9rem;
+            padding: 0.54rem 1.1rem;
+            border-radius: 10px;
+            box-shadow: 0 4px 14px rgba(255,205,0,0.35);
+            cursor: pointer;
+            font-family: "Source Sans Pro", sans-serif;
+            letter-spacing: 0.01em;
+            transition: background 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease;
+            display: inline-block;
+          }
+          button:hover {
+            background: #f0c200;
+            box-shadow: 0 7px 20px rgba(255,205,0,0.46);
+            transform: translateY(-2px);
+          }
+          button:active {
+            transform: translateY(0px) scale(0.98);
+            box-shadow: 0 1px 4px rgba(0,0,0,0.10);
+          }
+        </style>
+        <button onclick="window.parent.history.back()">&#8592; Back</button>
+        """,
+        height=48,
+    )
 
 PROGRAM_DIR = os.path.abspath(
     os.path.join(BASE_DIR, "..", "programs", _PROGRAMME_FOLDER_MAP.get(PROGRAM, PROGRAM))
