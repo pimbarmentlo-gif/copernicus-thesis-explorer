@@ -3032,7 +3032,7 @@ if show_explorer_filters:
         search_query = st.sidebar.text_input(
             "Search",
             value=st.session_state.saved_search_query,
-            placeholder="Title, author, or keyword…",
+            placeholder="Title, author, keyword, or topic…",
             key="explorer_search_input",
         )
 
@@ -3252,10 +3252,12 @@ if show_explorer_filters:
 
     if search_query:
         _q = search_query.strip()
-        _title_match  = filtered_df["Title"].str.contains(_q, case=False, regex=False, na=False)
-        _author_match = filtered_df["Author(s)"].str.contains(_q, case=False, regex=False, na=False)
-        _kw_match     = filtered_df["Keywords"].str.contains(_q, case=False, regex=False, na=False)
-        filtered_df = filtered_df[_title_match | _author_match | _kw_match]
+        _title_match    = filtered_df["Title"].str.contains(_q, case=False, regex=False, na=False)
+        _author_match   = filtered_df["Author(s)"].str.contains(_q, case=False, regex=False, na=False)
+        _kw_match       = filtered_df["Keywords"].str.contains(_q, case=False, regex=False, na=False)
+        _abstract_match = filtered_df["Abstract/Summary"].str.contains(_q, case=False, regex=False, na=False)
+        _rq_match       = filtered_df["Main Research Question"].str.contains(_q, case=False, regex=False, na=False)
+        filtered_df = filtered_df[_title_match | _author_match | _kw_match | _abstract_match | _rq_match]
 
     if theory_filter:
         selected_theories = {item.strip().lower() for item in theory_filter}
