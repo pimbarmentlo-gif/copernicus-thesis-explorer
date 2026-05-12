@@ -3041,10 +3041,27 @@ st.components.v1.html("""
 (function() {
     var w = window.parent;
     var url = w.location.href;
+    // Navigate the parent window by creating an <a> in the parent document
+    // and clicking it — bypasses sandbox navigation restrictions while still
+    // working cross-browser with allow-same-origin.
+    function _stNav(target) {
+        try {
+            var a = w.document.createElement('a');
+            a.href = target;
+            a.rel = 'noopener';
+            a.style.display = 'none';
+            w.document.body.appendChild(a);
+            a.click();
+            setTimeout(function() { try { w.document.body.removeChild(a); } catch(x) {} }, 200);
+        } catch(ex) {
+            // last-resort fallback
+            try { w.location.href = target; } catch(ex2) {}
+        }
+    }
     if (!w._stNavInit) {
         w._stNavInit = true;
         w.addEventListener('popstate', function() {
-            w.location.replace(w.location.href);
+            _stNav(w.location.href);
         });
         // Listen for navigation requests posted from sandboxed component iframes.
         // The listener must be on w (the parent page), not window (this iframe),
@@ -3054,7 +3071,7 @@ st.components.v1.html("""
                 w.history.back();
             }
             if (e.data && e.data.type === 'stNavigateTo' && e.data.url) {
-                w.location.href = e.data.url;
+                _stNav(e.data.url);
             }
         });
     }
@@ -3177,58 +3194,27 @@ def _render_filter_chips() -> None:
         return
     html_parts = []
     for label, url in chips:
-        # Escape single quotes in URL for the data-href attribute
         safe_url = url.replace('"', '&quot;')
         safe_label = label.replace('<', '&lt;').replace('>', '&gt;').replace('"', '&quot;')
         html_parts.append(
-            f'<a class="filter-chip" data-href="{safe_url}" title="Remove filter">'
+            f'<a class="filter-chip" href="{safe_url}" target="_self" title="Remove filter">'
             f'<span>{safe_label}</span><span class="x">&#xD7;</span></a>'
         )
     _clear_url = f"?program={PROGRAM}"
     html_parts.append(
-        f'<a class="filter-chip-clear" data-href="{_clear_url}">Clear all</a>'
+        f'<a class="filter-chip-clear" href="{_clear_url}" target="_self">Clear all</a>'
     )
-    # Calculate component height: 1 row ≈ 44px, assume ~4 chips per row
-    _n = len(chips) + 1
-    _chip_h = max(52, ((_n + 3) // 4) * 48 + 12)
-    st.components.v1.html(f"""
-<style>
-*{{box-sizing:border-box;margin:0;padding:0;}}
-body{{font-family:Inter,-apple-system,sans-serif;background:transparent;overflow:hidden;}}
-.filter-chips{{display:flex;flex-wrap:wrap;gap:8px;padding:4px 2px 10px 2px;align-items:center;}}
-.filter-chip{{
-  display:inline-flex;align-items:center;gap:6px;padding:5px 11px;
-  background:#FFCD00;color:#003660;border-radius:999px;
-  font-size:0.82rem;font-weight:600;text-decoration:none;cursor:pointer;
-  transition:filter 0.15s,transform 0.1s;border:none;user-select:none;
-}}
-.filter-chip:hover{{filter:brightness(0.95);transform:translateY(-1px);}}
-.filter-chip .x{{font-weight:700;font-size:1rem;line-height:1;opacity:0.55;}}
-.filter-chip:hover .x{{opacity:1;}}
-.filter-chip-clear{{
-  font-size:0.82rem;color:#888;text-decoration:underline;
-  padding:5px 6px;cursor:pointer;background:none;border:none;
-}}
-.filter-chip-clear:hover{{color:#003660;}}
-</style>
-<div class="filter-chips">{"".join(html_parts)}</div>
-<script>
-document.querySelectorAll('[data-href]').forEach(function(el){{
-  el.addEventListener('click',function(e){{
-    e.preventDefault();
-    e.stopPropagation();
-    window.parent.postMessage({{type:'stNavigateTo',url:el.getAttribute('data-href')}},'*');
-  }});
-}});
-</script>
-""", height=_chip_h, scrolling=False)
+    st.markdown(
+        f'<div class="filter-chips">{"".join(html_parts)}</div>',
+        unsafe_allow_html=True,
+    )
 
 
 def _render_top_bar() -> None:
     """Persistent top app-bar: brand, section nav, programme switcher, breadcrumb.
 
-    Rendered via st.components.v1.html so anchor/click navigation actually
-    fires in the sandboxed Streamlit Cloud environment (postMessage → parent).
+    Rendered via st.markdown so anchor links work natively without any
+    iframe / postMessage boundary — plain <a href="?..."> tags.
     """
     active_section = st.session_state.get('page_nav', 'Explorer')
     selected_details = st.session_state.get('selected_details')
@@ -3246,7 +3232,7 @@ def _render_top_bar() -> None:
     for sect in ("Explorer", "Supervisors", "Insights"):
         href = f"?program={PROGRAM}" if sect == "Explorer" else f"?program={PROGRAM}&nav={sect}"
         active_cls = " active" if active_section == sect else ""
-        nav_parts.append(f'<a class="topnav-link{active_cls}" data-href="{href}">{sect}</a>')
+        nav_parts.append(f'<a class="topnav-link{active_cls}" href="{href}" target="_self">{sect}</a>')
     nav_html = "".join(nav_parts)
 
     # Programme switcher dropdown
@@ -3255,7 +3241,7 @@ def _render_top_bar() -> None:
     for p_key, p_name in PROGRAMME_DISPLAY_NAMES.items():
         active_cls = " active" if p_key == PROGRAM else ""
         _switcher_items.append(
-            f'<a class="topbar-switcher-item{active_cls}" data-href="?program={p_key}">{p_name}</a>'
+            f'<a class="topbar-switcher-item{active_cls}" href="?program={p_key}" target="_self">{p_name}</a>'
         )
     switcher_html = (
         '<details class="topbar-switcher-wrap" id="sw">'
@@ -3266,11 +3252,11 @@ def _render_top_bar() -> None:
 
     # Breadcrumb
     crumbs: list[str] = [
-        f'<a data-href="?back_home=1">Home</a>',
-        f'<a data-href="?program={PROGRAM}">{_display_name}</a>',
+        f'<a href="?back_home=1" target="_self">Home</a>',
+        f'<a href="?program={PROGRAM}" target="_self">{_display_name}</a>',
     ]
     if active_section == "Explorer" and (selected_details or selected_pdf):
-        crumbs.append(f'<a data-href="{_explorer_url()}">Explorer</a>')
+        crumbs.append(f'<a href="{_explorer_url()}" target="_self">Explorer</a>')
         key = selected_details or str(selected_pdf or "").replace(".pdf", "")
         title = ""
         try:
@@ -3287,10 +3273,10 @@ def _render_top_bar() -> None:
         crumbs.append(f'<span class="topbar-crumb-current">{title_short}</span>')
     elif active_section == "Supervisors":
         if sup_selected:
-            crumbs.append(f'<a data-href="?program={PROGRAM}&nav=Supervisors">Supervisors</a>')
+            crumbs.append(f'<a href="?program={PROGRAM}&nav=Supervisors" target="_self">Supervisors</a>')
             crumbs.append(f'<span class="topbar-crumb-current">{sup_selected}</span>')
         elif sup_view == 'finder':
-            crumbs.append(f'<a data-href="?program={PROGRAM}&nav=Supervisors">Supervisors</a>')
+            crumbs.append(f'<a href="?program={PROGRAM}&nav=Supervisors" target="_self">Supervisors</a>')
             crumbs.append('<span class="topbar-crumb-current">Find a Supervisor</span>')
         else:
             crumbs.append('<span class="topbar-crumb-current">Supervisors</span>')
@@ -3302,58 +3288,10 @@ def _render_top_bar() -> None:
 
     _prog_tint_local = _PROG_BG_TINT.get(PROGRAM, "#f8f9fa")
 
-    st.components.v1.html(f"""
-<style>
-*{{box-sizing:border-box;margin:0;padding:0;}}
-body{{font-family:Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:{_prog_tint_local};overflow:hidden;}}
-a{{cursor:pointer;text-decoration:none;}}
-.topbar{{padding:12px 4px 10px 4px;border-bottom:1px solid rgba(0,54,96,0.08);background:{_prog_tint_local};}}
-.topbar-row{{display:flex;align-items:center;gap:14px;padding:0 14px;flex-wrap:wrap;}}
-.topbar-brand{{display:flex;align-items:center;gap:12px;color:#003660;flex-shrink:0;}}
-.topbar-title{{font-weight:700;font-size:1.28rem;letter-spacing:-0.02em;color:#003660;line-height:1.15;}}
-.topbar-nav{{display:flex;gap:8px;margin-left:16px;flex:1;flex-wrap:wrap;}}
-.topnav-link{{
-  color:#003660;background:#fff;border:1px solid rgba(0,54,96,0.12);
-  padding:8px 18px;border-radius:12px;font-weight:600;font-size:0.9rem;
-  box-shadow:0 2px 8px rgba(0,0,0,0.06);transition:background .18s,box-shadow .18s,transform .18s;
-  display:inline-block;
-}}
-.topnav-link:hover{{background:#f4f8fc;border-color:rgba(0,54,96,0.25);box-shadow:0 5px 14px rgba(0,0,0,.10);transform:translateY(-1px);}}
-.topnav-link.active{{background:#FFCD00;border-color:#FFCD00;font-weight:700;box-shadow:0 4px 12px rgba(255,205,0,.35);}}
-.topnav-link.active:hover{{background:#FFCD00;box-shadow:0 6px 16px rgba(255,205,0,.45);}}
-.topbar-switcher-wrap{{position:relative;flex-shrink:0;}}
-.topbar-switcher{{
-  display:inline-flex;align-items:center;gap:8px;padding:8px 14px;border-radius:12px;
-  border:1px solid rgba(0,54,96,0.12);background:#fff;font-size:0.88rem;color:#003660;
-  cursor:pointer;font-family:inherit;font-weight:600;max-width:260px;
-  box-shadow:0 2px 8px rgba(0,0,0,.06);transition:border-color .18s,box-shadow .18s;
-  list-style:none;user-select:none;
-}}
-.topbar-switcher::-webkit-details-marker,.topbar-switcher::marker{{display:none;content:'';}}
-.topbar-switcher:hover{{border-color:rgba(0,54,96,0.25);box-shadow:0 5px 14px rgba(0,0,0,.10);}}
-.topbar-switcher-wrap[open] .topbar-switcher{{border-color:rgba(0,54,96,0.25);box-shadow:0 5px 14px rgba(0,0,0,.10);}}
-.chev{{font-size:0.8rem;opacity:0.6;transition:transform .18s;display:inline-block;}}
-.topbar-switcher-wrap[open] .chev{{transform:rotate(180deg);}}
-.topbar-switcher-menu{{
-  position:absolute;right:0;top:calc(100% + 6px);min-width:260px;background:#fff;
-  border:1px solid rgba(0,54,96,0.12);border-radius:12px;
-  box-shadow:0 10px 28px rgba(0,0,0,.14);padding:6px;z-index:200;
-}}
-.topbar-switcher-item{{
-  display:block;padding:9px 14px;color:#003660;
-  font-size:0.88rem;font-weight:500;border-radius:8px;transition:background .12s;
-}}
-.topbar-switcher-item:hover{{background:rgba(255,205,0,0.18);}}
-.topbar-switcher-item.active{{background:#FFCD00;font-weight:700;}}
-.topbar-crumbs{{font-size:0.78rem;color:rgba(0,54,96,0.55);padding:8px 16px 0 16px;letter-spacing:0.01em;}}
-.topbar-crumbs a{{color:rgba(0,54,96,0.7);font-weight:500;transition:color .15s;}}
-.topbar-crumbs a:hover{{color:#003660;}}
-.topbar-sep{{margin:0 6px;color:rgba(0,54,96,0.28);}}
-.topbar-crumb-current{{color:#003660;font-weight:700;}}
-</style>
-<div class="topbar">
+    st.markdown(f"""
+<div class="topbar" style="background:{_prog_tint_local};">
   <div class="topbar-row">
-    <a class="topbar-brand" data-href="?program={PROGRAM}">
+    <a class="topbar-brand" href="?program={PROGRAM}" target="_self">
       {logo_img}
       <span class="topbar-title">{_display_name}</span>
     </a>
@@ -3362,19 +3300,7 @@ a{{cursor:pointer;text-decoration:none;}}
   </div>
   <div class="topbar-crumbs">{crumb_html}</div>
 </div>
-<script>
-document.querySelectorAll('[data-href]').forEach(function(el){{
-  el.addEventListener('click',function(e){{
-    e.preventDefault();
-    e.stopPropagation();
-    // close switcher dropdown if open
-    var sw=document.getElementById('sw');
-    if(sw)sw.removeAttribute('open');
-    window.parent.postMessage({{type:'stNavigateTo',url:el.getAttribute('data-href')}},'*');
-  }});
-}});
-</script>
-""", height=100, scrolling=False)
+""", unsafe_allow_html=True)
 
 if PROGRAM == _ALL_PROGRAM_KEY:
     # All-mode: aggregate every programme's metadata into one Explorer dataset.
@@ -5849,7 +5775,7 @@ function openSDG(d,g,dx,dy){{
       if(t.sector) metaBits.push(esc(t.sector));
       if(t.supervisor) metaBits.push('Sup. ' + esc(t.supervisor));
       var featTag = t.featured ? '<span class="sd-meta-tag">FEATURED</span>' : '';
-      th += '<a class="sd-t"' + (href!=='#'?' href="'+href+'" target="_top"':'') + '>'
+      th += '<a class="sd-t"' + (href!=='#'?' href="#" data-navurl="'+href+'"':'') + '>'
         + '<div class="sd-yr">' + (t.year || '\u2014') + '</div>'
         + '<div class="sd-t-body">'
         +   '<div class="sd-title">' + esc(t.title) + featTag + '</div>'
@@ -5880,6 +5806,16 @@ function closeDetail(){{
   segs.forEach(function(s){{s.el.style.transform='';s.el.style.opacity=s.count===0?'0.28':'1';}});
 }}
 overlay.addEventListener('click',closeDetail);
+// Delegated click handler for thesis links — uses postMessage to navigate
+// parent window, bypassing sandbox restrictions on direct location assignment.
+document.addEventListener('click',function(e){{
+  var a=e.target.closest('[data-navurl]');
+  if(!a)return;
+  var url=a.getAttribute('data-navurl');
+  if(!url)return;
+  e.preventDefault();
+  window.parent.postMessage({{type:'stNavigateTo',url:url}},'*');
+}});
 </script>
 """
 
