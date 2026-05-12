@@ -3227,7 +3227,8 @@ document.querySelectorAll('[data-href]').forEach(function(el){{
 def _render_top_bar() -> None:
     """Persistent top app-bar: brand, section nav, programme switcher, breadcrumb.
 
-    Rendered on every programme-scoped page. The homepage has its own header.
+    Rendered via st.components.v1.html so anchor/click navigation actually
+    fires in the sandboxed Streamlit Cloud environment (postMessage → parent).
     """
     active_section = st.session_state.get('page_nav', 'Explorer')
     selected_details = st.session_state.get('selected_details')
@@ -3235,42 +3236,41 @@ def _render_top_bar() -> None:
     sup_selected = st.session_state.get('sup_selected')
     sup_view = st.session_state.get('sup_view', 'directory')
 
-    logo_html = (
-        f'<img src="data:image/png;base64,{logo_b64}" class="topbar-logo"/>'
+    logo_img = (
+        f'<img src="data:image/png;base64,{logo_b64}" style="width:48px;height:48px;object-fit:contain;"/>'
         if logo_b64 else ""
     )
 
-    nav_items = []
+    # Nav section links
+    nav_parts = []
     for sect in ("Explorer", "Supervisors", "Insights"):
         href = f"?program={PROGRAM}" if sect == "Explorer" else f"?program={PROGRAM}&nav={sect}"
-        cls = "topnav-link active" if active_section == sect else "topnav-link"
-        nav_items.append(f'<a href="{href}" target="_top" class="{cls}">{sect}</a>')
-    nav_html = "".join(nav_items)
+        active_cls = " active" if active_section == sect else ""
+        nav_parts.append(f'<a class="topnav-link{active_cls}" data-href="{href}">{sect}</a>')
+    nav_html = "".join(nav_parts)
 
-    # Programme switcher — Streamlit strips inline JS handlers, so we use a
-    # <details> dropdown with anchor links instead of a <select onchange>.
+    # Programme switcher dropdown
     _current_label = _display_name if len(_display_name) <= 32 else _display_name[:30] + "…"
     _switcher_items = []
     for p_key, p_name in PROGRAMME_DISPLAY_NAMES.items():
-        item_cls = "topbar-switcher-item active" if p_key == PROGRAM else "topbar-switcher-item"
+        active_cls = " active" if p_key == PROGRAM else ""
         _switcher_items.append(
-            f'<a href="?program={p_key}" target="_top" class="{item_cls}">{p_name}</a>'
+            f'<a class="topbar-switcher-item{active_cls}" data-href="?program={p_key}">{p_name}</a>'
         )
     switcher_html = (
-        '<details class="topbar-switcher-wrap">'
+        '<details class="topbar-switcher-wrap" id="sw">'
         f'<summary class="topbar-switcher">{_current_label}<span class="chev">▾</span></summary>'
         f'<div class="topbar-switcher-menu">{"".join(_switcher_items)}</div>'
         '</details>'
     )
 
-    # "Home" returns to the programme picker. The second crumb is the
-    # current programme (or "All Programmes" in cross-programme mode).
+    # Breadcrumb
     crumbs: list[str] = [
-        '<a href="?back_home=1" target="_top">Home</a>',
-        f'<a href="?program={PROGRAM}" target="_top">{_display_name}</a>',
+        f'<a data-href="?back_home=1">Home</a>',
+        f'<a data-href="?program={PROGRAM}">{_display_name}</a>',
     ]
     if active_section == "Explorer" and (selected_details or selected_pdf):
-        crumbs.append(f'<a href="{_explorer_url()}" target="_top">Explorer</a>')
+        crumbs.append(f'<a data-href="{_explorer_url()}">Explorer</a>')
         key = selected_details or str(selected_pdf or "").replace(".pdf", "")
         title = ""
         try:
@@ -3287,10 +3287,10 @@ def _render_top_bar() -> None:
         crumbs.append(f'<span class="topbar-crumb-current">{title_short}</span>')
     elif active_section == "Supervisors":
         if sup_selected:
-            crumbs.append(f'<a href="?program={PROGRAM}&nav=Supervisors" target="_top">Supervisors</a>')
+            crumbs.append(f'<a data-href="?program={PROGRAM}&nav=Supervisors">Supervisors</a>')
             crumbs.append(f'<span class="topbar-crumb-current">{sup_selected}</span>')
         elif sup_view == 'finder':
-            crumbs.append(f'<a href="?program={PROGRAM}&nav=Supervisors" target="_top">Supervisors</a>')
+            crumbs.append(f'<a data-href="?program={PROGRAM}&nav=Supervisors">Supervisors</a>')
             crumbs.append('<span class="topbar-crumb-current">Find a Supervisor</span>')
         else:
             crumbs.append('<span class="topbar-crumb-current">Supervisors</span>')
@@ -3300,18 +3300,81 @@ def _render_top_bar() -> None:
         crumbs.append('<span class="topbar-crumb-current">Explorer</span>')
     crumb_html = '<span class="topbar-sep">›</span>'.join(crumbs)
 
-    st.markdown(
-        '<div class="topbar">'
-        '<div class="topbar-row">'
-        f'<a href="?program={PROGRAM}" target="_top" class="topbar-brand">{logo_html}'
-        f'<span class="topbar-title">{_display_name}</span></a>'
-        f'<div class="topbar-nav">{nav_html}</div>'
-        f'{switcher_html}'
-        '</div>'
-        f'<div class="topbar-crumbs">{crumb_html}</div>'
-        '</div>',
-        unsafe_allow_html=True,
-    )
+    _prog_tint_local = _PROG_BG_TINT.get(PROGRAM, "#f8f9fa")
+
+    st.components.v1.html(f"""
+<style>
+*{{box-sizing:border-box;margin:0;padding:0;}}
+body{{font-family:Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:{_prog_tint_local};overflow:hidden;}}
+a{{cursor:pointer;text-decoration:none;}}
+.topbar{{padding:12px 4px 10px 4px;border-bottom:1px solid rgba(0,54,96,0.08);background:{_prog_tint_local};}}
+.topbar-row{{display:flex;align-items:center;gap:14px;padding:0 14px;flex-wrap:wrap;}}
+.topbar-brand{{display:flex;align-items:center;gap:12px;color:#003660;flex-shrink:0;}}
+.topbar-title{{font-weight:700;font-size:1.28rem;letter-spacing:-0.02em;color:#003660;line-height:1.15;}}
+.topbar-nav{{display:flex;gap:8px;margin-left:16px;flex:1;flex-wrap:wrap;}}
+.topnav-link{{
+  color:#003660;background:#fff;border:1px solid rgba(0,54,96,0.12);
+  padding:8px 18px;border-radius:12px;font-weight:600;font-size:0.9rem;
+  box-shadow:0 2px 8px rgba(0,0,0,0.06);transition:background .18s,box-shadow .18s,transform .18s;
+  display:inline-block;
+}}
+.topnav-link:hover{{background:#f4f8fc;border-color:rgba(0,54,96,0.25);box-shadow:0 5px 14px rgba(0,0,0,.10);transform:translateY(-1px);}}
+.topnav-link.active{{background:#FFCD00;border-color:#FFCD00;font-weight:700;box-shadow:0 4px 12px rgba(255,205,0,.35);}}
+.topnav-link.active:hover{{background:#FFCD00;box-shadow:0 6px 16px rgba(255,205,0,.45);}}
+.topbar-switcher-wrap{{position:relative;flex-shrink:0;}}
+.topbar-switcher{{
+  display:inline-flex;align-items:center;gap:8px;padding:8px 14px;border-radius:12px;
+  border:1px solid rgba(0,54,96,0.12);background:#fff;font-size:0.88rem;color:#003660;
+  cursor:pointer;font-family:inherit;font-weight:600;max-width:260px;
+  box-shadow:0 2px 8px rgba(0,0,0,.06);transition:border-color .18s,box-shadow .18s;
+  list-style:none;user-select:none;
+}}
+.topbar-switcher::-webkit-details-marker,.topbar-switcher::marker{{display:none;content:'';}}
+.topbar-switcher:hover{{border-color:rgba(0,54,96,0.25);box-shadow:0 5px 14px rgba(0,0,0,.10);}}
+.topbar-switcher-wrap[open] .topbar-switcher{{border-color:rgba(0,54,96,0.25);box-shadow:0 5px 14px rgba(0,0,0,.10);}}
+.chev{{font-size:0.8rem;opacity:0.6;transition:transform .18s;display:inline-block;}}
+.topbar-switcher-wrap[open] .chev{{transform:rotate(180deg);}}
+.topbar-switcher-menu{{
+  position:absolute;right:0;top:calc(100% + 6px);min-width:260px;background:#fff;
+  border:1px solid rgba(0,54,96,0.12);border-radius:12px;
+  box-shadow:0 10px 28px rgba(0,0,0,.14);padding:6px;z-index:200;
+}}
+.topbar-switcher-item{{
+  display:block;padding:9px 14px;color:#003660;
+  font-size:0.88rem;font-weight:500;border-radius:8px;transition:background .12s;
+}}
+.topbar-switcher-item:hover{{background:rgba(255,205,0,0.18);}}
+.topbar-switcher-item.active{{background:#FFCD00;font-weight:700;}}
+.topbar-crumbs{{font-size:0.78rem;color:rgba(0,54,96,0.55);padding:8px 16px 0 16px;letter-spacing:0.01em;}}
+.topbar-crumbs a{{color:rgba(0,54,96,0.7);font-weight:500;transition:color .15s;}}
+.topbar-crumbs a:hover{{color:#003660;}}
+.topbar-sep{{margin:0 6px;color:rgba(0,54,96,0.28);}}
+.topbar-crumb-current{{color:#003660;font-weight:700;}}
+</style>
+<div class="topbar">
+  <div class="topbar-row">
+    <a class="topbar-brand" data-href="?program={PROGRAM}">
+      {logo_img}
+      <span class="topbar-title">{_display_name}</span>
+    </a>
+    <div class="topbar-nav">{nav_html}</div>
+    {switcher_html}
+  </div>
+  <div class="topbar-crumbs">{crumb_html}</div>
+</div>
+<script>
+document.querySelectorAll('[data-href]').forEach(function(el){{
+  el.addEventListener('click',function(e){{
+    e.preventDefault();
+    e.stopPropagation();
+    // close switcher dropdown if open
+    var sw=document.getElementById('sw');
+    if(sw)sw.removeAttribute('open');
+    window.parent.postMessage({{type:'stNavigateTo',url:el.getAttribute('data-href')}},'*');
+  }});
+}});
+</script>
+""", height=100, scrolling=False)
 
 if PROGRAM == _ALL_PROGRAM_KEY:
     # All-mode: aggregate every programme's metadata into one Explorer dataset.
