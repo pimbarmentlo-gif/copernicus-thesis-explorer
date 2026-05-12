@@ -3046,12 +3046,15 @@ st.components.v1.html("""
         w.addEventListener('popstate', function() {
             w.location.replace(w.location.href);
         });
-        // Listen for back-button requests posted from sandboxed component iframes.
+        // Listen for navigation requests posted from sandboxed component iframes.
         // The listener must be on w (the parent page), not window (this iframe),
         // because postMessage targets window.parent — not the sender's own frame.
         w.addEventListener('message', function(e) {
             if (e.data && e.data.type === 'stHistoryBack') {
                 w.history.back();
+            }
+            if (e.data && e.data.type === 'stNavigateTo' && e.data.url) {
+                w.location.href = e.data.url;
             }
         });
     }
@@ -3214,8 +3217,7 @@ document.querySelectorAll('[data-href]').forEach(function(el){{
   el.addEventListener('click',function(e){{
     e.preventDefault();
     e.stopPropagation();
-    try{{window.parent.location.href=el.getAttribute('data-href');}}
-    catch(err){{window.top.location.href=el.getAttribute('data-href');}}
+    window.parent.postMessage({{type:'stNavigateTo',url:el.getAttribute('data-href')}},'*');
   }});
 }});
 </script>
