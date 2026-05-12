@@ -617,19 +617,6 @@ st.markdown(
         --uu-yellow: #FFCD00;
         --uu-blue: #003660;
     }
-    /* Hide the Streamlit toolbar (hamburger menu + deploy button) */
-    [data-testid="stHeader"] { display: none !important; }
-    [data-testid="stToolbar"] { display: none !important; }
-    #MainMenu { display: none !important; }
-
-    /* Remove the top gap that Streamlit reserves for its header bar */
-    [data-testid="stAppViewContainer"] > section.main > div.block-container {
-        padding-top: 1.2rem !important;
-    }
-    section[data-testid="stSidebar"] > div:first-child {
-        padding-top: 1.2rem !important;
-    }
-
     /* page background */
     .stApp {
         background-color: #f4f4f4;
@@ -2797,6 +2784,13 @@ st.components.v1.html("""
         w.addEventListener('popstate', function() {
             w.location.replace(w.location.href);
         });
+        // Listen for back-button requests posted from sandboxed component iframes.
+        // postMessage works across sandbox boundaries (allow-scripts is sufficient).
+        window.addEventListener('message', function(e) {
+            if (e.data && e.data.type === 'stHistoryBack') {
+                w.history.back();
+            }
+        });
     }
     function _majorKey(u) {
         try {
@@ -2827,7 +2821,12 @@ if st.session_state.page == "home":
 PROGRAM = st.session_state.program
 
 def _render_back_btn(key: str) -> None:
-    """Yellow back button — calls window.history.back(), identical to the browser back button."""
+    """Yellow back button — posts a message to the parent frame which calls history.back().
+
+    Direct window.parent.history.back() is blocked by the component iframe's
+    sandbox. postMessage is allowed with allow-scripts and works cross-sandbox,
+    so the global JS listener (injected above) handles the actual history.back().
+    """
     st.components.v1.html(
         """
         <style>
@@ -2857,7 +2856,7 @@ def _render_back_btn(key: str) -> None:
             box-shadow: 0 1px 4px rgba(0,0,0,0.10);
           }
         </style>
-        <button onclick="window.parent.history.back()">&#8592; Back</button>
+        <button onclick="window.parent.postMessage({type:'stHistoryBack'}, '*')">&#8592; Back</button>
         """,
         height=48,
     )
