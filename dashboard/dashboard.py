@@ -3030,7 +3030,7 @@ if show_explorer_filters:
             key="explorer_search_input",
         )
 
-        with st.sidebar.expander("Filter by metadata", expanded=False):
+        with st.sidebar.expander("Filter", expanded=False):
             # Master Track filter (only for Sustainable Development) — shown at the top
             _SD_TRACK_CANONICAL = [
                 "Energy & Materials",
