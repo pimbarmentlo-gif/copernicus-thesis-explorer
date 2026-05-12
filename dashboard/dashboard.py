@@ -2785,8 +2785,9 @@ st.components.v1.html("""
             w.location.replace(w.location.href);
         });
         // Listen for back-button requests posted from sandboxed component iframes.
-        // postMessage works across sandbox boundaries (allow-scripts is sufficient).
-        window.addEventListener('message', function(e) {
+        // The listener must be on w (the parent page), not window (this iframe),
+        // because postMessage targets window.parent — not the sender's own frame.
+        w.addEventListener('message', function(e) {
             if (e.data && e.data.type === 'stHistoryBack') {
                 w.history.back();
             }
