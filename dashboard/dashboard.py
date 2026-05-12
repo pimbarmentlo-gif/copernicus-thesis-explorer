@@ -2820,46 +2820,23 @@ if st.session_state.page == "home":
 # From here on, we are in dashboard mode for the selected programme.
 PROGRAM = st.session_state.program
 
-def _render_back_btn(key: str) -> None:
-    """Yellow back button — posts a message to the parent frame which calls history.back().
+if 'back_btn_requested' not in st.session_state:
+    st.session_state.back_btn_requested = False
 
-    Direct window.parent.history.back() is blocked by the component iframe's
-    sandbox. postMessage is allowed with allow-scripts and works cross-sandbox,
-    so the global JS listener (injected above) handles the actual history.back().
-    """
+# If the back button was clicked on the previous run, fire the postMessage now
+# via a height=0 invisible component, then clear the flag.
+if st.session_state.back_btn_requested:
+    st.session_state.back_btn_requested = False
     st.components.v1.html(
-        """
-        <style>
-          body { margin:0; padding:0; background:transparent; }
-          button {
-            background: #FFCD00;
-            border: none;
-            color: #003660;
-            font-weight: 700;
-            font-size: 0.9rem;
-            padding: 0.54rem 1.1rem;
-            border-radius: 10px;
-            box-shadow: 0 4px 14px rgba(255,205,0,0.35);
-            cursor: pointer;
-            font-family: "Source Sans Pro", sans-serif;
-            letter-spacing: 0.01em;
-            transition: background 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease;
-            display: inline-block;
-          }
-          button:hover {
-            background: #f0c200;
-            box-shadow: 0 7px 20px rgba(255,205,0,0.46);
-            transform: translateY(-2px);
-          }
-          button:active {
-            transform: translateY(0px) scale(0.98);
-            box-shadow: 0 1px 4px rgba(0,0,0,0.10);
-          }
-        </style>
-        <button onclick="window.parent.postMessage({type:'stHistoryBack'}, '*')">&#8592; Back</button>
-        """,
-        height=48,
+        "<script>window.parent.postMessage({type:'stHistoryBack'},'*');</script>",
+        height=0,
     )
+
+def _render_back_btn(key: str) -> None:
+    """Yellow ← Back button that triggers browser history.back()."""
+    if st.button("← Back", key=key):
+        st.session_state.back_btn_requested = True
+        st.rerun()
 
 PROGRAM_DIR = os.path.abspath(
     os.path.join(BASE_DIR, "..", "programs", _PROGRAMME_FOLDER_MAP.get(PROGRAM, PROGRAM))
