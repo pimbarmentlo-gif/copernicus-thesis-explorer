@@ -6287,7 +6287,8 @@ sim.on('end',function(){{drift();}});
 <html><head><style>
 *{{box-sizing:border-box;margin:0;padding:0;}}
 html,body{{width:100%;height:100%;background:transparent;overflow:hidden;}}
-#gc{{width:100%;height:560px;}}
+#gc{{width:100%;height:560px;cursor:grab;}}
+#gc:active{{cursor:grabbing;}}
 .tip{{
   position:fixed;background:rgba(20,20,40,0.88);color:#fff;
   padding:6px 14px;border-radius:8px;font-size:13px;font-weight:600;
@@ -6525,6 +6526,7 @@ overlay.addEventListener('click',closePop);
 // ── controls ─────────────────────────────────────────────────────────────
 globe.controls().autoRotate=true;
 globe.controls().autoRotateSpeed=0.5;
+globe.controls().enableZoom=false; // zoom handled by our wheel listener
 globe.controls().enableZoom=true;
 globe.controls().minDistance=150;
 globe.controls().maxDistance=500;
@@ -6558,8 +6560,11 @@ container.addEventListener('mouseleave',function(){{_overGc=false;}});
 container.addEventListener('wheel',function(e){{
   if(_overGc){{
     e.preventDefault(); // stop Streamlit iframe scroll
-    // manually drive OrbitControls zoom
-    globe.controls().object.translateZ(e.deltaY*0.004*globe.controls().object.position.length()*0.1);
+    // drive zoom via globe pointOfView altitude
+    var pov=globe.pointOfView();
+    var factor=e.deltaY>0?1.08:0.93;
+    var newAlt=Math.max(0.2,Math.min(10,pov.altitude*factor));
+    globe.pointOfView({{altitude:newAlt}},0);
   }}
 }},{{passive:false}});
 
