@@ -309,6 +309,10 @@ _PROGRAMME_FOLDER_MAP = {
     "water_management": "water_management",
 }
 
+# Special meta-programme: aggregates all programmes' theses into one Explorer
+# view. Supervisors / Insights stay scoped to a single programme.
+_ALL_PROGRAM_KEY = "all"
+
 PROGRAM_DIR = os.path.abspath(
     os.path.join(BASE_DIR, "..", "programs", _PROGRAMME_FOLDER_MAP.get(PROGRAM, PROGRAM))
 )
@@ -335,7 +339,7 @@ _FILTER_KEYS = [
     "saved_search_query", "saved_year_filter", "saved_sdg_filter",
     "saved_sector_filter", "saved_method_filter", "saved_theory_filter",
     "saved_geo_filter", "saved_scale_filter", "saved_internship_org_filter",
-    "saved_master_track_filter", "saved_featured_only",
+    "saved_master_track_filter", "saved_program_filter", "saved_featured_only",
 ]
 for _fk in _FILTER_KEYS:
     if _fk not in st.session_state:
@@ -373,6 +377,7 @@ _FILTER_URL_KEYS = {
     "saved_scale_filter":          ("scales",   "list"),
     "saved_internship_org_filter": ("orgs",     "list"),
     "saved_master_track_filter":   ("tracks",   "list"),
+    "saved_program_filter":        ("progs",    "list"),
     "saved_featured_only":         ("featured", "bool"),
 }
 
@@ -390,6 +395,7 @@ _FILTER_WIDGET_KEYS = {
     "saved_scale_filter":          "filter_scale",
     "saved_internship_org_filter": "filter_internship_org",
     "saved_master_track_filter":   "filter_master_track",
+    "saved_program_filter":        "filter_program",
     "saved_featured_only":         "filter_featured",
 }
 
@@ -510,7 +516,7 @@ if 'program' not in st.session_state:
 
 # Derive navigation state from URL — this keeps the browser back/forward button working.
 # URL params are preserved (not cleared) so each navigation step has its own history entry.
-_VALID_PROGRAMS = {"sbi", "energy_science", "sustainable_development", "innovation_sciences", "water_management"}
+_VALID_PROGRAMS = {"sbi", "energy_science", "sustainable_development", "innovation_sciences", "water_management", _ALL_PROGRAM_KEY}
 _program_from_query = st.query_params.get("program")
 _details_from_query = st.query_params.get("details")
 _pdf_from_query     = st.query_params.get("pdf")
@@ -623,51 +629,232 @@ st.markdown(
         font-family: 'Merriweather', serif;
     }
 
-    /* header/title styles */
-    .header-row {
-        display: flex;
-        align-items: center;
-        gap: 16px;
-        margin-bottom: 20px;
+    /* ── Persistent top app-bar ─────────────────────────────────────── */
+    /* The bar blends with the per-programme tinted page background
+       (set in the per-programme tint block) — no opaque white chrome.
+       A 1px hairline separates it from content when scrolled. */
+    [data-testid="stAppViewContainer"] .main .block-container {
+        padding-top: 0.4rem !important;
     }
-    .header-logo-wrap {
-        width: 64px;
-        min-width: 64px;
-        height: 64px;
+    .topbar {
+        position: sticky;
+        top: 0;
+        z-index: 100;
+        padding: 16px 4px 14px 4px;
+        margin: -0.4rem -1rem 22px -1rem;
+        border-bottom: 1px solid rgba(0,54,96,0.08);
+    }
+    .topbar-row {
         display: flex;
         align-items: center;
-        justify-content: center;
+        gap: 18px;
+        padding: 0 14px;
+        flex-wrap: wrap;
+    }
+    .topbar-brand {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        text-decoration: none !important;
+        color: var(--uu-blue) !important;
         flex-shrink: 0;
     }
-    .header-logo {
-        width: 64px;
-        height: 64px;
+    .topbar-brand:hover { color: var(--uu-blue) !important; }
+    .topbar-logo {
+        width: 56px;
+        height: 56px;
         object-fit: contain;
-        display: block;
     }
-    .header-container {
-        background-color: transparent;
-        border: none;
-        padding: 0;
-        display: flex;
-        flex-direction: column;
-        justify-content: center;
-        gap: 3px;
-    }
-    .header-title {
-        color: var(--uu-blue);
-        margin: 0;
-        font-size: 1.55rem;
+    .topbar-title {
         font-weight: 700;
-        line-height: 1.22;
+        font-size: 1.42rem;
         letter-spacing: -0.02em;
+        color: var(--uu-blue);
+        line-height: 1.15;
     }
-    .header-subtitle {
-        color: rgba(0,54,96,0.5);
-        margin: 0;
-        font-size: 0.82rem;
-        font-weight: 400;
+    .topbar-nav {
+        display: flex;
+        gap: 10px;
+        margin-left: 22px;
+        flex: 1;
+        flex-wrap: wrap;
+    }
+    /* Nav links styled as white card pills to match the existing
+       sidebar-nav button aesthetic (white bg, blue border, UU-blue text,
+       soft shadow, hover lift). */
+    .topnav-link {
+        text-decoration: none !important;
+        color: var(--uu-blue) !important;
+        background: #ffffff;
+        border: 1px solid rgba(0,54,96,0.12);
+        padding: 9px 20px;
+        border-radius: 12px;
+        font-weight: 600;
+        font-size: 0.92rem;
         letter-spacing: 0.01em;
+        transition: background 0.18s, border-color 0.18s,
+                    box-shadow 0.18s, transform 0.18s;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    }
+    .topnav-link:hover {
+        background: #f4f8fc;
+        border-color: rgba(0,54,96,0.25);
+        box-shadow: 0 5px 14px rgba(0,0,0,0.10);
+        transform: translateY(-1px);
+    }
+    .topnav-link.active {
+        background: var(--uu-yellow);
+        color: var(--uu-blue) !important;
+        border-color: var(--uu-yellow);
+        font-weight: 700;
+        box-shadow: 0 4px 12px rgba(255,205,0,0.35);
+    }
+    .topnav-link.active:hover {
+        background: var(--uu-yellow);
+        box-shadow: 0 6px 16px rgba(255,205,0,0.45);
+    }
+    /* Programme switcher — <details>-based dropdown */
+    .topbar-switcher-wrap {
+        position: relative;
+        flex-shrink: 0;
+    }
+    .topbar-switcher {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 9px 14px;
+        border-radius: 12px;
+        border: 1px solid rgba(0,54,96,0.12);
+        background: #ffffff;
+        font-size: 0.88rem;
+        color: var(--uu-blue);
+        cursor: pointer;
+        font-family: inherit;
+        font-weight: 600;
+        max-width: 260px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+        transition: border-color 0.18s, box-shadow 0.18s;
+        list-style: none;
+        user-select: none;
+    }
+    .topbar-switcher::-webkit-details-marker,
+    .topbar-switcher::marker {
+        display: none;
+        content: '';
+    }
+    .topbar-switcher:hover {
+        border-color: rgba(0,54,96,0.25);
+        box-shadow: 0 5px 14px rgba(0,0,0,0.10);
+    }
+    .topbar-switcher .chev {
+        font-size: 0.8rem;
+        opacity: 0.6;
+        transition: transform 0.18s;
+    }
+    .topbar-switcher-wrap[open] .topbar-switcher {
+        border-color: rgba(0,54,96,0.25);
+        box-shadow: 0 5px 14px rgba(0,0,0,0.10);
+    }
+    .topbar-switcher-wrap[open] .topbar-switcher .chev {
+        transform: rotate(180deg);
+    }
+    .topbar-switcher-menu {
+        position: absolute;
+        right: 0;
+        top: calc(100% + 6px);
+        min-width: 280px;
+        background: #ffffff;
+        border: 1px solid rgba(0,54,96,0.12);
+        border-radius: 12px;
+        box-shadow: 0 10px 28px rgba(0,0,0,0.14);
+        padding: 6px;
+        z-index: 200;
+        overflow: hidden;
+    }
+    .topbar-switcher-item {
+        display: block;
+        padding: 9px 14px;
+        color: var(--uu-blue) !important;
+        text-decoration: none !important;
+        font-size: 0.88rem;
+        font-weight: 500;
+        border-radius: 8px;
+        transition: background 0.12s;
+    }
+    .topbar-switcher-item:hover {
+        background: rgba(255,205,0,0.18);
+    }
+    .topbar-switcher-item.active {
+        background: var(--uu-yellow);
+        font-weight: 700;
+    }
+    .topbar-crumbs {
+        font-size: 0.8rem;
+        color: rgba(0,54,96,0.55);
+        padding: 10px 16px 0 16px;
+        letter-spacing: 0.01em;
+    }
+    .topbar-crumbs a {
+        color: rgba(0,54,96,0.7) !important;
+        text-decoration: none !important;
+        font-weight: 500;
+        transition: color 0.15s;
+    }
+    .topbar-crumbs a:hover {
+        color: var(--uu-blue) !important;
+        text-decoration: none !important;
+    }
+    .topbar-sep {
+        margin: 0 8px;
+        color: rgba(0,54,96,0.28);
+    }
+    .topbar-crumb-current {
+        color: var(--uu-blue);
+        font-weight: 700;
+    }
+
+    /* ── Active filter chips ────────────────────────────────────────── */
+    .filter-chips {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin: 4px 0 14px 0;
+        align-items: center;
+    }
+    .filter-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 5px 11px;
+        background: var(--uu-yellow);
+        color: var(--uu-blue);
+        border-radius: 999px;
+        font-size: 0.82rem;
+        font-weight: 600;
+        text-decoration: none;
+        transition: filter 0.15s, transform 0.1s;
+    }
+    .filter-chip .x {
+        font-weight: 700;
+        font-size: 1rem;
+        line-height: 1;
+        opacity: 0.55;
+    }
+    .filter-chip:hover {
+        filter: brightness(0.95);
+        transform: translateY(-1px);
+    }
+    .filter-chip:hover .x {
+        opacity: 1;
+    }
+    .filter-chip-clear {
+        font-size: 0.82rem;
+        color: #888;
+        text-decoration: underline;
+        padding: 5px 6px;
+    }
+    .filter-chip-clear:hover {
+        color: var(--uu-blue);
     }
 
     /* ── Sidebar navigation items (key-based selectors for reliable styling) ── */
@@ -1174,6 +1361,19 @@ st.markdown(
         margin: 0 0 4px 0;
         font-size: 1.1em;
         color: var(--uu-blue);
+    }
+    /* Source-programme badge shown on cards in all-programmes mode */
+    .thesis-prog-badge {
+        display: inline-block;
+        margin-top: 8px;
+        padding: 3px 9px;
+        border-radius: 6px;
+        background: rgba(0,54,96,0.08);
+        color: var(--uu-blue);
+        font-size: 0.72rem;
+        font-weight: 700;
+        letter-spacing: 0.02em;
+        text-transform: uppercase;
     }
 
     /* typography tweaks */
@@ -2263,11 +2463,31 @@ function findPrev() {{ if (!matches.length) return; mIdx=(mIdx-1+matches.length)
 </script></body></html>"""
 
 
+def _get_program_dir_for_row(row) -> str:
+    """Return the on-disk programme folder for a single thesis row.
+
+    In all-programmes mode the merged dataframe carries a `_program_key`
+    column so per-row assets (PDFs, covers) resolve to the correct
+    programme. Falls back to the module-level PROGRAM_DIR when the column
+    is absent (single-programme mode).
+    """
+    try:
+        key = str(row.get("_program_key", "") or "").strip()
+    except Exception:
+        key = ""
+    if key and key in _PROGRAMME_FOLDER_MAP:
+        return os.path.abspath(
+            os.path.join(BASE_DIR, "..", "programs", _PROGRAMME_FOLDER_MAP[key])
+        )
+    return PROGRAM_DIR
+
+
 def resolve_cover_and_pdf_paths(row) -> tuple[str, str]:
     pdf_name = str(row.get("Thesis_PDF", "")).strip()
+    _row_program_dir = _get_program_dir_for_row(row)
     pdf_path = ""
     if _has_value(pdf_name):
-        pdf_path = os.path.join(PROGRAM_DIR, "pdfs", pdf_name)
+        pdf_path = os.path.join(_row_program_dir, "pdfs", pdf_name)
 
     cover_candidates = []
 
@@ -2291,7 +2511,7 @@ def resolve_cover_and_pdf_paths(row) -> tuple[str, str]:
         if not candidate or candidate in seen:
             continue
         seen.add(candidate)
-        candidate_path = os.path.join(PROGRAM_DIR, "covers", candidate)
+        candidate_path = os.path.join(_row_program_dir, "covers", candidate)
         if os.path.exists(candidate_path):
             return candidate_path, pdf_path
 
@@ -2591,11 +2811,28 @@ def render_related_thesis_cards(current_row, key_prefix: str):
 # ----- programme definitions ------------------------------------------------
 
 PROGRAMME_DISPLAY_NAMES = {
+    "all": "All Programmes",
     "sbi": "Sustainable Business and Innovation",
     "energy_science": "Energy Science",
     "sustainable_development": "Sustainable Development",
     "innovation_sciences": "Innovation Sciences",
     "water_management": "Water Management for Climate Adaptation",
+}
+
+# Display names without the "all" meta-entry — used when iterating only over
+# real, single programmes (homepage orbs, programme filter options, etc.).
+PROGRAMME_DISPLAY_NAMES_SINGLE = {
+    k: v for k, v in PROGRAMME_DISPLAY_NAMES.items() if k != _ALL_PROGRAM_KEY
+}
+
+# Short, card-friendly programme labels (used on cards in all-mode and
+# anywhere we need a compact source indicator).
+PROGRAMME_SHORT_NAMES = {
+    "sbi":                     "SBI",
+    "energy_science":          "Energy Science",
+    "sustainable_development": "Sustainable Dev.",
+    "innovation_sciences":     "Innovation Sci.",
+    "water_management":        "Water Mgmt.",
 }
 
 # Per-programme icon metadata (Heroicons outline, colour-coded)
@@ -2740,7 +2977,9 @@ def show_homepage():
         unsafe_allow_html=True,
     )
 
-    programme_keys = list(PROGRAMME_DISPLAY_NAMES.keys())
+    # Homepage orbs intentionally exclude the "All Programmes" meta-entry —
+    # cross-programme browsing is reachable only via the top-bar switcher.
+    programme_keys = list(PROGRAMME_DISPLAY_NAMES_SINGLE.keys())
 
     # Row 1: first 3 programmes
     _, c1, c2, c3, _ = st.columns([0.65, 1, 1, 1, 0.65], gap="medium")
@@ -2839,18 +3078,228 @@ def _render_back_btn(key: str) -> None:
         st.session_state.back_btn_requested = True
         st.rerun()
 
-PROGRAM_DIR = os.path.abspath(
-    os.path.join(BASE_DIR, "..", "programs", _PROGRAMME_FOLDER_MAP.get(PROGRAM, PROGRAM))
-)
+_CHIP_LABELS = {
+    "q":        "Search",
+    "years":    "Year",
+    "sdgs":     "SDG",
+    "sectors":  "Sector",
+    "methods":  "Method",
+    "theories": "Theory",
+    "geos":     "Country",
+    "scales":   "Scale",
+    "orgs":     "Org",
+    "tracks":   "Track",
+    "progs":    "Programme",
+    "featured": "Featured only",
+}
+
+
+def _explorer_url(omit_list: tuple | None = None,
+                  omit_bool: str | None = None,
+                  omit_str: str | None = None) -> str:
+    """Build an Explorer URL from current filter state, optionally dropping one item.
+
+    omit_list = (short_key, item_value) — drop one item from a multi-list filter.
+    omit_bool = short_key — clear that bool filter.
+    omit_str  = short_key — clear that string field (e.g. "q" to remove the search query).
+    """
+    parts = [f"program={PROGRAM}"]
+    for saved_key, (short, kind) in _FILTER_URL_KEYS.items():
+        val = st.session_state.get(saved_key)
+        if not val:
+            continue
+        if kind == "list":
+            items = list(val)
+            if omit_list and omit_list[0] == short:
+                items = [i for i in items if str(i) != str(omit_list[1])]
+            if items:
+                joined = ",".join(urllib.parse.quote(str(i), safe="") for i in items)
+                parts.append(f"{short}={joined}")
+        elif kind == "bool":
+            if val and omit_bool != short:
+                parts.append(f"{short}=1")
+        elif kind == "str":
+            if val and omit_str != short:
+                parts.append(f"{short}={urllib.parse.quote(str(val), safe='')}")
+    return "?" + "&".join(parts)
+
+
+def _render_filter_chips() -> None:
+    """Active-filter chips above the Explorer grid (Amazon/Airbnb pattern)."""
+    chips: list[tuple[str, str]] = []
+    for saved_key, (short, kind) in _FILTER_URL_KEYS.items():
+        val = st.session_state.get(saved_key)
+        if not val:
+            continue
+        label_base = _CHIP_LABELS.get(short, short.title())
+        if kind == "list":
+            for item in val:
+                # Translate programme keys → friendly display names on chips.
+                item_label = (
+                    PROGRAMME_DISPLAY_NAMES_SINGLE.get(str(item), str(item))
+                    if short == "progs" else str(item)
+                )
+                chips.append((f"{label_base}: {item_label}", _explorer_url(omit_list=(short, item))))
+        elif kind == "bool":
+            chips.append((label_base, _explorer_url(omit_bool=short)))
+        elif kind == "str":
+            disp = str(val)
+            if len(disp) > 40:
+                disp = disp[:38] + "…"
+            chips.append((f'{label_base}: "{disp}"', _explorer_url(omit_str=short)))
+    if not chips:
+        return
+    html_parts = []
+    for label, url in chips:
+        html_parts.append(
+            f'<a class="filter-chip" href="{url}" target="_top" title="Remove filter">'
+            f'<span>{label}</span><span class="x">×</span></a>'
+        )
+    html_parts.append(
+        f'<a class="filter-chip-clear" href="?program={PROGRAM}" target="_top">Clear all</a>'
+    )
+    st.markdown(f'<div class="filter-chips">{"".join(html_parts)}</div>', unsafe_allow_html=True)
+
+
+def _render_top_bar() -> None:
+    """Persistent top app-bar: brand, section nav, programme switcher, breadcrumb.
+
+    Rendered on every programme-scoped page. The homepage has its own header.
+    """
+    active_section = st.session_state.get('page_nav', 'Explorer')
+    selected_details = st.session_state.get('selected_details')
+    selected_pdf = st.session_state.get('selected_pdf')
+    sup_selected = st.session_state.get('sup_selected')
+    sup_view = st.session_state.get('sup_view', 'directory')
+
+    logo_html = (
+        f'<img src="data:image/png;base64,{logo_b64}" class="topbar-logo"/>'
+        if logo_b64 else ""
+    )
+
+    nav_items = []
+    for sect in ("Explorer", "Supervisors", "Insights"):
+        href = f"?program={PROGRAM}" if sect == "Explorer" else f"?program={PROGRAM}&nav={sect}"
+        cls = "topnav-link active" if active_section == sect else "topnav-link"
+        nav_items.append(f'<a href="{href}" target="_top" class="{cls}">{sect}</a>')
+    nav_html = "".join(nav_items)
+
+    # Programme switcher — Streamlit strips inline JS handlers, so we use a
+    # <details> dropdown with anchor links instead of a <select onchange>.
+    _current_label = _display_name if len(_display_name) <= 32 else _display_name[:30] + "…"
+    _switcher_items = []
+    for p_key, p_name in PROGRAMME_DISPLAY_NAMES.items():
+        item_cls = "topbar-switcher-item active" if p_key == PROGRAM else "topbar-switcher-item"
+        _switcher_items.append(
+            f'<a href="?program={p_key}" target="_top" class="{item_cls}">{p_name}</a>'
+        )
+    switcher_html = (
+        '<details class="topbar-switcher-wrap">'
+        f'<summary class="topbar-switcher">{_current_label}<span class="chev">▾</span></summary>'
+        f'<div class="topbar-switcher-menu">{"".join(_switcher_items)}</div>'
+        '</details>'
+    )
+
+    # "Home" returns to the programme picker. The second crumb is the
+    # current programme (or "All Programmes" in cross-programme mode).
+    crumbs: list[str] = [
+        '<a href="?back_home=1" target="_top">Home</a>',
+        f'<a href="?program={PROGRAM}" target="_top">{_display_name}</a>',
+    ]
+    if active_section == "Explorer" and (selected_details or selected_pdf):
+        crumbs.append(f'<a href="{_explorer_url()}" target="_top">Explorer</a>')
+        key = selected_details or str(selected_pdf or "").replace(".pdf", "")
+        title = ""
+        try:
+            for _, row in df.iterrows():
+                pdf_val = row.get("Thesis_PDF", "")
+                rk = (str(pdf_val).replace('.pdf', '')
+                      if pd.notna(pdf_val) and str(pdf_val) not in ("", "n/a") else "")
+                if rk and rk == key:
+                    title = str(row.get("Title", ""))
+                    break
+        except Exception:
+            pass
+        title_short = (title[:60] + "…") if len(title) > 60 else (title or "Thesis")
+        crumbs.append(f'<span class="topbar-crumb-current">{title_short}</span>')
+    elif active_section == "Supervisors":
+        if sup_selected:
+            crumbs.append(f'<a href="?program={PROGRAM}&nav=Supervisors" target="_top">Supervisors</a>')
+            crumbs.append(f'<span class="topbar-crumb-current">{sup_selected}</span>')
+        elif sup_view == 'finder':
+            crumbs.append(f'<a href="?program={PROGRAM}&nav=Supervisors" target="_top">Supervisors</a>')
+            crumbs.append('<span class="topbar-crumb-current">Find a Supervisor</span>')
+        else:
+            crumbs.append('<span class="topbar-crumb-current">Supervisors</span>')
+    elif active_section == "Insights":
+        crumbs.append('<span class="topbar-crumb-current">Insights</span>')
+    else:
+        crumbs.append('<span class="topbar-crumb-current">Explorer</span>')
+    crumb_html = '<span class="topbar-sep">›</span>'.join(crumbs)
+
+    st.markdown(
+        '<div class="topbar">'
+        '<div class="topbar-row">'
+        f'<a href="?program={PROGRAM}" target="_top" class="topbar-brand">{logo_html}'
+        f'<span class="topbar-title">{_display_name}</span></a>'
+        f'<div class="topbar-nav">{nav_html}</div>'
+        f'{switcher_html}'
+        '</div>'
+        f'<div class="topbar-crumbs">{crumb_html}</div>'
+        '</div>',
+        unsafe_allow_html=True,
+    )
+
+if PROGRAM == _ALL_PROGRAM_KEY:
+    # All-mode: aggregate every programme's metadata into one Explorer dataset.
+    # PROGRAM_DIR falls back to SBI so any module-level asset lookups
+    # (logos, fallback icons) still resolve. Per-row assets (PDFs, covers)
+    # are resolved via _get_program_dir_for_row using the _program_key column.
+    PROGRAM_DIR = os.path.abspath(
+        os.path.join(BASE_DIR, "..", "programs", _PROGRAMME_FOLDER_MAP["sbi"])
+    )
+else:
+    PROGRAM_DIR = os.path.abspath(
+        os.path.join(BASE_DIR, "..", "programs", _PROGRAMME_FOLDER_MAP.get(PROGRAM, PROGRAM))
+    )
 
 # ----- load data ------------------------------------------------------------
-_metadata_path = os.path.join(PROGRAM_DIR, "thesis_metadata_matched.csv")
-_mtime = os.path.getmtime(_metadata_path) if os.path.exists(_metadata_path) else 0
-df, _load_error = _load_thesis_data(PROGRAM_DIR, PROGRAM, _mtime)
-if _load_error:
-    st.error(_load_error)
-
-pdf_folder = os.path.join(PROGRAM_DIR, "pdfs")
+if PROGRAM == _ALL_PROGRAM_KEY:
+    _all_frames: list[pd.DataFrame] = []
+    _load_errors: list[str] = []
+    for _p_key, _p_folder in _PROGRAMME_FOLDER_MAP.items():
+        _p_dir = os.path.abspath(os.path.join(BASE_DIR, "..", "programs", _p_folder))
+        _p_metadata = os.path.join(_p_dir, "thesis_metadata_matched.csv")
+        _p_mtime = os.path.getmtime(_p_metadata) if os.path.exists(_p_metadata) else 0
+        _p_df, _p_err = _load_thesis_data(_p_dir, _p_key, _p_mtime)
+        if _p_err:
+            _load_errors.append(f"{_p_key}: {_p_err}")
+            continue
+        if _p_df.empty:
+            continue
+        _p_df = _p_df.copy()
+        _p_df["_program_key"] = _p_key
+        _all_frames.append(_p_df)
+    if _all_frames:
+        df = pd.concat(_all_frames, ignore_index=True, sort=False).fillna("n/a")
+        _load_error = ""
+    else:
+        df = pd.DataFrame()
+        _load_error = "No programme metadata could be loaded."
+    if _load_errors:
+        st.warning("Some programmes failed to load: " + "; ".join(_load_errors))
+    if _load_error:
+        st.error(_load_error)
+    # In all-mode there's no single per-programme pdf folder; per-row lookups
+    # use _get_program_dir_for_row instead. Provide a harmless default.
+    pdf_folder = os.path.join(PROGRAM_DIR, "pdfs")
+else:
+    _metadata_path = os.path.join(PROGRAM_DIR, "thesis_metadata_matched.csv")
+    _mtime = os.path.getmtime(_metadata_path) if os.path.exists(_metadata_path) else 0
+    df, _load_error = _load_thesis_data(PROGRAM_DIR, PROGRAM, _mtime)
+    if _load_error:
+        st.error(_load_error)
+    pdf_folder = os.path.join(PROGRAM_DIR, "pdfs")
 
 # ----- explorer page background colour (per-programme palette tint) -------
 _PROG_BG_TINT = {
@@ -2859,6 +3308,7 @@ _PROG_BG_TINT = {
     "sustainable_development":"#f0f8f1",   # pale green
     "innovation_sciences":    "#f7f3fd",   # pale lavender
     "water_management":       "#f0f9ff",   # pale cyan
+    "all":                    "#f5f5f7",   # neutral grey for cross-programme view
 }
 _prog_tint = _PROG_BG_TINT.get(PROGRAM, "#f8f9fa")
 st.markdown(
@@ -2866,6 +3316,11 @@ st.markdown(
     " .stApp, .stApp > .main {"
     f"  background-color: {_prog_tint} !important;"
     "  background-image: none !important;"
+    " }"
+    # Topbar inherits the programme tint so it visually merges with the
+    # page background — no white-chrome strip floating over content.
+    " .topbar {"
+    f"  background-color: {_prog_tint} !important;"
     " }"
     "</style>",
     unsafe_allow_html=True,
@@ -2880,22 +3335,7 @@ if not os.path.exists(logo_path):
     logo_path = os.path.join(BASE_DIR, "..", "programs", "sbi", "assets", "uu_logo.png")
 logo_b64 = _load_image_b64(logo_path)
 
-st.markdown(
-    f"""
-    <div class="header-row">
-        <div class="header-logo-wrap">
-            <img src="data:image/png;base64,{logo_b64}" class="header-logo" />
-        </div>
-        <div class="header-container">
-            <div class="header-title">{_display_name} Thesis Explorer</div>
-            <div class="header-subtitle">MSc {_display_name} &ndash; Utrecht University</div>
-        </div>
-    </div>
-    """,
-    unsafe_allow_html=True,
-)
-
-# ----- page navigation (sidebar) ------------------------------------------
+# ----- page navigation ----------------------------------------------------
 if "page_nav" not in st.session_state:
     st.session_state.page_nav = "Explorer"
 _VALID_PAGES = ("Explorer", "Supervisors", "Insights")
@@ -2905,37 +3345,14 @@ if st.session_state.get("pending_page_nav") in _VALID_PAGES:
 
 page = st.session_state.page_nav
 
-# Render clean vertical nav in sidebar
-if st.sidebar.button(
-    "← Back to Programs",
-    key="sidenav_back_to_programs",
-    use_container_width=True,
-):
-    st.session_state.page = "home"
-    st.query_params.clear()
-    st.rerun()
+# Persistent top app-bar — replaces the old programme-header + sidebar-nav +
+# in-page detail-nav row. Renders on every programme-scoped page.
+_render_top_bar()
 
-st.sidebar.markdown("<div class='sidebar-programme-label'>Navigation</div>", unsafe_allow_html=True)
-for _np in _VALID_PAGES:
-    _is_active = page == _np
-    if st.sidebar.button(
-        _np,
-        key=f"sidenav_{_np.replace(' ', '_')}",
-        use_container_width=True,
-        type="primary" if _is_active else "secondary",
-    ):
-        st.session_state.page_nav = _np
-        st.query_params.clear()
-        st.query_params["program"] = PROGRAM
-        if _np != "Explorer":
-            st.query_params["nav"] = _np
-        st.rerun()
-
-st.sidebar.markdown("<hr style='border-color:rgba(255,255,255,0.09);margin:10px 0;'>", unsafe_allow_html=True)
-
-# ----- main tabs -----------------------------------------------------------
-
-# move filters/search into sidebar for a cleaner main area
+# Sidebar discipline: it now contains *only* the Filter panel, which is only
+# meaningful on the Explorer grid. Hide the sidebar everywhere else (detail
+# view, PDF reader, Supervisors, Insights). Global nav stays reachable via
+# the top bar.
 explorer_detail_mode = (
     page == "Explorer"
     and (
@@ -2948,11 +3365,14 @@ if "details_sidebar_expanded" not in st.session_state:
     st.session_state.details_sidebar_expanded = False
 
 if not explorer_detail_mode:
-    # Reset compact mode when returning to the Explorer front page or another page.
     st.session_state.details_sidebar_expanded = False
 
-if explorer_detail_mode:
-    # Fully hide sidebar — back navigation is in the main content area
+show_explorer_filters = (
+    page == "Explorer"
+    and not explorer_detail_mode
+)
+
+if not show_explorer_filters:
     st.markdown(
         """
         <style>
@@ -2961,11 +3381,6 @@ if explorer_detail_mode:
         """,
         unsafe_allow_html=True,
     )
-
-show_explorer_filters = (
-    page == "Explorer"
-    and not explorer_detail_mode
-)
 
 
 def _is_valid_value(value) -> bool:
@@ -3052,6 +3467,18 @@ if show_explorer_filters:
                 )
             else:
                 master_track_filter = []
+
+            # Programme filter — only meaningful in all-programmes mode.
+            if PROGRAM == _ALL_PROGRAM_KEY:
+                _program_options = list(PROGRAMME_DISPLAY_NAMES_SINGLE.keys())
+                program_filter = st.multiselect(
+                    "Programme", _program_options,
+                    default=[v for v in st.session_state.saved_program_filter if v in _program_options],
+                    format_func=lambda k: PROGRAMME_DISPLAY_NAMES_SINGLE.get(k, k),
+                    key="filter_program",
+                )
+            else:
+                program_filter = []
 
             year_options = _series_options(df["Year"])
             sdg_options = _series_options(df["SDG"], sdg_sort=True)
@@ -3160,7 +3587,8 @@ if show_explorer_filters:
             # Also clear the widget keys so they reset visually
             for _wk in ["filter_year", "filter_sdg", "filter_sector", "filter_method",
                          "filter_theory", "filter_geo", "filter_scale", "filter_internship_org",
-                         "filter_master_track", "filter_featured", "explorer_search_input"]:
+                         "filter_master_track", "filter_program",
+                         "filter_featured", "explorer_search_input"]:
                 if _wk in st.session_state:
                     del st.session_state[_wk]
             st.session_state.explorer_page = 0
@@ -3181,6 +3609,7 @@ if show_explorer_filters:
         scale_filter = []
         internship_org_filter = []
         master_track_filter = []
+        program_filter = []
         search_query = ""
         featured_only = False
 
@@ -3231,6 +3660,10 @@ if show_explorer_filters:
                 if pd.notna(v) else False
             )
         ]
+
+    # Apply Programme filter (only relevant in all-programmes mode)
+    if program_filter and "_program_key" in filtered_df.columns:
+        filtered_df = filtered_df[filtered_df["_program_key"].isin(program_filter)]
 
     if featured_only and "Featured" in filtered_df.columns:
         filtered_df = filtered_df[filtered_df["Featured"]]
@@ -3283,6 +3716,7 @@ if show_explorer_filters:
             scale_filter,
             internship_org_filter,
             master_track_filter,
+            program_filter,
             featured_only,
         ]
     )
@@ -3297,6 +3731,7 @@ if show_explorer_filters:
     st.session_state.saved_scale_filter = scale_filter
     st.session_state.saved_internship_org_filter = internship_org_filter
     st.session_state.saved_master_track_filter = master_track_filter
+    st.session_state.saved_program_filter = program_filter
     st.session_state.saved_featured_only = featured_only
     # Mirror filter state into the URL so browser back/forward (which hard-
     # reloads the page) can restore it from query params.
@@ -3502,6 +3937,10 @@ if page == "Explorer":
         # Mirror pagination into the URL so back/forward restores the page.
         _sync_explorer_url()
 
+        # Active filter chips — shows the user exactly which filters are
+        # restricting their view, with a one-click way to remove each.
+        _render_filter_chips()
+
         if filtered_df.empty:
             st.info("No theses match the current filters.")
         else:
@@ -3681,21 +4120,34 @@ if page == "Explorer":
                         with st.container():
                             cover_path, resolved_pdf_path = resolve_cover_and_pdf_paths(row)
                             pdf_name = str(row.get("Thesis_PDF", "n/a"))
-                            pdf_path = os.path.join(pdf_folder, pdf_name) if pdf_name not in ("n/a", "", "nan") else ""
+                            _row_prog_dir = _get_program_dir_for_row(row)
+                            pdf_path = (os.path.join(_row_prog_dir, "pdfs", pdf_name)
+                                        if pdf_name not in ("n/a", "", "nan") else "")
                             details_key = pdf_name.replace('.pdf', '') if pdf_name.endswith('.pdf') else pdf_name
                             featured_html = _featured_badge_html(bool(row.get("Featured", False)))
                             _is_featured = bool(row.get("Featured", False))
 
+                            # In all-mode the click navigates to the source
+                            # programme's URL so the detail page loads with the
+                            # correct PDF / assets.
+                            _row_prog_key = str(row.get("_program_key", "") or "").strip() or PROGRAM
                             card_link = (
-                                f"?program={urllib.parse.quote(PROGRAM, safe='')}&"
+                                f"?program={urllib.parse.quote(_row_prog_key, safe='')}&"
                                 f"details={urllib.parse.quote(details_key, safe='')}"
                             )
+                            _prog_badge_html = ""
+                            if PROGRAM == _ALL_PROGRAM_KEY and _row_prog_key in PROGRAMME_SHORT_NAMES:
+                                _prog_badge_html = (
+                                    f"<div class='thesis-prog-badge'>"
+                                    f"{PROGRAMME_SHORT_NAMES[_row_prog_key]}</div>"
+                                )
                             card_html = (
                                 f'<a href="{card_link}" class="thesis-card-link" target="_self">'
                                 '<div class="thesis-card">'
                                 + render_cover_html(cover_path, resolved_pdf_path or pdf_path, featured=_is_featured)
                                 + f"<div class='thesis-title'>{row['Title']}</div>"
                                 + f"<div class='thesis-meta'>{row['Author(s)']} &#8226; {row['Year']}</div>"
+                                + _prog_badge_html
                                 + '</div></a>'
                             )
                             st.markdown(card_html, unsafe_allow_html=True)
@@ -4514,6 +4966,24 @@ elif page == "Programme Analytics":
     fig4 = px.bar(df["Theories"].value_counts(), labels={'index':'Theory','value':'Count'})
     st.plotly_chart(fig4, width='stretch')
 
+elif page == "Insights" and PROGRAM == _ALL_PROGRAM_KEY:
+    # Insights is computed per-programme; gracefully redirect users in all-mode.
+    st.markdown(
+        "<div style='padding:32px 8px;'>"
+        "<h3 style='color:var(--uu-blue);margin-bottom:8px;'>Insights are per-programme</h3>"
+        "<p style='color:rgba(0,54,96,0.7);max-width:640px;'>"
+        "The Insights view aggregates one programme at a time. "
+        "Pick a programme below to dive into its analytics."
+        "</p>"
+        "<div style='display:flex;flex-wrap:wrap;gap:10px;margin-top:14px;'>"
+        + "".join(
+            f"<a href='?program={k}&nav=Insights' target='_top' class='topnav-link'>{n}</a>"
+            for k, n in PROGRAMME_DISPLAY_NAMES_SINGLE.items()
+        )
+        + "</div></div>",
+        unsafe_allow_html=True,
+    )
+
 elif page == "Insights":
     import re as _ins_re
     import json as _ins_json
@@ -4523,10 +4993,6 @@ elif page == "Insights":
     import streamlit.components.v1 as _ins_comp
 
     # ── helpers ───────────────────────────────────────────────────────────
-    def _ins_sdg_num(v):
-        m = _ins_re.match(r'(\d+)', str(v))
-        return int(m.group(1)) if m else None
-
     _INS_SDG_HEX = {
         1:"#E5243B",2:"#DDA63A",3:"#4C9F38",4:"#C5192D",5:"#FF3A21",
         6:"#26BDE2",7:"#FCC30B",8:"#A21942",9:"#FD6925",10:"#DD1367",
@@ -4540,6 +5006,28 @@ elif page == "Insights":
         11:"Sustainable Cities",12:"Responsible Consumption",13:"Climate Action",
         14:"Life Below Water",15:"Life on Land",16:"Peace & Justice",
         17:"Partnerships",
+    }
+    # Brief plain-language descriptions of each UN Sustainable Development Goal.
+    # Shown in the per-SDG detail modal so users understand what the goal covers
+    # before they explore the linked theses.
+    _INS_SDG_DESCRIPTIONS = {
+        1:  "End poverty in all its forms everywhere — including extreme poverty, by ensuring social protection, equal economic rights, and resilience for the poor and vulnerable.",
+        2:  "End hunger, achieve food security and improved nutrition, and promote sustainable agriculture that doubles productivity for small-scale food producers.",
+        3:  "Ensure healthy lives and promote well-being for all at all ages — reducing maternal and child mortality, fighting epidemics, and providing universal health coverage.",
+        4:  "Ensure inclusive and equitable quality education and promote lifelong learning opportunities, including technical, vocational and tertiary education for everyone.",
+        5:  "Achieve gender equality and empower all women and girls, ending discrimination, violence, harmful practices, and unequal participation in leadership.",
+        6:  "Ensure availability and sustainable management of water and sanitation for all — covering access, water quality, efficiency, and integrated water-resources management.",
+        7:  "Ensure access to affordable, reliable, sustainable and modern energy for all, expanding renewable sources and doubling the global rate of energy efficiency improvement.",
+        8:  "Promote sustained, inclusive and sustainable economic growth, full and productive employment, and decent work for all — while decoupling growth from environmental degradation.",
+        9:  "Build resilient infrastructure, promote inclusive and sustainable industrialization, and foster innovation — including upgrading industries and expanding research and development.",
+        10: "Reduce inequality within and among countries by empowering social, economic and political inclusion regardless of age, sex, disability, race, ethnicity, origin, religion, or status.",
+        11: "Make cities and human settlements inclusive, safe, resilient and sustainable — improving housing, transport, urban planning, cultural heritage, and air quality.",
+        12: "Ensure sustainable consumption and production patterns — efficient use of resources, sustainable management of chemicals and waste, and corporate sustainability reporting.",
+        13: "Take urgent action to combat climate change and its impacts — integrating climate measures into policy, strengthening resilience, and supporting climate finance.",
+        14: "Conserve and sustainably use the oceans, seas and marine resources — reducing marine pollution, protecting ecosystems, and ending overfishing and destructive fishing practices.",
+        15: "Protect, restore and promote sustainable use of terrestrial ecosystems — managing forests, combating desertification, halting biodiversity loss, and stopping land degradation.",
+        16: "Promote peaceful and inclusive societies for sustainable development, provide access to justice for all, and build effective, accountable and inclusive institutions at all levels.",
+        17: "Strengthen the means of implementation and revitalize the global partnership for sustainable development — through finance, technology, capacity building, trade, and policy coherence.",
     }
     _INS_METHOD_HEX = {
         "Qualitative Empirical Research":  "#003660",
@@ -4623,19 +5111,101 @@ elif page == "Insights":
 
     @st.cache_data(show_spinner=False)
     def _compute_insights(df: pd.DataFrame, program: str):
-        # SDG universe
+        # SDG universe — for each SDG number we capture richer per-thesis info
+        # AND aggregate counters (sectors, methods, theories, supervisors,
+        # year trend, co-occurring SDGs) so the click-through modal can
+        # surface meaningful context, not just a flat thesis list.
         sdg_counts = _ins_Counter()
         sdg_theses: dict = {}
+        sdg_sectors: dict[int, _ins_Counter] = {}
+        sdg_methods: dict[int, _ins_Counter] = {}
+        sdg_theories: dict[int, _ins_Counter] = {}
+        sdg_supervisors: dict[int, _ins_Counter] = {}
+        sdg_countries: dict[int, _ins_Counter] = {}
+        sdg_year_counts: dict[int, _ins_Counter] = {}
+        sdg_cooccur: dict[int, _ins_Counter] = {}
+
+        def _clean(value) -> str:
+            text = str(value).strip()
+            return "" if text.lower() in ("", "n/a", "nan") else text
+
+        def _split_multi(value) -> list[str]:
+            txt = str(value)
+            parts: list[str] = []
+            for chunk in txt.replace(";", ",").split(","):
+                c = chunk.strip()
+                if c and c.lower() not in ("n/a", "nan"):
+                    parts.append(c)
+            return parts
+
+        def _all_sdg_nums(value) -> list[int]:
+            return [int(m) for m in _ins_re.findall(r'\d+', str(value)) if 1 <= int(m) <= 17]
+
         for _, row in df.iterrows():
-            n = _ins_sdg_num(row.get("SDG", ""))
-            if n:
-                sdg_counts[n] += 1
-                sdg_theses.setdefault(n, []).append({
-                    "title": str(row.get("Title", "")),
-                    "author": str(row.get("Author(s)", "")),
-                    "year": str(row.get("Year", "")),
-                    "pdf": str(row.get("Thesis_PDF", "")),
-                })
+            sdg_nums = _all_sdg_nums(row.get("SDG", ""))
+            if not sdg_nums:
+                continue
+            primary = sdg_nums[0]
+            sdg_counts[primary] += 1
+
+            title = _clean(row.get("Title", ""))
+            author = _clean(row.get("Author(s)", ""))
+            year = _clean(row.get("Year", ""))
+            pdf = _clean(row.get("Thesis_PDF", ""))
+            sector = _clean(row.get("Main sector", ""))
+            supervisor = _clean(row.get("Supervisor", ""))
+            second_reader = _clean(row.get("Second reader", row.get("Second Reader", "")))
+            methods = _split_multi(row.get("Methodology Type", ""))
+            theories = _split_multi(row.get("Theories", ""))
+            countries = _split_multi(row.get("Country", row.get("Geographical scope", "")))
+            featured = bool(row.get("Featured", False))
+
+            sdg_theses.setdefault(primary, []).append({
+                "title": title,
+                "author": author,
+                "year": year,
+                "pdf": pdf,
+                "sector": sector,
+                "supervisor": supervisor,
+                "methods": methods,
+                "featured": featured,
+            })
+
+            # Aggregate against the primary SDG (counts) and all listed SDGs
+            # (co-occurrence so users can see which goals travel together).
+            for n in set(sdg_nums):
+                if sector:
+                    sdg_sectors.setdefault(n, _ins_Counter())[sector] += 1
+                for m in methods:
+                    sdg_methods.setdefault(n, _ins_Counter())[m] += 1
+                for t in theories:
+                    sdg_theories.setdefault(n, _ins_Counter())[t] += 1
+                if supervisor:
+                    sdg_supervisors.setdefault(n, _ins_Counter())[supervisor] += 1
+                if second_reader and second_reader != supervisor:
+                    sdg_supervisors.setdefault(n, _ins_Counter())[second_reader] += 1
+                for c in countries:
+                    sdg_countries.setdefault(n, _ins_Counter())[c] += 1
+                if year:
+                    sdg_year_counts.setdefault(n, _ins_Counter())[year] += 1
+                for other in sdg_nums:
+                    if other != n:
+                        sdg_cooccur.setdefault(n, _ins_Counter())[other] += 1
+
+        def _top_items(counter: _ins_Counter, k: int = 6) -> list[list]:
+            return [[name, int(cnt)] for name, cnt in counter.most_common(k)]
+
+        sdg_aggregates: dict[int, dict] = {}
+        for n in range(1, 18):
+            sdg_aggregates[n] = {
+                "top_sectors":     _top_items(sdg_sectors.get(n, _ins_Counter()), 6),
+                "top_methods":     _top_items(sdg_methods.get(n, _ins_Counter()), 6),
+                "top_theories":    _top_items(sdg_theories.get(n, _ins_Counter()), 6),
+                "top_supervisors": _top_items(sdg_supervisors.get(n, _ins_Counter()), 6),
+                "top_countries":   _top_items(sdg_countries.get(n, _ins_Counter()), 5),
+                "year_counts":     {str(y): int(c) for y, c in sdg_year_counts.get(n, _ins_Counter()).items()},
+                "co_sdgs":         _top_items(sdg_cooccur.get(n, _ins_Counter()), 5),
+            }
 
         # Internship org universe
         org_theses: dict = {}
@@ -4667,6 +5237,7 @@ elif page == "Insights":
                         "author": str(row.get("Author(s)", "")),
                         "year": str(row.get("Year", "")),
                         "pdf": str(row.get("Thesis_PDF", "")),
+                        "countries": [x.strip() for x in str(row.get("Country", "")).split(";") if x.strip() and x.strip().lower() not in ("n/a", "nan", "")],
                     })
 
         # Methodology counts
@@ -4694,6 +5265,7 @@ elif page == "Insights":
         return {
             "sdg_counts": dict(sdg_counts),
             "sdg_theses": sdg_theses,
+            "sdg_aggregates": sdg_aggregates,
             "org_theses": org_theses,
             "country_counts": dict(country_counts),
             "country_theses": country_theses,
@@ -4822,20 +5394,38 @@ elif page == "Insights":
     </div>
     """, unsafe_allow_html=True)
 
-    # Build SDG data payload
+    # Build SDG data payload. Theses are capped at 40 per SDG to keep the
+    # JSON payload reasonable while still exposing the full list to the modal.
     _sdg_payload = []
     for _sdg_n in range(1, 18):
         _cnt = _ins_data["sdg_counts"].get(_sdg_n, 0)
         _icon_path = os.path.join(PROGRAM_DIR, "sdg_icons", f"Goal-{_sdg_n:02d}.png")
         _icon_b64 = _load_image_b64(_icon_path)
-        _theses = _ins_data["sdg_theses"].get(_sdg_n, [])[:6]  # cap payload
+        _theses = _ins_data["sdg_theses"].get(_sdg_n, [])[:40]
+        _agg = _ins_data.get("sdg_aggregates", {}).get(_sdg_n, {})
+        # Build a compact "SDG n — Name" lookup for the co-occurring SDG chips.
+        _co_named = [
+            {"n": int(o_n), "count": int(o_c),
+             "name": _INS_SDG_NAMES.get(int(o_n), ""),
+             "color": _INS_SDG_HEX.get(int(o_n), "#888")}
+            for o_n, o_c in _agg.get("co_sdgs", [])
+        ]
         _sdg_payload.append({
-            "n": _sdg_n,
-            "count": _cnt,
-            "name": _INS_SDG_NAMES.get(_sdg_n, ""),
-            "color": _INS_SDG_HEX.get(_sdg_n, "#888"),
-            "icon": _icon_b64,
-            "theses": _theses,
+            "n":            _sdg_n,
+            "count":        _cnt,
+            "name":         _INS_SDG_NAMES.get(_sdg_n, ""),
+            "color":        _INS_SDG_HEX.get(_sdg_n, "#888"),
+            "icon":         _icon_b64,
+            "desc":         _INS_SDG_DESCRIPTIONS.get(_sdg_n, ""),
+            "theses":       _theses,
+            "top_sectors":  _agg.get("top_sectors", []),
+            "top_methods":  _agg.get("top_methods", []),
+            "top_theories": _agg.get("top_theories", []),
+            "top_supervisors": _agg.get("top_supervisors", []),
+            "top_countries":   _agg.get("top_countries", []),
+            "year_counts":  _agg.get("year_counts", {}),
+            "co_sdgs":      _co_named,
+            "featured_count": sum(1 for t in _theses if t.get("featured")),
         })
 
     _sdg_json = _ins_json.dumps(_sdg_payload, ensure_ascii=False)
@@ -4855,10 +5445,10 @@ body{{font-family:'Inter',-apple-system,sans-serif;background:transparent;overfl
 #sdg-overlay.open{{display:block;}}
 #sdg-detail{{
   display:none;position:absolute;
-  top:50%;left:50%;transform:translate(-50%,-50%) scale(0.92);
-  width:min(480px,90%);max-height:460px;
-  border-radius:18px;background:#fff;border:1px solid #e2e8f0;
-  box-shadow:0 8px 40px rgba(0,54,96,0.18);overflow:hidden;
+  top:50%;left:50%;transform:translate(-50%,-50%) scale(0.94);
+  width:min(880px,94%);max-height:min(86vh,820px);
+  border-radius:20px;background:#fff;border:1px solid #e2e8f0;
+  box-shadow:0 14px 50px rgba(0,54,96,0.22);overflow:hidden;
   z-index:11;
   transition:transform 0.22s cubic-bezier(.34,1.56,.64,1),opacity 0.22s;
   opacity:0;
@@ -4867,12 +5457,60 @@ body{{font-family:'Inter',-apple-system,sans-serif;background:transparent;overfl
   display:flex;flex-direction:column;
   transform:translate(-50%,-50%) scale(1);opacity:1;
 }}
-#sdg-di{{padding:1.4rem 1.6rem;overflow-y:auto;flex:1;}}
-.sd-t{{padding:0.65rem 0.4rem;border-bottom:1px solid #f0f4f9;display:block;text-decoration:none;color:inherit;}}
+#sdg-di{{padding:0;overflow-y:auto;flex:1;}}
+/* Header band — coloured by the SDG; sits flush with modal top */
+.sdg-hd{{display:flex;gap:18px;align-items:flex-start;padding:22px 26px 18px;color:#fff;position:relative;}}
+.sdg-hd .sdg-close{{position:absolute;top:14px;right:14px;background:rgba(255,255,255,0.18);border:none;color:#fff;cursor:pointer;font-size:1.05rem;width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;transition:background 0.15s;}}
+.sdg-hd .sdg-close:hover{{background:rgba(255,255,255,0.32);}}
+.sdg-hd-icon{{width:78px;height:78px;border-radius:14px;background:rgba(255,255,255,0.15);overflow:hidden;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:2rem;font-weight:900;}}
+.sdg-hd-icon img{{width:100%;height:100%;object-fit:cover;}}
+.sdg-hd-text{{flex:1;min-width:0;padding-right:32px;}}
+.sdg-hd-eyebrow{{font-size:0.74rem;font-weight:700;letter-spacing:0.14em;text-transform:uppercase;opacity:0.82;}}
+.sdg-hd-title{{font-size:1.45rem;font-weight:800;margin-top:2px;letter-spacing:-0.01em;}}
+.sdg-hd-desc{{font-size:0.86rem;line-height:1.5;margin-top:8px;opacity:0.95;max-width:580px;}}
+/* Stats strip */
+.sdg-stats{{display:grid;grid-template-columns:repeat(4,1fr);gap:0;border-bottom:1px solid #eef2f7;background:#fbfcfd;}}
+.sdg-stat{{padding:14px 16px;border-right:1px solid #eef2f7;text-align:center;}}
+.sdg-stat:last-child{{border-right:none;}}
+.sdg-stat-v{{font-size:1.35rem;font-weight:800;color:#0a2540;line-height:1.1;}}
+.sdg-stat-l{{font-size:0.7rem;font-weight:600;color:#6b7a8d;text-transform:uppercase;letter-spacing:0.08em;margin-top:4px;}}
+/* Body sections */
+.sdg-body{{padding:20px 26px 26px;}}
+.sdg-sec{{margin-top:18px;}}
+.sdg-sec:first-child{{margin-top:0;}}
+.sdg-sec-h{{display:flex;align-items:center;gap:8px;font-size:0.78rem;font-weight:700;color:#6b7a8d;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:10px;}}
+.sdg-sec-h .sdg-sec-h-dot{{width:6px;height:6px;border-radius:50%;background:#cbd5e0;}}
+/* Year mini-chart */
+.sdg-yr-row{{display:flex;align-items:flex-end;gap:6px;height:78px;padding-bottom:18px;border-bottom:1px dashed #e2e8f0;position:relative;}}
+.sdg-yr-col{{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;min-width:0;position:relative;}}
+.sdg-yr-bar{{width:100%;max-width:40px;border-radius:5px 5px 0 0;transition:filter 0.15s;}}
+.sdg-yr-col:hover .sdg-yr-bar{{filter:brightness(1.15);}}
+.sdg-yr-cnt{{position:absolute;bottom:calc(100% + 4px);font-size:0.65rem;font-weight:700;color:#6b7a8d;opacity:0;transition:opacity 0.15s;}}
+.sdg-yr-col:hover .sdg-yr-cnt{{opacity:1;}}
+.sdg-yr-lbl{{font-size:0.7rem;font-weight:600;color:#6b7a8d;position:absolute;top:calc(100% + 4px);}}
+/* Chip rows */
+.sdg-chips{{display:flex;flex-wrap:wrap;gap:6px;}}
+.sdg-chip{{display:inline-flex;align-items:center;gap:6px;padding:5px 10px;background:#f1f5fa;color:#0a2540;border-radius:999px;font-size:0.78rem;font-weight:600;}}
+.sdg-chip .c{{background:#003660;color:#fff;border-radius:999px;padding:0 6px;font-size:0.7rem;font-weight:700;min-width:18px;text-align:center;}}
+.sdg-chip-co{{padding:4px 9px;color:#fff;font-weight:700;}}
+/* Two-column layout for top-categories on wider modals */
+.sdg-grid2{{display:grid;grid-template-columns:1fr 1fr;gap:18px;}}
+@media (max-width:680px){{.sdg-grid2{{grid-template-columns:1fr;}} .sdg-stats{{grid-template-columns:repeat(2,1fr);}}}}
+/* Supervisor list */
+.sdg-sup-list{{display:flex;flex-direction:column;gap:6px;}}
+.sdg-sup-row{{display:flex;align-items:center;justify-content:space-between;padding:7px 10px;background:#f8fafc;border-radius:8px;font-size:0.82rem;}}
+.sdg-sup-row .nm{{color:#0a2540;font-weight:600;}}
+.sdg-sup-row .ct{{color:#6b7a8d;font-weight:700;}}
+/* Theses list */
+.sd-t{{padding:10px 12px;border-bottom:1px solid #f0f4f9;display:flex;gap:12px;align-items:flex-start;text-decoration:none;color:inherit;}}
 .sd-t:last-child{{border-bottom:none;}}
-.sd-t[href]:hover{{background:#f5f8ff;border-radius:6px;cursor:pointer;}}
-.sd-title{{font-size:0.87rem;font-weight:700;color:#0a2540;}}
-.sd-meta{{font-size:0.74rem;color:#6b7a8d;margin-top:0.1rem;}}
+.sd-t[href]:hover{{background:#f5f8ff;cursor:pointer;}}
+.sd-t .sd-yr{{flex-shrink:0;width:40px;background:#eef2f7;color:#0a2540;font-weight:800;font-size:0.78rem;text-align:center;padding:3px 0;border-radius:6px;line-height:1.4;}}
+.sd-t-body{{flex:1;min-width:0;}}
+.sd-title{{font-size:0.88rem;font-weight:700;color:#0a2540;line-height:1.35;}}
+.sd-meta{{font-size:0.74rem;color:#6b7a8d;margin-top:3px;}}
+.sd-meta-tag{{display:inline-block;background:#fff7cc;color:#7a5d00;border-radius:4px;padding:1px 6px;font-size:0.66rem;font-weight:700;margin-left:6px;vertical-align:1px;}}
+.sd-empty{{padding:18px;text-align:center;color:#9aa5b4;font-size:0.82rem;}}
 </style>
 <div id="whl-wrap">
   <svg id="whl" viewBox="0 0 480 480" width="960" height="960"></svg>
@@ -4922,7 +5560,7 @@ DATA.forEach(function(d,i){{
   ph.setAttribute('fill',d.color);
   ph.setAttribute('stroke','#fff');ph.setAttribute('stroke-width','2');
   g.appendChild(ph);
-  var IS=28,IR=5,cid='ic'+i;
+  var IS=36,IR=6,cid='ic'+i;
   var cp=mk('clipPath');cp.setAttribute('id',cid);
   var cr=mk('rect');
   cr.setAttribute('x',mp[0]-IS/2);cr.setAttribute('y',mp[1]-IS/2);
@@ -4976,27 +5614,136 @@ var tS=mk('text');tS.setAttribute('x',CX);tS.setAttribute('y',CY+30);
 tS.setAttribute('text-anchor','middle');tS.setAttribute('font-size','9');
 tS.setAttribute('fill','#9aa5b4');tS.setAttribute('font-family','Inter,sans-serif');
 tS.textContent=nSDG+' of 17 SDGs';svg.appendChild(tS);
+function chipRow(items, opts){{
+  // items: [[name, count], ...]. opts: {{prefix, fallback}}
+  opts = opts || {{}};
+  if(!items || !items.length) return '<div class="sdg-chips"><span style="color:#9aa5b4;font-size:0.78rem;">' + (opts.fallback || 'No data') + '</span></div>';
+  return '<div class="sdg-chips">' + items.map(function(it){{
+    return '<span class="sdg-chip">' + esc(it[0]) + '<span class="c">' + it[1] + '</span></span>';
+  }}).join('') + '</div>';
+}}
+function supList(items){{
+  if(!items || !items.length) return '<div style="color:#9aa5b4;font-size:0.82rem;">No supervisor data</div>';
+  return '<div class="sdg-sup-list">' + items.map(function(it){{
+    return '<div class="sdg-sup-row"><span class="nm">' + esc(it[0]) + '</span><span class="ct">' + it[1] + ' thesis' + (it[1]!==1?'es':'') + '</span></div>';
+  }}).join('') + '</div>';
+}}
+function coRow(items){{
+  if(!items || !items.length) return '<div style="color:#9aa5b4;font-size:0.78rem;">No overlap with other SDGs.</div>';
+  return '<div class="sdg-chips">' + items.map(function(it){{
+    return '<span class="sdg-chip sdg-chip-co" style="background:' + it.color + ';">SDG ' + it.n + ' \u00b7 ' + esc(it.name) + '<span class="c" style="background:rgba(0,0,0,0.22);color:#fff;">' + it.count + '</span></span>';
+  }}).join('') + '</div>';
+}}
+function yearChart(yc, color){{
+  var keys = Object.keys(yc).filter(function(k){{return /^[0-9]+$/.test(k);}}).map(Number).sort(function(a,b){{return a-b;}});
+  if(!keys.length) return '<div style="color:#9aa5b4;font-size:0.78rem;">No year data.</div>';
+  var maxV = 0; keys.forEach(function(k){{if(yc[String(k)]>maxV)maxV=yc[String(k)];}});
+  if(maxV<=0) maxV = 1;
+  return '<div class="sdg-yr-row">' + keys.map(function(k){{
+    var v = yc[String(k)] || 0;
+    var h = Math.max(4, Math.round(v/maxV*60));
+    return '<div class="sdg-yr-col">'
+      + '<span class="sdg-yr-cnt">' + v + '</span>'
+      + '<div class="sdg-yr-bar" style="height:' + h + 'px;background:' + color + ';"></div>'
+      + '<span class="sdg-yr-lbl">' + k + '</span>'
+      + '</div>';
+  }}).join('') + '</div>';
+}}
 function openSDG(d,g,dx,dy){{
   if(activeN===d.n){{closeDetail();return;}}
   activeN=d.n;
   segs.forEach(function(s){{s.el.style.transform='';s.el.style.opacity=s.count===0?'0.28':'0.2';}});
   g.style.transform='translate('+dx+'px,'+dy+'px)';
   g.style.opacity='1';
-  var ih=d.icon
-    ?'<img style="width:68px;height:68px;border-radius:12px;object-fit:cover;flex-shrink:0;" src="data:image/png;base64,'+d.icon+'" />'
-    :'<div style="width:68px;height:68px;border-radius:12px;background:'+d.color+';display:flex;align-items:center;justify-content:center;font-size:1.8rem;font-weight:900;color:#fff;flex-shrink:0;">'+d.n+'</div>';
-  var th='';
-  d.theses.forEach(function(t){{
-    var pdfKey=t.pdf?t.pdf.replace(/\.pdf$/i,''):'';
-    var href=pdfKey&&pdfKey!=='nan'?'?program='+PROG+'&details='+encodeURIComponent(pdfKey):'#';
-    th+='<a class="sd-t" href="'+href+'" target="_blank"><div class="sd-title">'+esc(t.title)+'</div>'
-      +'<div class="sd-meta">'+esc(t.author)+' \u00b7 '+esc(t.year)+'</div></a>';
-  }});
-  di.innerHTML='<button onclick="closeDetail()" style="float:right;background:none;border:none;cursor:pointer;font-size:1rem;color:#9aa5b4;padding:0.35rem;border-radius:8px;margin:-0.3rem -0.3rem 0 0;">&#10005;</button>'
-    +'<div style="display:flex;align-items:center;gap:1rem;margin-bottom:1rem;">'+ih
-    +'<div><div style="font-size:1.15rem;font-weight:800;color:#0a2540;">SDG '+d.n+' \u2013 '+esc(d.name)+'</div>'
-    +'<div style="font-size:0.78rem;color:#6b7a8d;margin-top:0.12rem;">'+d.count+' thesis'+(d.count!==1?'es':'')+' in this programme</div>'
-    +'</div></div>'+th;
+
+  // \u2500\u2500 Header (coloured band) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+  var ih = d.icon
+    ? '<img src="data:image/png;base64,' + d.icon + '" alt="SDG ' + d.n + '" />'
+    : '<span>' + d.n + '</span>';
+  var header = '<div class="sdg-hd" style="background:' + d.color + ';">'
+    + '<button class="sdg-close" onclick="closeDetail()" aria-label="Close">&#10005;</button>'
+    + '<div class="sdg-hd-icon">' + ih + '</div>'
+    + '<div class="sdg-hd-text">'
+    +   '<div class="sdg-hd-eyebrow">UN Sustainable Development Goal ' + d.n + '</div>'
+    +   '<div class="sdg-hd-title">' + esc(d.name) + '</div>'
+    +   '<div class="sdg-hd-desc">' + esc(d.desc || '') + '</div>'
+    + '</div></div>';
+
+  // \u2500\u2500 Stats strip \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+  var supCount = (d.top_supervisors || []).length;
+  var yearKeys = Object.keys(d.year_counts || {{}}).map(Number).filter(function(k){{return !isNaN(k);}}).sort(function(a,b){{return a-b;}});
+  var yearSpan = yearKeys.length
+    ? (yearKeys[0] === yearKeys[yearKeys.length-1] ? String(yearKeys[0]) : yearKeys[0] + '\u2013' + yearKeys[yearKeys.length-1])
+    : '\u2014';
+  var topSector = (d.top_sectors && d.top_sectors.length) ? d.top_sectors[0][0] : '\u2014';
+  var topSectorShort = topSector.length > 22 ? topSector.slice(0,20) + '\u2026' : topSector;
+  var stats = '<div class="sdg-stats">'
+    + '<div class="sdg-stat"><div class="sdg-stat-v">' + d.count + '</div><div class="sdg-stat-l">Theses</div></div>'
+    + '<div class="sdg-stat"><div class="sdg-stat-v">' + supCount + '</div><div class="sdg-stat-l">Supervisors</div></div>'
+    + '<div class="sdg-stat"><div class="sdg-stat-v" style="font-size:1rem;line-height:1.6;">' + yearSpan + '</div><div class="sdg-stat-l">Time Span</div></div>'
+    + '<div class="sdg-stat"><div class="sdg-stat-v" style="font-size:0.95rem;line-height:1.45;">' + esc(topSectorShort) + '</div><div class="sdg-stat-l">Top Sector</div></div>'
+    + '</div>';
+
+  // \u2500\u2500 Body sections \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+  var hasData = d.count > 0;
+  var body = '<div class="sdg-body">';
+
+  if(hasData){{
+    body += '<div class="sdg-sec">'
+      +   '<div class="sdg-sec-h"><span class="sdg-sec-h-dot"></span>Theses per year</div>'
+      +   yearChart(d.year_counts || {{}}, d.color)
+      + '</div>';
+    body += '<div class="sdg-sec sdg-grid2">'
+      +   '<div><div class="sdg-sec-h"><span class="sdg-sec-h-dot"></span>Top sectors</div>' + chipRow(d.top_sectors, {{fallback:'No sector data'}}) + '</div>'
+      +   '<div><div class="sdg-sec-h"><span class="sdg-sec-h-dot"></span>Top methodologies</div>' + chipRow(d.top_methods, {{fallback:'No methodology data'}}) + '</div>'
+      + '</div>';
+    if((d.top_theories && d.top_theories.length) || (d.top_countries && d.top_countries.length)){{
+      body += '<div class="sdg-sec sdg-grid2">'
+        +   '<div><div class="sdg-sec-h"><span class="sdg-sec-h-dot"></span>Top theories</div>' + chipRow(d.top_theories, {{fallback:'No theory data'}}) + '</div>'
+        +   '<div><div class="sdg-sec-h"><span class="sdg-sec-h-dot"></span>Top countries</div>' + chipRow(d.top_countries, {{fallback:'No country data'}}) + '</div>'
+        + '</div>';
+    }}
+    body += '<div class="sdg-sec">'
+      +   '<div class="sdg-sec-h"><span class="sdg-sec-h-dot"></span>Most active supervisors</div>'
+      +   supList(d.top_supervisors)
+      + '</div>';
+    body += '<div class="sdg-sec">'
+      +   '<div class="sdg-sec-h"><span class="sdg-sec-h-dot"></span>Connected goals</div>'
+      +   coRow(d.co_sdgs)
+      + '</div>';
+
+    // \u2500\u2500 Theses list \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+    var th = '';
+    (d.theses || []).forEach(function(t){{
+      var pdfKey = t.pdf ? t.pdf.replace(/\.pdf$/i,'') : '';
+      var href = pdfKey && pdfKey !== 'nan' ? '?program=' + PROG + '&details=' + encodeURIComponent(pdfKey) : '#';
+      var metaBits = [];
+      if(t.author) metaBits.push(esc(t.author));
+      if(t.year) metaBits.push(esc(t.year));
+      if(t.sector) metaBits.push(esc(t.sector));
+      if(t.supervisor) metaBits.push('Sup. ' + esc(t.supervisor));
+      var featTag = t.featured ? '<span class="sd-meta-tag">FEATURED</span>' : '';
+      th += '<a class="sd-t"' + (href!=='#'?' href="'+href+'" target="_top"':'') + '>'
+        + '<div class="sd-yr">' + (t.year || '\u2014') + '</div>'
+        + '<div class="sd-t-body">'
+        +   '<div class="sd-title">' + esc(t.title) + featTag + '</div>'
+        +   '<div class="sd-meta">' + metaBits.join(' \u00b7 ') + '</div>'
+        + '</div></a>';
+    }});
+    body += '<div class="sdg-sec">'
+      +   '<div class="sdg-sec-h"><span class="sdg-sec-h-dot"></span>Theses (' + (d.theses || []).length + ')</div>'
+      +   '<div style="border:1px solid #eef2f7;border-radius:10px;overflow:hidden;">'
+      +     (th || '<div class="sd-empty">No theses to show.</div>')
+      +   '</div>'
+      + '</div>';
+  }} else {{
+    body += '<div class="sd-empty">No theses currently address SDG ' + d.n + ' in this programme.</div>';
+  }}
+
+  body += '</div>';
+
+  di.innerHTML = header + stats + body;
+  di.scrollTop = 0;
   detail.classList.add('open');
   overlay.classList.add('open');
 }}
@@ -5529,6 +6276,7 @@ sim.on('end',function(){{drift();}});
                       "theses": _ins_data["country_theses"].get(k, [])[:10]}
                      for k, v in _sorted_countries]
         _geo_json = _ins_json.dumps(_geo_data, ensure_ascii=False)
+        _country_iso2_json = _ins_json.dumps(_COUNTRY_ISO2, ensure_ascii=False)
         _prog_color = {
             "sbi": "#003660", "energy_science": "#c45c00",
             "sustainable_development": "#2e7d32", "innovation_sciences": "#5c3d9e",
@@ -5578,6 +6326,9 @@ html,body{{width:100%;height:100%;background:transparent;overflow:hidden;}}
 .pop-item:hover{{background:#f7f9fc;}}
 .pop-item-title{{font-size:12.5px;font-weight:700;color:#1a202c;line-height:1.35;margin-bottom:2px;}}
 .pop-item-meta{{font-size:11px;color:#6b7a8d;}}
+.pop-item-flags{{display:flex;gap:3px;margin-top:4px;flex-wrap:wrap;}}
+.pop-flag-chip{{display:inline-flex;align-items:center;gap:3px;background:#f0f4f8;border-radius:4px;padding:1px 5px;font-size:10px;color:#4a5568;font-weight:600;}}
+.pop-flag-chip img{{width:14px;height:10px;object-fit:cover;border-radius:1px;border:1px solid rgba(0,0,0,0.1);}}
 .pop-more{{
   padding:10px 20px;text-align:center;font-size:12px;font-weight:700;
   color:{_prog_color};cursor:pointer;background:#f7f9fc;
@@ -5604,6 +6355,7 @@ html,body{{width:100%;height:100%;background:transparent;overflow:hidden;}}
 <script src="https://unpkg.com/globe.gl@2/dist/globe.gl.min.js"></script>
 <script>
 var GDATA={_geo_json};
+var ISO2={_country_iso2_json};
 var MAX={_max_count};
 var COL="{_prog_color}";
 var PROG="{PROGRAM}";
@@ -5723,6 +6475,24 @@ function openPopout(d){{
     meta.textContent=(t.author||'')+(t.year?' \u00b7 '+t.year:'');
     item.appendChild(tit);
     item.appendChild(meta);
+    // per-thesis country flags
+    if(t.countries&&t.countries.length){{  
+      var flags=document.createElement('div');
+      flags.className='pop-item-flags';
+      t.countries.forEach(function(cn){{  
+        var code=ISO2[cn.toLowerCase().trim()]||'';
+        if(!code)return;
+        var chip=document.createElement('span');
+        chip.className='pop-flag-chip';
+        var img=document.createElement('img');
+        img.src='https://flagcdn.com/w40/'+code+'.webp';
+        img.alt=cn;
+        chip.appendChild(img);
+        chip.appendChild(document.createTextNode(cn));
+        flags.appendChild(chip);
+      }});
+      if(flags.children.length)item.appendChild(flags);
+    }}
     if(t.pdf&&t.pdf!=='nan'&&t.pdf!=='')item.addEventListener('click',function(){{
       var key=t.pdf.replace(/\.pdf$/i,'');
       var base=window.parent.location.href.split('?')[0];
@@ -6067,6 +6837,24 @@ svg.addEventListener('mousemove',moveTip);
 </script>
 """
         _ins_comp.html(_timeline_html, height=420, scrolling=False)
+
+elif page == "Supervisors" and PROGRAM == _ALL_PROGRAM_KEY:
+    # Supervisors view is per-programme; gracefully redirect users in all-mode.
+    st.markdown(
+        "<div style='padding:32px 8px;'>"
+        "<h3 style='color:var(--uu-blue);margin-bottom:8px;'>Supervisors are per-programme</h3>"
+        "<p style='color:rgba(0,54,96,0.7);max-width:640px;'>"
+        "Supervisor profiles, the Find-My-Supervisor tool, and the directory all "
+        "rely on programme-specific metadata. Pick a programme below to continue."
+        "</p>"
+        "<div style='display:flex;flex-wrap:wrap;gap:10px;margin-top:14px;'>"
+        + "".join(
+            f"<a href='?program={k}&nav=Supervisors' target='_top' class='topnav-link'>{n}</a>"
+            for k, n in PROGRAMME_DISPLAY_NAMES_SINGLE.items()
+        )
+        + "</div></div>",
+        unsafe_allow_html=True,
+    )
 
 elif page == "Supervisors":
     import re as _re
