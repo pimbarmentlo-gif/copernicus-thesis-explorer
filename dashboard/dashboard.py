@@ -431,6 +431,8 @@ def _sync_explorer_url() -> None:
         st.query_params.clear()
         for k, v in qp.items():
             st.query_params[k] = v
+    # Record what we just synced so the next rerun can detect external URL changes.
+    st.session_state._last_synced_params = dict(st.query_params)
 
 
 def _sync_supervisor_url() -> None:
@@ -469,7 +471,7 @@ def _sync_supervisor_url() -> None:
             st.query_params[k] = v
 
 
-def _restore_filters_from_url() -> None:
+def _restore_filters_from_url(force: bool = False) -> None:
     """Populate saved_* filter keys (and widget keys) from URL query params.
 
     Called during init when the URL describes an Explorer grid view (no
@@ -477,15 +479,29 @@ def _restore_filters_from_url() -> None:
     location.replace), session_state is empty so widget defaults must come
     from the URL — that's why we also seed the widget keys.
 
-    Subtlety: we only seed widget keys *when they don't yet exist*. On a
-    plain rerun (e.g. the user just changed a filter), Streamlit has already
-    stored the new widget value into session_state[widget_key]; the URL still
-    holds the previous value because _sync_explorer_url hasn't fired yet for
-    this run. Seeding unconditionally would clobber the user's change.
+    Subtlety: we only seed widget keys *when they don't yet exist* on a
+    normal rerun (user changed a filter widget). On a normal rerun, Streamlit
+    has already stored the new widget value into session_state[widget_key];
+    the URL still holds the previous value because _sync_explorer_url hasn't
+    fired yet for this run. Seeding unconditionally would clobber the change.
+
+    When `force=True` (URL changed externally — chip click / page navigation),
+    we update widget keys unconditionally so the widgets reflect the new URL.
     """
     for saved_key, (short, kind) in _FILTER_URL_KEYS.items():
         raw = st.query_params.get(short)
         if raw is None:
+            # Filter absent from URL → clear saved key (chip removed it)
+            if force:
+                if kind in ("list",):
+                    st.session_state[saved_key] = []
+                elif kind == "bool":
+                    st.session_state[saved_key] = False
+                elif kind == "str":
+                    st.session_state[saved_key] = ""
+                widget_key = _FILTER_WIDGET_KEYS.get(saved_key)
+                if widget_key and widget_key in st.session_state:
+                    del st.session_state[widget_key]
             continue
         if kind == "str":
             parsed = str(raw)
@@ -499,7 +515,7 @@ def _restore_filters_from_url() -> None:
         # set here unconditionally.
         st.session_state[saved_key] = parsed
         widget_key = _FILTER_WIDGET_KEYS.get(saved_key)
-        if widget_key and widget_key not in st.session_state:
+        if widget_key and (force or widget_key not in st.session_state):
             st.session_state[widget_key] = parsed
     _page_raw = st.query_params.get("page")
     if _page_raw is not None:
@@ -507,6 +523,8 @@ def _restore_filters_from_url() -> None:
             st.session_state.explorer_page = max(0, int(_page_raw))
         except (TypeError, ValueError):
             pass
+    elif force:
+        st.session_state.explorer_page = 0
 
 # session state for homepage navigation
 if 'page' not in st.session_state:
@@ -580,8 +598,13 @@ else:
         # Restore Explorer filter / pagination state from URL — required so
         # that a browser back/forward (which triggers location.replace) lands
         # the user on the same filtered, paginated grid they left.
+        # force=True when URL changed externally (chip/clear click or back-button)
+        # so widget keys are updated even if session state was preserved.
         if st.session_state.get("page_nav", "Explorer") == "Explorer":
-            _restore_filters_from_url()
+            _current_params = dict(st.query_params)
+            _last_params = st.session_state.get("_last_synced_params")
+            _url_changed_externally = (_last_params is None) or (_last_params != _current_params)
+            _restore_filters_from_url(force=_url_changed_externally)
 
         # Restore Supervisor directory / finder state from URL.
         if st.session_state.get("page_nav") == "Supervisors":
@@ -3152,11 +3175,16 @@ def _render_filter_chips() -> None:
     html_parts = []
     for label, url in chips:
         html_parts.append(
-            f'<a class="filter-chip" href="{url}" target="_top" title="Remove filter">'
+            f'<a class="filter-chip" href="{url}" target="_top"'
+            f' onclick="event.preventDefault();window.location.href=\'{url}\';return false;"'
+            f' title="Remove filter">'
             f'<span>{label}</span><span class="x">×</span></a>'
         )
+    _clear_url = f"?program={PROGRAM}"
     html_parts.append(
-        f'<a class="filter-chip-clear" href="?program={PROGRAM}" target="_top">Clear all</a>'
+        f'<a class="filter-chip-clear" href="{_clear_url}" target="_top"'
+        f' onclick="event.preventDefault();window.location.href=\'{_clear_url}\';return false;">'
+        f'Clear all</a>'
     )
     st.markdown(f'<div class="filter-chips">{"".join(html_parts)}</div>', unsafe_allow_html=True)
 
