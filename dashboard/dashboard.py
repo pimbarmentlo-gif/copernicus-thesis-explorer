@@ -622,6 +622,14 @@ st.markdown(
     [data-testid="stToolbar"] { display: none !important; }
     #MainMenu { display: none !important; }
 
+    /* Remove the top gap that Streamlit reserves for its header bar */
+    [data-testid="stAppViewContainer"] > section.main > div.block-container {
+        padding-top: 1.2rem !important;
+    }
+    section[data-testid="stSidebar"] > div:first-child {
+        padding-top: 1.2rem !important;
+    }
+
     /* page background */
     .stApp {
         background-color: #f4f4f4;
