@@ -26,6 +26,13 @@ import os
 import base64
 import urllib.parse
 
+
+
+def _render_html_iframe(html_body: str, *, height: int | str = "content") -> None:
+    """Render custom HTML inline via st.components.v1.html."""
+    iframe_height = 1 if isinstance(height, int) and height <= 0 else height
+    st.components.v1.html(html_body, height=iframe_height, scrolling=False)
+
 # ----- cached data-loading helpers -----------------------------------------
 # These functions are decorated with @st.cache_data so that expensive I/O and
 # data processing only runs once per unique set of arguments per session.
@@ -52,6 +59,29 @@ def _load_thesis_data(program_dir: str, program: str, _mtime: float = 0) -> tupl
         "pelgrim_2024.pdf",
         "schutter_2025.pdf",
         "soltys_2023.pdf",
+    }
+    # Featured theses for Sustainable Development — matched by Thesis_PDF filename.
+    # Koster, Mayer, Harvey, Kálmán, Oelschläger not yet in metadata; will activate once rows are added.
+    _featured_sd = {
+        # 2024
+        "koster_2024.pdf",          # Fardau Koster (not yet in metadata)
+        "mayer_2024.pdf",           # Severin Mayer (not yet in metadata)
+        # 2023
+        "ambraziejus_2025.pdf",     # Lukas Ambraziejus
+        "breedveld_2023.pdf",       # Nina Breedveld
+        "harvey_2023.pdf",          # Blake Harvey (not yet in metadata)
+        "kalman_2024.pdf",          # Greta Kálmán (not yet in metadata)
+        "prawiromaruto_2024.pdf",   # Michele Joie Prawiromaruto
+        "popkema_2024.pdf",         # Karst Popkema
+        # 2022
+        "grunwald_2023.pdf",        # Lotte Grünwald
+        "jans_2023.pdf",            # Sem Jans
+        "jaspers_2023.pdf",         # Anouk Jaspers
+        "latour_2023.pdf",          # Moritz Latour
+        "oelschlager_2022.pdf",     # Lucia Oelschläger (not yet in metadata)
+        "sijbers_2023.pdf",         # Marije Sijbers
+        # 2021
+        "visweswaran_2021.pdf",     # Anushri Narayan Visweswaran
     }
     # Featured theses for Innovation Sciences — matched by Thesis_PDF filename (same as SBI).
     # Bentum, Craen, Tim Dekker, Janssen not yet in metadata; will activate once rows are added.
@@ -122,6 +152,8 @@ def _load_thesis_data(program_dir: str, program: str, _mtime: float = 0) -> tupl
         df["Featured"] = df["Thesis_PDF"].astype(str).str.strip().isin(_featured_sbi)
     elif program == "innovation_sciences":
         df["Featured"] = df["Thesis_PDF"].astype(str).str.strip().isin(_featured_is)
+    elif program == "sustainable_development":
+        df["Featured"] = df["Thesis_PDF"].astype(str).str.strip().isin(_featured_sd)
     else:
         df["Featured"] = False
 
@@ -3036,7 +3068,7 @@ def show_homepage():
 # pdf / supervisor profile change). Filter, pagination and search updates stay
 # inside the current history entry — they round-trip through the URL via Streamlit's
 # native replaceState, so a back press skips straight past them.
-st.components.v1.html("""
+_render_html_iframe("""
 <script>
 (function() {
     var w = window.parent;
@@ -3110,7 +3142,7 @@ if 'back_btn_requested' not in st.session_state:
 # via a height=0 invisible component, then clear the flag.
 if st.session_state.back_btn_requested:
     st.session_state.back_btn_requested = False
-    st.components.v1.html(
+    _render_html_iframe(
         "<script>window.parent.postMessage({type:'stHistoryBack'},'*');</script>",
         height=0,
     )
@@ -3815,7 +3847,7 @@ if page == "Explorer":
             # Serve directly from the static file server — browser fetches the PDF,
             # Python never touches the bytes for rendering (fast, no WebSocket overhead).
             _static_url = f"/app/static/pdfs/{PROGRAM}/{selected_pdf}"
-            st.components.v1.html(_pdf_iframe_html(_static_url, height=1100), height=1108, scrolling=False)
+            _render_html_iframe(_pdf_iframe_html(_static_url, height=1100), height=1108)
 
             # Download button uses cached bytes (read once per session)
             _dl_bytes = _load_pdf_bytes_cached(pdf_path)
@@ -3895,7 +3927,7 @@ if page == "Explorer":
                 with col_pdf:
                     # Serve via static file server — no Python byte loading needed for display
                     _det_static_url = f"/app/static/pdfs/{PROGRAM}/{pdf_name}"
-                    st.components.v1.html(_pdf_iframe_html(_det_static_url, height=850), height=858, scrolling=False)
+                    _render_html_iframe(_pdf_iframe_html(_det_static_url, height=850), height=858)
 
                     download_icon_uri = _asset_data_uri("pdf_download_icon.png", "image/png")
                     download_label = (
@@ -3974,9 +4006,14 @@ if page == "Explorer":
 
     else:
         explorer_df = filtered_df.copy()
-        # Always show newest theses first (e.g., 2025 -> older years).
+        # Featured theses first, then newest year first within each group.
         explorer_df["_year_sort"] = pd.to_numeric(explorer_df["Year"], errors="coerce")
-        explorer_df = explorer_df.sort_values(by="_year_sort", ascending=False, na_position="last")
+        explorer_df["_featured_sort"] = explorer_df["Featured"].astype(bool) if "Featured" in explorer_df.columns else False
+        explorer_df = explorer_df.sort_values(
+            by=["_featured_sort", "_year_sort"],
+            ascending=[False, False],
+            na_position="last",
+        )
 
         # Reset page when filters change the result count
         import math
@@ -4612,7 +4649,6 @@ elif page == "Programme Analytics":
         st.info("No keyword data available to build the topic explorer.")
     else:
         import json as _json
-        import streamlit.components.v1 as _te_components
 
         _sdg_hex = {
             1: "#E5243B", 2: "#DDA63A", 3: "#4C9F38", 4: "#C5192D",
@@ -4987,13 +5023,11 @@ elif page == "Programme Analytics":
         )
 
         full_html = "<style>" + _te_css + "</style>" + _te_body + "<script>var DATA=" + data_json + ";" + _te_js + "</script>"
-        _te_components.html(full_html, height=720, scrolling=False)
+        _render_html_iframe(full_html, height=720)
 
 
     st.markdown("## Knowledge Network")
     with st.container():
-        import streamlit.components.v1 as components  # type: ignore[import]
-
         network_path = os.path.join(PROGRAM_DIR, "network", "network.html")
 
         if os.path.exists(network_path):
@@ -5001,7 +5035,7 @@ elif page == "Programme Analytics":
 
             html_content = _load_html_file(network_path)
 
-            components.html(html_content, height=800, scrolling=True)
+            _render_html_iframe(html_content, height=800)
         else:
             st.info("Knowledge network is not yet available for this programme.")
 
@@ -5042,7 +5076,6 @@ elif page == "Insights":
     import math as _ins_math
     import base64 as _ins_b64
     from collections import Counter as _ins_Counter
-    import streamlit.components.v1 as _ins_comp
 
     # ── helpers ───────────────────────────────────────────────────────────
     _INS_SDG_HEX = {
@@ -5819,7 +5852,7 @@ document.addEventListener('click',function(e){{
 </script>
 """
 
-    _ins_comp.html(_sdg_html, height=1060, scrolling=False)
+    _render_html_iframe(_sdg_html, height=1060)
 
     # ══════════════════════════════════════════════════════════════════════
     # SECTION 2 — PARTNER ORGANISATION GALAXY
@@ -6197,7 +6230,7 @@ function drift(){{
 sim.on('end',function(){{drift();}});
 </script>
 """
-        _ins_comp.html(_org_html, height=1160, scrolling=False)
+        _render_html_iframe(_org_html, height=1160)
         st.markdown("<div style='margin-bottom:3rem;'></div>", unsafe_allow_html=True)
 
     # ══════════════════════════════════════════════════════════════════════
@@ -6495,7 +6528,7 @@ globe.htmlElement(function(d){{
   wrap.addEventListener('mouseenter',function(e){{
     circle.style.transform='scale(1.18) translateY(-4px)';
     circle.style.boxShadow='0 8px 20px rgba(0,0,0,0.45)';
-    tip.textContent=d.name+': '+d.count+' '+(d.count!==1?'theses':'thesis');
+    tip.textContent=d.name+': '+d.count+' theses';
     tip.style.display='block';
   }});
   wrap.addEventListener('mousemove',function(e){{
@@ -6522,7 +6555,7 @@ function openPopout(d){{
   tip.style.display='none';
   popFlag.style.backgroundImage=d.code?"url('https://flagcdn.com/w80/"+d.code+".webp')":'';
   popFlag.style.background=d.code?'':'#e0e4ea';
-  popTitle.textContent=d.name+' \u2014 '+d.count+' '+(d.count!==1?'theses':'thesis');
+  popTitle.textContent=d.name+' \u2014 '+d.count+' theses';
   popList.innerHTML='';
   var theses=d.theses||[];
   var total=d.count;
@@ -6638,7 +6671,7 @@ window.addEventListener('resize',function(){{
 }});
 </script></body></html>
 """
-        _ins_comp.html(_geo_html, height=960, scrolling=False)
+        _render_html_iframe(_geo_html, height=960)
         st.markdown("<div style='margin-bottom:3rem;'></div>", unsafe_allow_html=True)
 
     # ══════════════════════════════════════════════════════════════════════
@@ -6730,7 +6763,7 @@ requestAnimationFrame(function(){{
 }});
 </script>
 """
-        _ins_comp.html(_meth_html, height=max(120, len(_meth_sorted) * 60 + 20), scrolling=False)
+        _render_html_iframe(_meth_html, height=max(120, len(_meth_sorted) * 60 + 20))
         st.markdown("<div style='margin-bottom:3rem;'></div>", unsafe_allow_html=True)
 
     # ══════════════════════════════════════════════════════════════════════
@@ -6912,7 +6945,7 @@ function hideTip(){{tooltip.style.display='none';}}
 svg.addEventListener('mousemove',moveTip);
 </script>
 """
-        _ins_comp.html(_timeline_html, height=420, scrolling=False)
+        _render_html_iframe(_timeline_html, height=420)
 
 elif page == "Supervisors" and PROGRAM == _ALL_PROGRAM_KEY:
     # Supervisors view is per-programme; gracefully redirect users in all-mode.
@@ -7236,10 +7269,30 @@ elif page == "Supervisors":
     }
     .sup-page-hero h1 { font-size: 2rem; font-weight: 800; margin: 0 0 0.4rem; color: #fff; }
     .sup-page-hero p  { font-size: 1rem; opacity: 0.85; margin: 0; color: #fff; }
+    .sup-page-hero-row {
+        display: flex; align-items: center; justify-content: space-between;
+        gap: 1.5rem; flex-wrap: wrap; margin-top: 1.2rem;
+        padding-top: 1.1rem;
+        border-top: 1px solid rgba(255,255,255,0.18);
+    }
+    .sup-page-hero-cta-text {
+        font-size: 0.88rem; color: rgba(255,255,255,0.78); line-height: 1.5;
+    }
+    .sup-page-hero-cta-text strong { color: #fff; }
+    .sup-page-hero-btn {
+        display: inline-block;
+        background: #ffcd00; color: #003660;
+        font-weight: 800; font-size: 0.92rem;
+        padding: 0.55rem 1.3rem; border-radius: 9px;
+        text-decoration: none; white-space: nowrap; flex-shrink: 0;
+        transition: background 0.15s, transform 0.15s;
+    }
+    .sup-page-hero-btn:hover { background: #f0c200; transform: translateY(-2px); }
     .sup-card-wrap {
         background: #fff; border-radius: 16px; padding: 1.3rem 1.3rem 0.9rem;
         border: 1px solid #e8edf3; box-shadow: 0 2px 12px rgba(0,54,96,0.07);
         transition: box-shadow 0.2s, transform 0.2s; margin-bottom: 0.8rem;
+        height: 200px; display: flex; flex-direction: column; overflow: hidden;
     }
     .sup-card-wrap:hover {
         box-shadow: 0 8px 28px rgba(0,54,96,0.14); transform: translateY(-3px);
@@ -7248,13 +7301,17 @@ elif page == "Supervisors":
         width: 54px; height: 54px; border-radius: 50%;
         display: inline-flex; align-items: center; justify-content: center;
         font-size: 1.25rem; font-weight: 800; color: white; margin-bottom: 0.7rem;
+        flex-shrink: 0;
     }
-    .sup-card-name { font-size: 1.04rem; font-weight: 700; color: #0a2540; margin-bottom: 0.25rem; }
-    .sup-card-counts { font-size: 0.78rem; color: #5a6a7e; margin-bottom: 0.55rem; font-weight: 500; }
-    .sup-tags { display: flex; flex-wrap: wrap; gap: 0.28rem; margin-bottom: 0.4rem; }
+    .sup-card-name {
+        font-size: 1.04rem; font-weight: 700; color: #0a2540; margin-bottom: 0.25rem;
+        overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .sup-card-counts { font-size: 0.78rem; color: #5a6a7e; margin-bottom: 0.55rem; font-weight: 500; flex-shrink: 0; }
+    .sup-tags { display: flex; flex-wrap: wrap; gap: 0.28rem; margin-bottom: 0.4rem; flex: 1; align-content: flex-start; overflow: hidden; }
     .sup-tag { background: #f0f4f9; color: #2d5a8e; font-size: 0.69rem;
                padding: 0.17rem 0.52rem; border-radius: 20px; font-weight: 600; }
-    .sup-card-year { font-size: 0.71rem; color: #9aa5b4; margin-top: 0.15rem; }
+    .sup-card-year { font-size: 0.71rem; color: #9aa5b4; margin-top: auto; padding-top: 0.25rem; flex-shrink: 0; }
     .sup-profile-hero {
         background: #f7f9fc; border-radius: 16px; padding: 1.8rem 2rem;
         border: 1px solid #e2e8f0; margin-bottom: 1.6rem;
@@ -7299,6 +7356,13 @@ elif page == "Supervisors":
     }
     .sup-finder-hero h2 { font-size: 1.6rem; font-weight: 800; margin: 0 0 0.4rem; color: #fff; }
     .sup-finder-hero p  { font-size: 0.95rem; opacity: 0.88; margin: 0; color: #fff; }
+    /* Supervisor CTA banner on directory page - removed, now integrated in hero */
+    .sup-finder-cta { display: none; }
+    /* White search input on directory page */
+    .st-key-sup_search_input input {
+        background: #ffffff !important;
+        border-radius: 8px !important;
+    }
     .sup-result-card {
         background: #fff; border-radius: 14px; padding: 1.2rem 1.4rem;
         border: 1px solid #e0e8f0; margin-bottom: 0.8rem;
@@ -7436,54 +7500,6 @@ elif page == "Supervisors":
             </div>""",
             unsafe_allow_html=True,
         )
-
-        # Expertise / Methods / Sectors as a compact 3-column band — keeps
-        # the supervisor stats above the fold while leaving the full page
-        # width below for the thesis card grid.
-        _pc_kw, _pc_meth, _pc_sec = st.columns([1, 1, 1], gap="large")
-
-        with _pc_kw:
-            st.markdown("<div class='sup-section-title'>Expertise Areas</div>", unsafe_allow_html=True)
-            if _sst['kw']:
-                st.markdown(
-                    ''.join(
-                        f"<span class='sup-kw-tag'>{kw} <span style='opacity:.5;font-weight:400'>×{cnt}</span></span>"
-                        for kw, cnt in _sst['kw']
-                    ),
-                    unsafe_allow_html=True,
-                )
-            else:
-                st.caption("No keyword data.")
-
-        with _pc_meth:
-            st.markdown("<div class='sup-section-title'>Methods Experience</div>", unsafe_allow_html=True)
-            if _sst['meth']:
-                _mmax = _sst['meth'][0][1]
-                for _m, _mc in _sst['meth']:
-                    _pct = int(100 * _mc / max(_mmax, 1))
-                    st.markdown(
-                        f"""<div class='sup-method-bar-wrap'>
-                          <div class='sup-method-label'><span>{_m}</span><span>{_mc}</span></div>
-                          <div class='sup-method-bar-bg'>
-                            <div class='sup-method-bar-fill' style='width:{_pct}%'></div>
-                          </div></div>""",
-                        unsafe_allow_html=True,
-                    )
-            else:
-                st.caption("No method data.")
-
-        with _pc_sec:
-            st.markdown("<div class='sup-section-title'>Sectors</div>", unsafe_allow_html=True)
-            if _sst['sec']:
-                st.markdown(
-                    ''.join(
-                        f"<span class='sup-kw-tag' style='background:#f0faf0;color:#2e7d32'>{s} ×{c}</span>"
-                        for s, c in _sst['sec']
-                    ),
-                    unsafe_allow_html=True,
-                )
-            else:
-                st.caption("No sector data.")
 
         st.markdown("<div style='height:1.2rem'></div>", unsafe_allow_html=True)
 
@@ -7669,23 +7685,23 @@ elif page == "Supervisors":
     # DIRECTORY PAGE
     # ══════════════════════════════════════════════════════════════════════
     else:
+        _enc_p = urllib.parse.quote(PROGRAM, safe='')
         st.markdown(
-            f"""<div class="sup-page-hero">
-              <h1>👥 Supervisor Directory</h1>
-              <p>Browse {len(_all_sorted)} supervisors from the {_display_name} programme —
-              explore their expertise, methods and supervised theses.</p>
-            </div>""",
+            f'<div class="sup-page-hero">'
+            f'<h1>\U0001f465 Supervisor Directory</h1>'
+            f'<p>Browse {len(_all_sorted)} supervisors from the {_display_name} programme &mdash; '
+            f'explore their expertise, methods and supervised theses.</p>'
+            f'<div class="sup-page-hero-row">'
+            f'<span class="sup-page-hero-cta-text"><strong>\U0001f3af Looking for a supervisor?</strong>'
+            f'&ensp;Describe your thesis topic and we\'ll match you with the best-fit supervisor '
+            f'based on their full supervision history.</span>'
+            f'<a href="?program={_enc_p}&nav=Supervisors&sup_view=finder" class="sup-page-hero-btn" target="_self">'
+            f'Find My Supervisor &rarr;</a>'
+            f'</div>'
+            f'</div>',
             unsafe_allow_html=True,
         )
 
-        _cta_c, _ = st.columns([2, 3])
-        with _cta_c:
-            if st.button("🎯 Find My Supervisor", key="sup_open_finder", type="primary"):
-                st.session_state.sup_view = 'finder'
-                _sync_supervisor_url()
-                st.rerun()
-
-        st.markdown("")
         _ds1, _ds2, _ds3 = st.columns([3, 2, 2])
         with _ds1:
             _dsearch = st.text_input(
@@ -7734,9 +7750,6 @@ elif page == "Supervisors":
                 _dst = _stats(_n)
                 _ci  = _avatar_color(_n)
                 _ii  = _initials(_n)
-                _tag_html = ''.join(
-                    f"<span class='sup-tag'>{kw}</span>" for kw, _ in _dst['kw'][:3]
-                ) or "<span class='sup-tag' style='opacity:.45'>—</span>"
                 _rec = f"Active: {', '.join(str(y) for y in _dst['years'][:3])}" if _dst['years'] else ""
                 with _gcols[_idx % 3]:
                     _enc_n = urllib.parse.quote(_n, safe='')
@@ -7747,7 +7760,6 @@ elif page == "Supervisors":
                             <div class="sup-avatar" style="background:{_ci}">{_ii}</div>
                             <div class="sup-card-name">{_n}</div>
                             <div class="sup-card-counts">{_dst['sc']} supervised &nbsp;·&nbsp; {_dst['rc']} second reader</div>
-                            <div class="sup-tags">{_tag_html}</div>
                             <div class="sup-card-year">{_rec}</div>
                           </div>
                         </a>""",
