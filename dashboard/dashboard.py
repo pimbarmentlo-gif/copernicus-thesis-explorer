@@ -688,15 +688,30 @@ st.markdown(
     /* The bar blends with the per-programme tinted page background
        (set in the per-programme tint block) — no opaque white chrome.
        A 1px hairline separates it from content when scrolled. */
-    [data-testid="stAppViewContainer"] .main .block-container {
-        padding-top: 0.4rem !important;
+    /* Hide Streamlit's built-in top chrome (deploy button, three-dot menu,
+       running indicator) — this dashboard is end-user-facing. */
+    [data-testid="stHeader"] { display: none !important; }
+    [data-testid="stToolbar"] { display: none !important; }
+    [data-testid="stDecoration"] { display: none !important; }
+    #MainMenu { display: none !important; }
+    /* Streamlit 1.55+ defaults the main block-container to padding-top:6rem.
+       Kill it on every selector variant so the topbar sits flush to the top. */
+    [data-testid="stAppViewContainer"] > section,
+    [data-testid="stAppViewContainer"] [data-testid="stMain"],
+    [data-testid="stAppViewContainer"] .main {
+        padding-top: 0 !important;
+    }
+    [data-testid="stMainBlockContainer"],
+    [data-testid="stAppViewContainer"] .main .block-container,
+    .block-container {
+        padding-top: 0 !important;
     }
     .topbar {
         position: sticky;
         top: 0;
         z-index: 100;
-        padding: 16px 4px 14px 4px;
-        margin: -0.4rem -1rem 22px -1rem;
+        padding: 6px 4px 10px 4px;
+        margin: 0 -1rem 18px -1rem;
         border-bottom: 1px solid rgba(0,54,96,0.08);
     }
     .topbar-row {
