@@ -6648,7 +6648,7 @@ sim.on('end',function(){{drift();}});
 <html><head><style>
 *{{box-sizing:border-box;margin:0;padding:0;}}
 html,body{{width:100%;height:100%;background:transparent;overflow:hidden;}}
-#gc{{width:100%;height:460px;cursor:grab;}}
+#gc{{width:100%;height:560px;cursor:grab;}}
 #gc:active{{cursor:grabbing;}}
 .tip{{
   position:fixed;background:rgba(20,20,40,0.88);color:#fff;
@@ -6728,7 +6728,7 @@ var popFlag=document.getElementById('pop-flag');
 var popTitle=document.getElementById('pop-title');
 var popList=document.getElementById('pop-list');
 var popClose=document.getElementById('pop-close');
-var W=container.clientWidth||900,H=900;
+var W=container.clientWidth||900,H=560;
 
 // ── globe setup ──────────────────────────────────────────────────────────
 var globe=Globe()(container);
@@ -6937,7 +6937,7 @@ window.addEventListener('resize',function(){{
 }});
 </script></body></html>
 """
-        _render_html_iframe(_geo_html, height=480)
+        _render_html_iframe(_geo_html, height=580)
         st.markdown("<div style='margin-bottom:3rem;'></div>", unsafe_allow_html=True)
 
     # ══════════════════════════════════════════════════════════════════════
