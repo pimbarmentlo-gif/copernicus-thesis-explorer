@@ -13,3 +13,9 @@ dashboard/static/pdfs/
 __pycache__/
 *.pyc
 *.pyo
+
+# Scraper HTML cache (scripts/scrape_uu_supervisors.py)
+.cache/
+
+# Streamlit-generated embedded HTML cache (created at runtime beside the script)
+/static/
