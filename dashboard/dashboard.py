@@ -7900,19 +7900,15 @@ elif page == "Supervisors":
             unsafe_allow_html=True,
         )
 
-        _ds1, _ds2, _ds3 = st.columns([3, 2, 2])
+        _ds1, _ds2 = st.columns([3, 2])
         with _ds1:
             _dsearch = st.text_input(
                 "Search", value=st.session_state.sup_search,
                 placeholder="Search by name or topic (e.g. climate governance, energy transition…)",
                 label_visibility="collapsed", key="sup_search_input",
             )
-        _dir_sec_opts = ['All sectors'] + sorted({
-            s for n in _all_sorted for s, _ in _stats(n)['sec']
-        })
+        _dfsec = 'All sectors'
         with _ds2:
-            _dfsec = st.selectbox("Sector", _dir_sec_opts, label_visibility="collapsed", key="sup_dir_sector")
-        with _ds3:
             _dsort = st.selectbox(
                 "Sort", ['Most supervised', 'Alphabetical', 'Most recent'],
                 label_visibility="collapsed", key="sup_dir_sort",
