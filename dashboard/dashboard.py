@@ -7256,7 +7256,7 @@ elif page == "Supervisors" and PROGRAM == _ALL_PROGRAM_KEY:
         "</p>"
         "<div style='display:flex;flex-wrap:wrap;gap:10px;margin-top:14px;'>"
         + "".join(
-            f"<a href='?program={k}&nav=Supervisors' target='_top' class='topnav-link'>{n}</a>"
+            f"<a href='?program={k}&nav=Supervisors' target='_self' class='topnav-link'>{n}</a>"
             for k, n in PROGRAMME_DISPLAY_NAMES_SINGLE.items()
         )
         + "</div></div>",
@@ -7616,6 +7616,7 @@ elif page == "Supervisors":
     .sup-tags { display: flex; flex-wrap: wrap; gap: 0.28rem; margin-bottom: 0.4rem; flex: 1; align-content: flex-start; overflow: hidden; }
     .sup-tag { background: #f0f4f9; color: #2d5a8e; font-size: 0.69rem;
                padding: 0.17rem 0.52rem; border-radius: 20px; font-weight: 600; }
+    .sup-tag-matched { background: #fff3cd; color: #7c4a00; border: 1px solid #f0c040; }
     .sup-card-year { font-size: 0.71rem; color: #9aa5b4; margin-top: auto; padding-top: 0.25rem; flex-shrink: 0; }
     .sup-profile-hero {
         background: #f7f9fc; border-radius: 16px; padding: 1.8rem 2rem;
@@ -7919,161 +7920,6 @@ elif page == "Supervisors":
             _render_thesis_list(_sst['r_rows'], 'r')
 
     # ══════════════════════════════════════════════════════════════════════
-    # FINDER PAGE
-    # ══════════════════════════════════════════════════════════════════════
-    elif _view == 'finder':
-        if st.button("← Back to Directory", key="sup_finder_back"):
-            st.session_state.sup_view = 'directory'
-            st.session_state.sup_finder_results = False
-            _sync_supervisor_url()
-            st.rerun()
-
-        st.markdown("""<div class="sup-finder-hero">
-          <h2>🎯 Who Should Supervise My Thesis?</h2>
-          <p>Describe your research interests and we'll match you with supervisors
-             whose UU research profile best fits your topic.</p>
-        </div>""", unsafe_allow_html=True)
-
-        # Dept options built from UU profiles (normalise the two name variants)
-        def _norm_dept(d: str) -> str:
-            return (d or '').replace(
-                'Copernicus Institute of Sustainable Development',
-                'Copernicus Institute'
-            )
-
-        _all_dept_opts = ['Any'] + sorted({
-            _norm_dept(p.get('department_group', ''))
-            for p in _PROFILES.values()
-            if p.get('department_group')
-        })
-
-        _fa, _fb = st.columns([3, 2])
-        with _fa:
-            _ftopic = st.text_input(
-                "Research interests or keywords",
-                value=st.session_state.sup_finder_topic,
-                placeholder="e.g. energy transition, governance, circular economy, water quality…",
-                key="sup_topic_input",
-            )
-        with _fb:
-            _fdept = st.selectbox(
-                "Research group",
-                _all_dept_opts,
-                index=_all_dept_opts.index(st.session_state.sup_finder_dept)
-                      if st.session_state.sup_finder_dept in _all_dept_opts else 0,
-                key="sup_dept_input",
-            )
-
-        if st.button("Find matching supervisors →", key="sup_run_finder", type="primary"):
-            st.session_state.sup_finder_topic  = _ftopic
-            st.session_state.sup_finder_dept   = _fdept
-            st.session_state.sup_finder_results = True
-            _sync_supervisor_url()
-            st.rerun()
-
-        if st.session_state.sup_finder_results and (
-            st.session_state.sup_finder_topic
-            or st.session_state.sup_finder_dept != 'Any'
-        ):
-            _qt     = st.session_state.sup_finder_topic
-            _fd     = st.session_state.sup_finder_dept
-            _qwords = [w.lower().strip() for w in _qt.replace(',', ' ').split() if len(w) > 2] if _qt else []
-
-            _scored = []
-            for _n, _nd in _sups.items():
-                _prof2 = _PROFILES.get(_n, {})
-                # Only consider supervisors with UU profile data
-                if not _prof2 or (not _prof2.get('expertise') and not _prof2.get('bio')):
-                    continue
-
-                # Dept is a hard filter — skip if group doesn't match
-                if _fd != 'Any':
-                    if _fd not in _norm_dept(_prof2.get('department_group', '')):
-                        continue
-
-                _score = 0
-                _reas  = []
-                _matched_tags = []
-
-                if _qwords:
-                    for _tag in (_prof2.get('expertise') or []):
-                        _tag_lower = _tag.lower()
-                        _hits = sum(1 for w in _qwords if w in _tag_lower)
-                        if _hits:
-                            # All query words found in one tag → strong signal
-                            _score += 10 if _hits == len(_qwords) else _hits * 4
-                            _matched_tags.append(_tag)
-
-                    _bio_lower = (_prof2.get('bio') or '').lower()
-                    _bio_hits = sum(1 for w in _qwords if w in _bio_lower)
-                    if _bio_hits:
-                        _score += _bio_hits * 2
-
-                    if _matched_tags:
-                        _reas.append('Expertise: ' + ', '.join(_matched_tags[:3]))
-                    elif _bio_hits:
-                        _reas.append('Relevant research background')
-                else:
-                    # Dept-only search: include everyone in the group with a base score
-                    _score = 1
-
-                if _fd != 'Any':
-                    _reas.append(_fd.split('·')[-1].strip())
-
-                if _score > 0:
-                    _st2 = _stats(_n)
-                    _scored.append((_n, _score, _reas, _st2, _matched_tags))
-
-            _scored.sort(key=lambda x: x[1], reverse=True)
-            _top = _scored[:8]
-
-            if _top:
-                _max_sc = _top[0][1]
-                st.markdown(f"### Top {len(_top)} Matches")
-                for _rank, (_n, _sc2, _reas2, _st3, _mtags) in enumerate(_top, 1):
-                    _pct    = int(100 * _sc2 / max(_max_sc, 1))
-                    _ci     = _avatar_color(_n)
-                    _ii     = _initials(_n)
-                    _rphoto = _PROFILES.get(_n, {}).get('_photo_b64', '') or ''
-                    _enc_n  = urllib.parse.quote(_n, safe='')
-                    _enc_p  = urllib.parse.quote(PROGRAM, safe='')
-                    _ravatar = (
-                        f'<img class="sup-card-photo" alt="{_n}" '
-                        f'src="data:image/jpeg;base64,{_rphoto}" '
-                        f'style="width:40px;height:40px;margin-bottom:0"/>'
-                        if _rphoto else
-                        f'<div class="sup-avatar" style="background:{_ci};width:40px;height:40px;'
-                        f'font-size:1rem;margin-bottom:0">{_ii}</div>'
-                    )
-                    _tag_chips = ''.join(
-                        f'<span class="sup-expertise-tag">{t}</span>' for t in _mtags[:4]
-                    )
-                    _result_parts = [
-                        '<div class="sup-result-card">',
-                        f'<div style="display:flex;align-items:center;gap:0.8rem;margin-bottom:0.5rem">',
-                        f'<span class="sup-result-rank">{_rank}</span>',
-                        _ravatar,
-                        f'<div><div class="sup-result-name">{_n}</div>'
-                        f'<div style="font-size:.76rem;color:#6b7a8d">'
-                        f'{_st3["sc"]} supervised · {_st3["rc"]} second reader</div></div>',
-                        f'<div style="margin-left:auto;font-size:.88rem;font-weight:800;color:#003660">{_pct}%</div>',
-                        '</div>',
-                        f'<div class="sup-match-bar" style="width:{_pct}%"></div>',
-                        f'<div class="sup-result-reason">{"&nbsp;&nbsp;·&nbsp;&nbsp;".join(f"✓ {r}" for r in _reas2)}</div>',
-                        (f'<div class="sup-expertise-row" style="margin-top:.45rem">{_tag_chips}</div>'
-                         if _tag_chips else ''),
-                        '</div>',
-                    ]
-                    st.markdown(
-                        f'<a href="?program={_enc_p}&sup_selected={_enc_n}" class="sup-card-link" target="_self">'
-                        + ''.join(p for p in _result_parts if p)
-                        + '</a>',
-                        unsafe_allow_html=True,
-                    )
-            else:
-                st.info("No supervisors matched your criteria. Try broader keywords or a different research group.")
-
-    # ══════════════════════════════════════════════════════════════════════
     # DIRECTORY PAGE
     # ══════════════════════════════════════════════════════════════════════
     else:
@@ -8083,13 +7929,6 @@ elif page == "Supervisors":
             f'<h1>\U0001f465 Supervisor Directory</h1>'
             f'<p>Browse {len(_all_sorted)} supervisors from the {_display_name} programme &mdash; '
             f'explore their expertise, methods and supervised theses.</p>'
-            f'<div class="sup-page-hero-row">'
-            f'<span class="sup-page-hero-cta-text"><strong>\U0001f3af Looking for a supervisor?</strong>'
-            f'&ensp;Describe your thesis topic and we\'ll match you with the best-fit supervisor '
-            f'based on their full supervision history.</span>'
-            f'<a href="?program={_enc_p}&nav=Supervisors&sup_view=finder" class="sup-page-hero-btn" target="_self">'
-            f'Find My Supervisor &rarr;</a>'
-            f'</div>'
             f'</div>',
             unsafe_allow_html=True,
         )
@@ -8098,7 +7937,7 @@ elif page == "Supervisors":
         with _ds1:
             _dsearch = st.text_input(
                 "Search", value=st.session_state.sup_search,
-                placeholder="Search by name…",
+                placeholder="Search by name or topic (e.g. climate governance, energy transition…)",
                 label_visibility="collapsed", key="sup_search_input",
             )
         _dir_sec_opts = ['All sectors'] + sorted({
@@ -8115,26 +7954,67 @@ elif page == "Supervisors":
         # Mirror the directory search into the URL so back/forward restores it.
         _sync_supervisor_url()
 
-        _filtered = []
+        # ── Search logic: name match + expertise/bio topic match ──────────
+        _qwords = [w.lower().strip() for w in _dsearch.replace(',', ' ').split() if len(w) > 2] if _dsearch else []
+        _is_topic_search = _dsearch and not any(_dsearch.lower() in _n.lower() for _n in _all_sorted)
+
+        def _topic_score(name: str) -> tuple[int, list[str]]:
+            """Return (relevance_score, matched_tags) for topic-mode search."""
+            if not _qwords:
+                return 0, []
+            _prof2 = _PROFILES.get(name, {})
+            _score = 0
+            _mtags: list[str] = []
+            for _tag in (_prof2.get('expertise') or []):
+                _tl = _tag.lower()
+                _hits = sum(1 for w in _qwords if w in _tl)
+                if _hits:
+                    _score += 10 if _hits == len(_qwords) else _hits * 4
+                    _mtags.append(_tag)
+            _bio_hits = sum(1 for w in _qwords if w in (_prof2.get('bio') or '').lower())
+            if _bio_hits:
+                _score += _bio_hits * 2
+            return _score, _mtags
+
+        _filtered_with_score: list[tuple[str, int, list]] = []
         for _n in _all_sorted:
-            if _dsearch and _dsearch.lower() not in _n.lower():
-                continue
             if _dfsec != 'All sectors':
                 if not any(_dfsec.lower() in s.lower() for s, _ in _stats(_n)['sec']):
                     continue
-            _filtered.append(_n)
+            if _dsearch:
+                _name_hit = _dsearch.lower() in _n.lower()
+                _tscore, _tmtags = _topic_score(_n)
+                if _name_hit:
+                    _filtered_with_score.append((_n, 1000 + _tscore, _tmtags))  # name match always wins
+                elif _tscore > 0:
+                    _filtered_with_score.append((_n, _tscore, _tmtags))
+                # else: skip — neither name nor topic matches
+            else:
+                _filtered_with_score.append((_n, 0, []))
 
-        if _dsort == 'Alphabetical':
-            _filtered = sorted(_filtered)
+        # Sort: when searching, sort by relevance score descending; else respect _dsort
+        if _dsearch:
+            _filtered_with_score.sort(key=lambda x: x[1], reverse=True)
+        elif _dsort == 'Alphabetical':
+            _filtered_with_score.sort(key=lambda x: x[0])
         elif _dsort == 'Most recent':
-            _filtered = sorted(_filtered, key=lambda n: max((_stats(n)['years'] or [0])), reverse=True)
+            _filtered_with_score.sort(
+                key=lambda x: max((_stats(x[0])['years'] or [0])), reverse=True
+            )
+
+        _filtered = [x[0] for x in _filtered_with_score]
+        _score_map = {x[0]: x[1] for x in _filtered_with_score}
+        _tag_map   = {x[0]: x[2] for x in _filtered_with_score}
 
         if not _filtered:
             st.info("No supervisors match your search.")
         else:
+            _is_topic_mode = bool(_dsearch and any(_score_map[n] < 1000 for n in _filtered))
+            _count_label = f"{len(_filtered)} supervisor{'s' if len(_filtered) != 1 else ''} found"
+            if _dsearch and _is_topic_mode:
+                _count_label += " &nbsp;·&nbsp; sorted by topic relevance"
             st.markdown(
-                f"<p style='color:#7a8fa8;font-size:.82rem;margin:.2rem 0 .8rem'>"
-                f"{len(_filtered)} supervisor{'s' if len(_filtered) != 1 else ''} found</p>",
+                f"<p style='color:#7a8fa8;font-size:.82rem;margin:.2rem 0 .8rem'>{_count_label}</p>",
                 unsafe_allow_html=True,
             )
             _gcols = st.columns(3, gap="medium")
@@ -8154,11 +8034,17 @@ elif page == "Supervisors":
                     if _cphoto else
                     f'<div class="sup-avatar" style="background:{_ci}">{_ii}</div>'
                 )
+                # When a topic search matched expertise tags, highlight those tags first
+                _matched_tags_for_n = _tag_map.get(_n, [])
+                _display_tags = _matched_tags_for_n[:3] if _matched_tags_for_n else _cexpertise[:3]
                 _ctags = (
                     '<div class="sup-tags">'
-                    + ''.join(f'<span class="sup-tag">{e}</span>' for e in _cexpertise[:3])
+                    + ''.join(
+                        f'<span class="sup-tag{" sup-tag-matched" if t in _matched_tags_for_n else ""}">{t}</span>'
+                        for t in _display_tags
+                    )
                     + '</div>'
-                    if _cexpertise else ''
+                    if _display_tags else ''
                 )
                 _cparts = [
                     '<div class="sup-card-wrap">',
