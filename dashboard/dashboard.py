@@ -3716,7 +3716,21 @@ if show_explorer_filters:
                         _org_vals.add(_part)
             internship_org_options = sorted(_org_vals, key=lambda x: x.lower())
 
-            # Theory filter is a free-text search — no dropdown needed
+            # Theory filter — build deduplicated atomic list, use searchable selectbox
+            _theory_set: set[str] = set()
+            if "Theories" in df.columns:
+                for _tv in df["Theories"].dropna():
+                    for _tp in str(_tv).replace(";", ",").split(","):
+                        _tp = _tp.strip()
+                        if len(_tp) > 3 and _tp.lower() not in ("n/a", "nan", ""):
+                            _theory_set.add(_tp)
+            theory_options = sorted(_theory_set, key=lambda x: x.lower())
+            _saved_theory = st.session_state.saved_theory_filter or None
+            _theory_idx = (
+                theory_options.index(_saved_theory)
+                if _saved_theory and _saved_theory in theory_options
+                else None
+            )
 
             year_filter = st.multiselect(
                 "Year", year_options,
@@ -3750,12 +3764,13 @@ if show_explorer_filters:
                 default=[v for v in st.session_state.saved_method_filter if v in method_options],
                 key="filter_method",
             )
-            theory_filter = st.text_input(
+            theory_filter = st.selectbox(
                 "Theory / Framework",
-                value=st.session_state.saved_theory_filter or "",
-                placeholder="e.g. transition, justice, institutional…",
+                options=theory_options,
+                index=_theory_idx,
+                placeholder="Type to search theories…",
                 key="filter_theory",
-            )
+            ) or ""
             geo_filter = st.multiselect(
                 "Country", geo_options,
                 default=[v for v in st.session_state.saved_geo_filter if v in geo_options],
