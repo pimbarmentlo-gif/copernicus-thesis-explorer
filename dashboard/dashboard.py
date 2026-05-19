@@ -3958,13 +3958,15 @@ if page == "Explorer":
 
             st.caption("Full-page thesis viewer. Use the viewer controls to navigate and inspect the document in detail.")
 
-            # Serve via background PDF server — avoids Streamlit's symlink security check.
-            _pdf_rel = os.path.relpath(pdf_path, _PROJECT_ROOT).replace(os.sep, "/")
-            _static_url = f"http://127.0.0.1:{_PDF_SERVER_PORT}/{_pdf_rel}"
-            _render_html_iframe(_pdf_iframe_html(_static_url, height=1100), height=1108)
-
-            # Download button uses cached bytes (read once per session)
+            # Embed PDF as base64 data URI — works on Streamlit Cloud where
+            # 127.0.0.1 server URLs are unreachable from the user's browser.
             _dl_bytes = _load_pdf_bytes_cached(pdf_path)
+            if _dl_bytes:
+                _static_url = "data:application/pdf;base64," + base64.b64encode(_dl_bytes).decode()
+            else:
+                _pdf_rel = os.path.relpath(pdf_path, _PROJECT_ROOT).replace(os.sep, "/")
+                _static_url = f"http://127.0.0.1:{_PDF_SERVER_PORT}/{_pdf_rel}"
+            _render_html_iframe(_pdf_iframe_html(_static_url, height=1100), height=1108)
             if _dl_bytes:
                 st.download_button(
                     label="Download Thesis PDF",
@@ -4039,9 +4041,14 @@ if page == "Explorer":
                 col_pdf, col_meta = st.columns([5, 4], gap="large")
 
                 with col_pdf:
-                    # Serve via background PDF server — avoids Streamlit's symlink security check.
-                    _det_pdf_rel = os.path.relpath(pdf_path, _PROJECT_ROOT).replace(os.sep, "/")
-                    _det_static_url = f"http://127.0.0.1:{_PDF_SERVER_PORT}/{_det_pdf_rel}"
+                    # Embed PDF as base64 data URI — works on Streamlit Cloud where
+                    # 127.0.0.1 server URLs are unreachable from the user's browser.
+                    _det_dl_bytes_preview = _load_pdf_bytes_cached(pdf_path)
+                    if _det_dl_bytes_preview:
+                        _det_static_url = "data:application/pdf;base64," + base64.b64encode(_det_dl_bytes_preview).decode()
+                    else:
+                        _det_pdf_rel = os.path.relpath(pdf_path, _PROJECT_ROOT).replace(os.sep, "/")
+                        _det_static_url = f"http://127.0.0.1:{_PDF_SERVER_PORT}/{_det_pdf_rel}"
                     _render_html_iframe(_pdf_iframe_html(_det_static_url, height=850), height=858)
 
                     download_icon_uri = _asset_data_uri("pdf_download_icon.png", "image/png")
