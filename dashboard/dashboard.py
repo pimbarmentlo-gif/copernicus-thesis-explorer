@@ -2834,10 +2834,7 @@ def render_structured_details_sections(row):
             _safe_nm = _html.escape(_nm)
             _b64 = _sup_photo_b64(_nm)
             _photo_tag = (
-                f"<img src='data:image/jpeg;base64,{_b64}' class='ds-sup-photo' alt='{_safe_nm}'"
-                f" onclick=\"var o=document.getElementById('sup-lb-overlay');"
-                f"document.getElementById('sup-lb-img').src=this.src;"
-                f"o.classList.add('active');\"/>"
+                f"<img src='data:image/jpeg;base64,{_b64}' class='ds-sup-photo' alt='{_safe_nm}'/>"
                 if _b64 else ""
             )
             _parts.append(
@@ -2848,13 +2845,29 @@ def render_structured_details_sections(row):
         return "<div class='ds-sup-list'>" + "".join(_parts) + "</div>"
 
     st.markdown("""
-<div id="sup-lb-overlay" onclick="this.classList.remove('active')">
+<div id="sup-lb-overlay">
   <img id="sup-lb-img" src="" alt="supervisor photo"/>
 </div>
 <script>
-document.addEventListener('keydown', function(e){
-  if(e.key==='Escape') document.getElementById('sup-lb-overlay').classList.remove('active');
-});
+(function(){
+  function closeLb(){
+    var o=document.getElementById('sup-lb-overlay');
+    if(o) o.classList.remove('active');
+  }
+  document.addEventListener('click', function(e){
+    var t=e.target;
+    if(t.classList.contains('ds-sup-photo')){
+      var img=document.getElementById('sup-lb-img');
+      var overlay=document.getElementById('sup-lb-overlay');
+      if(img && overlay){ img.src=t.src; overlay.classList.add('active'); }
+    } else if(t.id==='sup-lb-overlay' || t.id==='sup-lb-img'){
+      closeLb();
+    }
+  });
+  document.addEventListener('keydown', function(e){
+    if(e.key==='Escape') closeLb();
+  });
+})();
 </script>
 """, unsafe_allow_html=True)
 
