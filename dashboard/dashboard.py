@@ -5863,7 +5863,7 @@ body{{font-family:'Inter',-apple-system,sans-serif;background:transparent;overfl
 .sd-empty{{padding:18px;text-align:center;color:#9aa5b4;font-size:0.82rem;}}
 </style>
 <div id="whl-wrap">
-  <svg id="whl" viewBox="0 0 480 480" width="960" height="960"></svg>
+  <svg id="whl" viewBox="0 0 480 480" width="680" height="680"></svg>
   <div id="sdg-overlay"></div>
   <div id="sdg-detail"><div id="sdg-di"></div></div>
 </div>
@@ -6117,7 +6117,7 @@ document.addEventListener('click',function(e){{
 </script>
 """
 
-    _render_html_iframe(_sdg_html, height=1060)
+    _render_html_iframe(_sdg_html, height=760)
 
     # ══════════════════════════════════════════════════════════════════════
     # SECTION 2 — PARTNER ORGANISATION GALAXY
@@ -6188,7 +6188,7 @@ html,body{{font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-
   background:transparent;overflow:hidden;-webkit-font-smoothing:antialiased;}}
 /* ── Galaxy ── */
 #galaxy-wrap{{
-  position:relative;width:100%;height:1100px;overflow:hidden;
+  position:relative;width:100%;height:800px;overflow:hidden;
   background:transparent;
 }}
 #galaxy-svg{{position:absolute;inset:0;width:100%;height:100%;}}
@@ -6263,7 +6263,7 @@ var PROG="{_sdg_enc_prog}";
 var UU_LOGO="{_uu_logo_uri}";
 var SDG_HEX={{1:"#E5243B",2:"#DDA63A",3:"#4C9F38",4:"#C5192D",5:"#FF3A21",6:"#26BDE2",7:"#FCC30B",8:"#A21942",9:"#FD6925",10:"#DD1367",11:"#FD9D24",12:"#BF8B2E",13:"#3F7E44",14:"#0A97D9",15:"#56C02B",16:"#00689D",17:"#19486A"}};
 var wrap=document.getElementById('galaxy-wrap');
-var W=wrap.clientWidth||800,H=1100;
+var W=wrap.clientWidth||800,H=800;
 var svgEl=document.getElementById('galaxy-svg');
 var gt=document.getElementById('gt');
 var op=document.getElementById('op');
@@ -6495,7 +6495,7 @@ function drift(){{
 sim.on('end',function(){{drift();}});
 </script>
 """
-        _render_html_iframe(_org_html, height=1160)
+        _render_html_iframe(_org_html, height=860)
         st.markdown("<div style='margin-bottom:3rem;'></div>", unsafe_allow_html=True)
 
     # ══════════════════════════════════════════════════════════════════════
@@ -6647,7 +6647,7 @@ sim.on('end',function(){{drift();}});
 <html><head><style>
 *{{box-sizing:border-box;margin:0;padding:0;}}
 html,body{{width:100%;height:100%;background:transparent;overflow:hidden;}}
-#gc{{width:100%;height:560px;cursor:grab;}}
+#gc{{width:100%;height:460px;cursor:grab;}}
 #gc:active{{cursor:grabbing;}}
 .tip{{
   position:fixed;background:rgba(20,20,40,0.88);color:#fff;
@@ -6936,7 +6936,7 @@ window.addEventListener('resize',function(){{
 }});
 </script></body></html>
 """
-        _render_html_iframe(_geo_html, height=960)
+        _render_html_iframe(_geo_html, height=480)
         st.markdown("<div style='margin-bottom:3rem;'></div>", unsafe_allow_html=True)
 
     # ══════════════════════════════════════════════════════════════════════
