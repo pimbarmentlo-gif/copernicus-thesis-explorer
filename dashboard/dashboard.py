@@ -1753,11 +1753,12 @@ st.markdown(
         padding-bottom: 1px;
     }
     .ds-sup-link:hover { text-decoration: none !important; color: #1a1a1a !important; border-bottom-color: #555; }
-    .ds-sup-wrap { display: inline-flex; align-items: center; }
+    .ds-sup-list { display: flex; flex-direction: column; gap: 6px; margin-top: 2px; }
+    .ds-sup-wrap { display: inline-flex; align-items: center; gap: 8px; }
     .ds-sup-photo {
         width: 32px; height: 32px; border-radius: 50%; object-fit: cover;
-        flex-shrink: 0; margin-right: 7px;
-        border: 1px solid #e0e0e0; vertical-align: middle;
+        flex-shrink: 0;
+        border: 1px solid #e0e0e0;
     }
     .ds-rq {
         font-size: 0.92em;
@@ -2821,11 +2822,11 @@ def render_structured_details_sections(row):
                 if _b64 else ""
             )
             _parts.append(
-                f"<span class='ds-sup-wrap'>{_photo_tag}"
+                f"<div class='ds-sup-wrap'>{_photo_tag}"
                 f"<a href='?program={_enc_p}&sup_selected={_enc_nm}' class='ds-sup-link' target='_self'>{_safe_nm}</a>"
-                f"</span>"
+                f"</div>"
             )
-        return "<span class='ds-val'>" + "".join(_parts) + "</span>"
+        return "<div class='ds-sup-list'>" + "".join(_parts) + "</div>"
 
     st.markdown(f"""
 <div class="ds-cards-wrap">
