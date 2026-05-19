@@ -7251,8 +7251,8 @@ elif page == "Supervisors" and PROGRAM == _ALL_PROGRAM_KEY:
         "<div style='padding:32px 8px;'>"
         "<h3 style='color:var(--uu-blue);margin-bottom:8px;'>Supervisors are per-programme</h3>"
         "<p style='color:rgba(0,54,96,0.7);max-width:640px;'>"
-        "Supervisor profiles, the Find-My-Supervisor tool, and the directory all "
-        "rely on programme-specific metadata. Pick a programme below to continue."
+        "Supervisor profiles and the directory rely on programme-specific metadata. "
+        "Pick a programme below to continue."
         "</p>"
         "<div style='display:flex;flex-wrap:wrap;gap:10px;margin-top:14px;'>"
         + "".join(
