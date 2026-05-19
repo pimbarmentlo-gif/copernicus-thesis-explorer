@@ -1759,7 +1759,23 @@ st.markdown(
         width: 32px; height: 32px; border-radius: 50%; object-fit: cover;
         flex-shrink: 0;
         border: 1px solid #e0e0e0;
+        cursor: zoom-in;
+        transition: box-shadow 0.15s, transform 0.15s;
     }
+    .ds-sup-photo:hover { box-shadow: 0 0 0 3px rgba(0,54,96,0.25); transform: scale(1.08); }
+    #sup-lb-overlay {
+        display: none; position: fixed; inset: 0; z-index: 99999;
+        background: rgba(10,20,40,0.72); backdrop-filter: blur(6px);
+        align-items: center; justify-content: center; cursor: zoom-out;
+    }
+    #sup-lb-overlay.active { display: flex; }
+    #sup-lb-img {
+        width: 260px; height: 260px; border-radius: 50%; object-fit: cover;
+        border: 4px solid #fff;
+        box-shadow: 0 24px 64px rgba(0,0,0,0.45);
+        animation: lbIn 0.22s cubic-bezier(.34,1.56,.64,1);
+    }
+    @keyframes lbIn { from { transform: scale(0.7); opacity: 0; } to { transform: scale(1); opacity: 1; } }
     .ds-rq {
         font-size: 0.92em;
         font-style: italic;
@@ -2818,7 +2834,10 @@ def render_structured_details_sections(row):
             _safe_nm = _html.escape(_nm)
             _b64 = _sup_photo_b64(_nm)
             _photo_tag = (
-                f"<img src='data:image/jpeg;base64,{_b64}' class='ds-sup-photo' alt='{_safe_nm}'/>"
+                f"<img src='data:image/jpeg;base64,{_b64}' class='ds-sup-photo' alt='{_safe_nm}'"
+                f" onclick=\"var o=document.getElementById('sup-lb-overlay');"
+                f"document.getElementById('sup-lb-img').src=this.src;"
+                f"o.classList.add('active');\"/>"
                 if _b64 else ""
             )
             _parts.append(
@@ -2827,6 +2846,17 @@ def render_structured_details_sections(row):
                 f"</div>"
             )
         return "<div class='ds-sup-list'>" + "".join(_parts) + "</div>"
+
+    st.markdown("""
+<div id="sup-lb-overlay" onclick="this.classList.remove('active')">
+  <img id="sup-lb-img" src="" alt="supervisor photo"/>
+</div>
+<script>
+document.addEventListener('keydown', function(e){
+  if(e.key==='Escape') document.getElementById('sup-lb-overlay').classList.remove('active');
+});
+</script>
+""", unsafe_allow_html=True)
 
     st.markdown(f"""
 <div class="ds-cards-wrap">
