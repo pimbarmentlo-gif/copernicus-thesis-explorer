@@ -24,7 +24,12 @@ except ImportError as e:
 
 import os
 import base64
+import json
 import urllib.parse
+import threading as _threading
+import socketserver as _socketserver
+import http.server as _http_server
+from pathlib import Path
 
 
 
@@ -169,6 +174,32 @@ def _load_image_b64(path: str) -> str:
         return ""
     with open(path, "rb") as f:
         return base64.b64encode(f.read()).decode("utf-8")
+
+
+@st.cache_data(show_spinner=False)
+def _load_sup_profiles_global() -> dict:
+    """Load supervisor_profiles.json and embed photo b64 into each entry. Cached for lifetime."""
+    _p = Path(__file__).parent / "supervisor_profiles.json"
+    if not _p.exists():
+        return {}
+    try:
+        data = json.loads(_p.read_text(encoding="utf-8"))
+        _base = os.path.dirname(__file__)
+        for entry in data.values():
+            _pp = entry.get("photo_path")
+            if _pp:
+                entry["_photo_b64"] = _load_image_b64(os.path.join(_base, _pp))
+        return data
+    except Exception:
+        return {}
+
+
+_SUP_PROFILES = _load_sup_profiles_global()
+
+
+def _sup_photo_b64(name: str) -> str:
+    """Return cached base64 photo for a canonical supervisor name, or ''."""
+    return _SUP_PROFILES.get(name, {}).get("_photo_b64", "") or ""
 
 
 @st.cache_data(show_spinner=False)
@@ -332,7 +363,34 @@ def _load_org_logo_b64(logos_dir: str, org_name: str) -> str:
 
 # ensure file paths work regardless of current working directory
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+_PROJECT_ROOT = os.path.abspath(os.path.join(BASE_DIR, ".."))
 PROGRAM = "sbi"
+
+# ── Local PDF file server ──────────────────────────────────────────────────
+# Streamlit 1.28+ resolves symlinks in its static-file handler and blocks
+# any path that escapes dashboard/static/.  The static/pdfs/* subdirs are
+# symlinks into programs/*/pdfs/ so they get a 400.  We side-step this by
+# running a tiny CORS-enabled HTTP server in a background thread that serves
+# straight from the project root — no symlink involved.
+class _PDFHandler(_http_server.SimpleHTTPRequestHandler):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, directory=_PROJECT_ROOT, **kwargs)
+    def end_headers(self):
+        self.send_header("Access-Control-Allow-Origin", "*")
+        super().end_headers()
+    def log_message(self, *args):
+        pass  # silence access log
+
+_PDF_SERVER_PORT: int = 0
+for _port in range(8502, 8520):
+    try:
+        _pdf_srv = _socketserver.TCPServer(("127.0.0.1", _port), _PDFHandler)
+        _pdf_srv.allow_reuse_address = True
+        _threading.Thread(target=_pdf_srv.serve_forever, daemon=True).start()
+        _PDF_SERVER_PORT = _port
+        break
+    except OSError:
+        continue
 
 # Map programme keys (used in URLs/session state) to actual folder names on disk.
 _PROGRAMME_FOLDER_MAP = {
@@ -452,7 +510,12 @@ def _sync_explorer_url() -> None:
         if kind == "str" and val:
             qp[short] = str(val)
         elif kind == "list" and val:
-            qp[short] = ",".join(str(v) for v in val)
+            if short == "tracks":
+                # Track names can contain commas, so store as a plain
+                # (single-select) value rather than a comma-joined list.
+                qp[short] = str(val[0])
+            else:
+                qp[short] = ",".join(str(v) for v in val)
         elif kind == "bool" and val:
             qp[short] = "1"
     page_num = int(st.session_state.get('explorer_page', 0) or 0)
@@ -484,14 +547,11 @@ def _sync_supervisor_url() -> None:
     if sup_view == 'finder':
         qp["sup_view"] = "finder"
         _topic = st.session_state.get('sup_finder_topic', '')
-        _method = st.session_state.get('sup_finder_method', '')
-        _sector = st.session_state.get('sup_finder_sector', '')
+        _dept  = st.session_state.get('sup_finder_dept', '')
         if _topic:
             qp["sup_topic"] = str(_topic)
-        if _method and _method != "Any":
-            qp["sup_method"] = str(_method)
-        if _sector and _sector != "Any":
-            qp["sup_sector"] = str(_sector)
+        if _dept and _dept != "Any":
+            qp["sup_dept"] = str(_dept)
         if st.session_state.get('sup_finder_results'):
             qp["sup_results"] = "1"
     else:
@@ -540,7 +600,12 @@ def _restore_filters_from_url(force: bool = False) -> None:
         if kind == "str":
             parsed = str(raw)
         elif kind == "list":
-            parsed = [p for p in str(raw).split(",") if p]
+            if short == "tracks":
+                # Track names may contain commas — never split; always a
+                # single-select value.
+                parsed = [str(raw)] if raw else []
+            else:
+                parsed = [p for p in str(raw).split(",") if p]
         elif kind == "bool":
             parsed = str(raw) == "1"
         else:
@@ -646,8 +711,7 @@ else:
             if _sup_view_q == "finder":
                 st.session_state.sup_view = "finder"
                 st.session_state.sup_finder_topic = st.query_params.get("sup_topic", "") or ""
-                st.session_state.sup_finder_method = st.query_params.get("sup_method", "Any") or "Any"
-                st.session_state.sup_finder_sector = st.query_params.get("sup_sector", "Any") or "Any"
+                st.session_state.sup_finder_dept  = st.query_params.get("sup_dept", "Any") or "Any"
                 st.session_state.sup_finder_results = st.query_params.get("sup_results") == "1"
             else:
                 # Directory view — restore search box only when not currently
@@ -1255,11 +1319,25 @@ st.markdown(
     .sup-card-link:active {
         text-decoration: none !important;
         color: inherit !important;
-        display: block;
+        display: flex;
+        flex-direction: column;
     }
     .sup-card-link * {
         text-decoration: none !important;
         color: inherit !important;
+    }
+    /* Grid container for the directory — equal-height cards per row */
+    .sup-card-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 1rem;
+        margin-top: 0.4rem;
+    }
+    @media (max-width: 860px) {
+        .sup-card-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+    @media (max-width: 540px) {
+        .sup-card-grid { grid-template-columns: 1fr; }
     }
     .thesis-card {
         background-color: #ffffff;
@@ -1667,6 +1745,12 @@ st.markdown(
         padding-bottom: 1px;
     }
     .ds-sup-link:hover { text-decoration: none !important; color: #1a1a1a !important; border-bottom-color: #555; }
+    .ds-sup-wrap { display: inline-flex; align-items: center; }
+    .ds-sup-photo {
+        width: 32px; height: 32px; border-radius: 50%; object-fit: cover;
+        flex-shrink: 0; margin-right: 7px;
+        border: 1px solid #e0e0e0; vertical-align: middle;
+    }
     .ds-rq {
         font-size: 0.92em;
         font-style: italic;
@@ -2347,7 +2431,8 @@ pdfjsLib.GlobalWorkerOptions.workerSrc =
 
 var origin = (window.parent && window.parent.location)
                ? window.parent.location.origin : window.location.origin;
-var pdfUrl  = origin + '{static_url}';
+var rawUrl  = '{static_url}';
+var pdfUrl  = rawUrl.startsWith('http') ? rawUrl : (origin + rawUrl);
 var DPR     = window.devicePixelRatio || 1;
 
 var doc = null, pgEls = [], rendered = {{}};
@@ -2704,7 +2789,7 @@ def render_structured_details_sections(row):
         if _has_value(master_track) else ""
     )
 
-    # Supervisor / Second-reader clickable links
+    # Supervisor / Second-reader clickable links (with optional photo)
     def _sup_link_html(name_str) -> str:
         if not _has_value(name_str):
             return "<span class='ds-na'>\u2014</span>"
@@ -2716,8 +2801,17 @@ def render_structured_details_sections(row):
         for _nm in _names:
             _enc_nm = urllib.parse.quote(_nm, safe='')
             _safe_nm = _html.escape(_nm)
-            _parts.append(f"<a href='?program={_enc_p}&sup_selected={_enc_nm}' class='ds-sup-link' target='_self'>{_safe_nm}</a>")
-        return "<span class='ds-val'>" + ", ".join(_parts) + "</span>"
+            _b64 = _sup_photo_b64(_nm)
+            _photo_tag = (
+                f"<img src='data:image/jpeg;base64,{_b64}' class='ds-sup-photo' alt='{_safe_nm}'/>"
+                if _b64 else ""
+            )
+            _parts.append(
+                f"<span class='ds-sup-wrap'>{_photo_tag}"
+                f"<a href='?program={_enc_p}&sup_selected={_enc_nm}' class='ds-sup-link' target='_self'>{_safe_nm}</a>"
+                f"</span>"
+            )
+        return "<span class='ds-val'>" + "".join(_parts) + "</span>"
 
     st.markdown(f"""
 <div class="ds-cards-wrap">
@@ -3861,9 +3955,9 @@ if page == "Explorer":
 
             st.caption("Full-page thesis viewer. Use the viewer controls to navigate and inspect the document in detail.")
 
-            # Serve directly from the static file server — browser fetches the PDF,
-            # Python never touches the bytes for rendering (fast, no WebSocket overhead).
-            _static_url = f"/app/static/pdfs/{PROGRAM}/{selected_pdf}"
+            # Serve via background PDF server — avoids Streamlit's symlink security check.
+            _pdf_rel = os.path.relpath(pdf_path, _PROJECT_ROOT).replace(os.sep, "/")
+            _static_url = f"http://127.0.0.1:{_PDF_SERVER_PORT}/{_pdf_rel}"
             _render_html_iframe(_pdf_iframe_html(_static_url, height=1100), height=1108)
 
             # Download button uses cached bytes (read once per session)
@@ -3942,8 +4036,9 @@ if page == "Explorer":
                 col_pdf, col_meta = st.columns([5, 4], gap="large")
 
                 with col_pdf:
-                    # Serve via static file server — no Python byte loading needed for display
-                    _det_static_url = f"/app/static/pdfs/{PROGRAM}/{pdf_name}"
+                    # Serve via background PDF server — avoids Streamlit's symlink security check.
+                    _det_pdf_rel = os.path.relpath(pdf_path, _PROJECT_ROOT).replace(os.sep, "/")
+                    _det_static_url = f"http://127.0.0.1:{_PDF_SERVER_PORT}/{_det_pdf_rel}"
                     _render_html_iframe(_pdf_iframe_html(_det_static_url, height=850), height=858)
 
                     download_icon_uri = _asset_data_uri("pdf_download_icon.png", "image/png")
@@ -4178,6 +4273,182 @@ if page == "Explorer":
                                 st.rerun()
                 except ImportError:
                     pass
+
+            # -- Master Track quick-filter cards (Sustainable Development only) --
+            # Pure HTML <a> cards with orb icons — same navigation pattern as
+            # the Explorer/Supervisors/Insights topnav links (URL param toggle).
+            if PROGRAM == "sustainable_development":
+                # Each track: canonical name, accent colour, light bg, inner SVG markup
+                _SD_TRACKS_META = [
+                    {
+                        "name": "Energy & Materials",
+                        "color": "#ea580c",
+                        "bg": "#fff7ed",
+                        # Lightning bolt (Heroicons outline BoltIcon)
+                        "svg_inner": '<path stroke-linecap="round" stroke-linejoin="round" d="m3.75 13.5 10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75Z"/>',
+                    },
+                    {
+                        "name": "Earth Systems Governance",
+                        "color": "#1d4ed8",
+                        "bg": "#eff6ff",
+                        # Globe with meridian curves + latitude lines
+                        "svg_inner": (
+                            '<circle cx="12" cy="12" r="9" stroke-linecap="round" stroke-linejoin="round"/>'
+                            '<path stroke-linecap="round" stroke-linejoin="round" d="'
+                            'M12 3c-2.4 3.6-2.4 14.4 0 18'
+                            'M12 3c2.4 3.6 2.4 14.4 0 18'
+                            'M3 12h18M4.5 7.5h15M4.5 16.5h15'
+                            '"/>'
+                        ),
+                    },
+                    {
+                        "name": "Environmental Change and Ecosystems",
+                        "color": "#0891b2",
+                        "bg": "#e0f7fa",
+                        # ArrowPath (cycling arrows — ecological cycles / change)
+                        "svg_inner": (
+                            '<path stroke-linecap="round" stroke-linejoin="round" d="'
+                            'M19.5 12c0-1.232-.046-2.453-.138-3.662a4.006 4.006 0 0 0-3.7-3.7'
+                            ' 48.678 48.678 0 0 0-7.324 0 4.006 4.006 0 0 0-3.7 3.7'
+                            'c-.017.22-.032.441-.046.662'
+                            'M19.5 12l3-3m-3 3-3-3'
+                            'm-12 3c0 1.232.046 2.453.138 3.662a4.006 4.006 0 0 0 3.7 3.7'
+                            ' 48.656 48.656 0 0 0 7.324 0 4.006 4.006 0 0 0 3.7-3.7'
+                            'c.017-.22.032-.441.046-.662'
+                            'M4.5 12l3 3m-3-3-3 3'
+                            '"/>'
+                        ),
+                    },
+                    {
+                        "name": "Politics, Ecology and Society",
+                        "color": "#7c3aed",
+                        "bg": "#f5f3ff",
+                        # UserGroup (community / society)
+                        "svg_inner": (
+                            '<path stroke-linecap="round" stroke-linejoin="round" d="'
+                            'M15 19.128a9.38 9.38 0 0 0 2.625.372 9.337 9.337 0 0 0 4.121-.952'
+                            ' 4.125 4.125 0 0 0-7.533-2.493'
+                            'M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07'
+                            'M15 19.128v.106A12.318 12.318 0 0 1 8.624 21'
+                            'c-2.331 0-4.512-.645-6.374-1.766l-.001-.109'
+                            'a6.375 6.375 0 0 1 11.964-3.07'
+                            'M12 6.375a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0Z'
+                            'm8.25 2.25a2.625 2.625 0 1 1-5.25 0 2.625 2.625 0 0 1 5.25 0Z'
+                            '"/>'
+                        ),
+                    },
+                ]
+                _cur_track_filter = list(st.session_state.get("saved_master_track_filter", []))
+                _cur_params = dict(st.query_params)
+
+                _track_css = """<style>
+.track-filter-row {
+    display: flex;
+    gap: 10px;
+    margin: 20px 0 18px;
+}
+.track-filter-card {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 9px;
+    padding: 14px 8px 12px;
+    border-radius: 14px;
+    background: transparent;
+    border: 2px solid transparent;
+    box-shadow: none;
+    cursor: pointer;
+    text-decoration: none !important;
+    transition: transform 0.18s ease, background 0.18s ease, border-color 0.18s ease;
+    min-width: 0;
+}
+.track-filter-card:hover {
+    transform: translateY(-2px);
+    background: rgba(255,255,255,0.60);
+    border-color: rgba(0,54,96,0.10);
+    text-decoration: none !important;
+}
+.track-filter-card.active {
+    border-color: var(--tc);
+    background: var(--tc-bg);
+}
+.track-filter-card.active:hover {
+    background: var(--tc-bg);
+}
+.track-icon-orb {
+    width: 52px;
+    height: 52px;
+    border-radius: 50%;
+    background: var(--tc-bg);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    transition: background 0.18s ease, transform 0.18s ease;
+}
+.track-filter-card:hover .track-icon-orb {
+    transform: scale(1.06);
+}
+.track-filter-card.active .track-icon-orb {
+    background: var(--tc);
+}
+.track-icon-orb svg {
+    width: 26px;
+    height: 26px;
+    display: block;
+    filter: drop-shadow(0 1px 2px rgba(0,0,0,0.08));
+}
+.track-icon-orb svg path, .track-icon-orb svg circle {
+    stroke: var(--tc);
+    transition: stroke 0.18s ease;
+}
+.track-filter-card.active .track-icon-orb svg path,
+.track-filter-card.active .track-icon-orb svg circle {
+    stroke: #ffffff;
+}
+.track-label {
+    font-size: 0.76rem;
+    font-weight: 600;
+    text-align: center;
+    line-height: 1.3;
+    color: var(--uu-blue, #003660);
+    letter-spacing: 0.01em;
+}
+.track-filter-card.active .track-label {
+    color: var(--tc);
+}
+</style>"""
+                _cards_html = ['<div class="track-filter-row">']
+                for _t in _SD_TRACKS_META:
+                    _tname  = _t["name"]
+                    _tcolor = _t["color"]
+                    _tbg    = _t["bg"]
+                    _is_active = _tname in _cur_track_filter
+                    _active_cls = " active" if _is_active else ""
+                    # Build URL — toggle this track in the `tracks` param
+                    _link_params = dict(_cur_params)
+                    if _is_active:
+                        _link_params.pop("tracks", None)
+                    else:
+                        _link_params["tracks"] = _tname
+                    _link_params.pop("page", None)
+                    _href = "?" + urllib.parse.urlencode(_link_params, quote_via=urllib.parse.quote)
+                    _svg = (
+                        '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"'
+                        ' stroke-width="1.6" stroke="currentColor">'
+                        + _t["svg_inner"]
+                        + '</svg>'
+                    )
+                    _cards_html.append(
+                        f'<a class="track-filter-card{_active_cls}" href="{_href}" target="_self"'
+                        f' style="--tc:{_tcolor};--tc-bg:{_tbg};">'
+                        f'<div class="track-icon-orb">{_svg}</div>'
+                        f'<span class="track-label">{_tname}</span>'
+                        f'</a>'
+                    )
+                _cards_html.append('</div>')
+                st.markdown(_track_css + "".join(_cards_html), unsafe_allow_html=True)
 
             # -- pagination info + top navigation --
             start_idx = current_page * THESES_PER_PAGE
@@ -7217,6 +7488,8 @@ elif page == "Supervisors":
              if k and k.lower() not in ('n/a', 'nan', '') and len(k) > 2
              and len(v['s']) + len(v['r']) >= 1}
 
+    _PROFILES = _SUP_PROFILES
+
     def _stats(name: str) -> dict:
         d = _sups.get(name, {'s': [], 'r': []})
         ar = d['s'] + d['r']
@@ -7263,7 +7536,7 @@ elif page == "Supervisors":
     for _k, _v in [
         ('sup_view', 'directory'), ('sup_selected', None),
         ('sup_search', ''), ('sup_finder_topic', ''),
-        ('sup_finder_method', 'Any'), ('sup_finder_sector', 'Any'),
+        ('sup_finder_dept', 'Any'),
         ('sup_finder_results', False),
     ]:
         if _k not in st.session_state:
@@ -7308,8 +7581,8 @@ elif page == "Supervisors":
     .sup-card-wrap {
         background: #fff; border-radius: 16px; padding: 1.3rem 1.3rem 0.9rem;
         border: 1px solid #e8edf3; box-shadow: 0 2px 12px rgba(0,54,96,0.07);
-        transition: box-shadow 0.2s, transform 0.2s; margin-bottom: 0.8rem;
-        height: 200px; display: flex; flex-direction: column; overflow: hidden;
+        transition: box-shadow 0.2s, transform 0.2s;
+        flex: 1; display: flex; flex-direction: column; overflow: hidden;
     }
     .sup-card-wrap:hover {
         box-shadow: 0 8px 28px rgba(0,54,96,0.14); transform: translateY(-3px);
@@ -7319,6 +7592,11 @@ elif page == "Supervisors":
         display: inline-flex; align-items: center; justify-content: center;
         font-size: 1.25rem; font-weight: 800; color: white; margin-bottom: 0.7rem;
         flex-shrink: 0;
+    }
+    .sup-card-photo {
+        width: 54px; height: 54px; border-radius: 50%; object-fit: cover;
+        flex-shrink: 0; margin-bottom: 0.7rem;
+        border: 2px solid #fff; box-shadow: 0 1px 5px rgba(0,54,96,0.14);
     }
     .sup-card-name {
         font-size: 1.04rem; font-weight: 700; color: #0a2540; margin-bottom: 0.25rem;
@@ -7332,18 +7610,40 @@ elif page == "Supervisors":
     .sup-profile-hero {
         background: #f7f9fc; border-radius: 16px; padding: 1.8rem 2rem;
         border: 1px solid #e2e8f0; margin-bottom: 1.6rem;
-        display: flex; align-items: center; gap: 1.8rem;
+        display: flex; align-items: flex-start; gap: 1.8rem; flex-wrap: wrap;
     }
     .sup-profile-avatar {
-        width: 80px; height: 80px; border-radius: 50%;
+        width: 96px; height: 96px; border-radius: 50%;
         display: flex; align-items: center; justify-content: center;
-        font-size: 2rem; font-weight: 800; color: white; flex-shrink: 0;
+        font-size: 2.2rem; font-weight: 800; color: white; flex-shrink: 0;
     }
-    .sup-profile-name { font-size: 1.85rem; font-weight: 800; color: #0a2540; margin-bottom: 0.3rem; }
+    .sup-profile-photo {
+        width: 96px; height: 96px; border-radius: 50%; object-fit: cover;
+        flex-shrink: 0; border: 2px solid #fff;
+        box-shadow: 0 2px 8px rgba(0,54,96,0.12);
+    }
+    .sup-profile-body { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+    .sup-profile-name { font-size: 1.85rem; font-weight: 800; color: #0a2540; margin-bottom: 0.1rem; }
+    .sup-profile-subtitle {
+        font-size: 0.88rem; color: #4a6080; font-weight: 500;
+        margin-bottom: 0.4rem;
+    }
     .sup-stats-row { display: flex; gap: 1rem; flex-wrap: wrap; margin-top: 0.5rem; }
     .sup-stat-pill {
         background: #eef3fa; border-radius: 10px; padding: 0.38rem 0.9rem;
         font-size: 0.8rem; font-weight: 700; color: #003660;
+    }
+    .sup-expertise-row {
+        display: flex; flex-wrap: wrap; gap: 0.32rem; margin-top: 0.85rem;
+    }
+    .sup-expertise-tag {
+        background: #fff; border: 1px solid #d2dce8; color: #2d5a8e;
+        font-size: 0.74rem; padding: 0.22rem 0.62rem; border-radius: 14px;
+        font-weight: 600;
+    }
+    .sup-bio {
+        font-size: 0.92rem; line-height: 1.55; color: #3a4a5e;
+        margin-top: 0.85rem; max-width: 62ch;
     }
     .sup-section-title {
         font-size: 0.68rem; font-weight: 800; letter-spacing: 0.13em;
@@ -7503,18 +7803,56 @@ elif page == "Supervisors":
 
         _render_back_btn("back_btn_sup")
 
+        _prof = _PROFILES.get(_sname) or {}
+
+        # Photo: prefer UU staff photo, fall back to coloured-initials avatar.
+        _photo_rel = _prof.get('photo_path')
+        _avatar_html = (
+            f'<div class="sup-profile-avatar" style="background:{_scol}">{_sini}</div>'
+        )
+        if _photo_rel:
+            _photo_abs = os.path.join(os.path.dirname(__file__), _photo_rel)
+            _photo_b64 = _load_image_b64(_photo_abs)
+            if _photo_b64:
+                _avatar_html = (
+                    f'<img class="sup-profile-photo" alt="{_sname}" '
+                    f'src="data:image/jpeg;base64,{_photo_b64}" />'
+                )
+
+        _subtitle_parts = [p for p in (_prof.get('position'), _prof.get('department_group')) if p]
+        _subtitle_html = (
+            f'<div class="sup-profile-subtitle">{" · ".join(_subtitle_parts)}</div>'
+            if _subtitle_parts else ''
+        )
+
+        _expertise = _prof.get('expertise') or []
+        if _expertise:
+            _tags = ''.join(
+                f'<span class="sup-expertise-tag">{e}</span>' for e in _expertise[:14]
+            )
+            _expertise_html = f'<div class="sup-expertise-row">{_tags}</div>'
+        else:
+            _expertise_html = ''
+
+        _bio = _prof.get('bio')
+        _bio_html = f'<div class="sup-bio">{_bio}</div>' if _bio else ''
+
+        _hero_inner = "".join(p for p in [
+            _avatar_html,
+            '<div class="sup-profile-body">',
+            f'<div class="sup-profile-name">{_sname}</div>',
+            _subtitle_html,
+            (f'<div class="sup-stats-row">'
+             f'<span class="sup-stat-pill">📘 {_sst["sc"]} supervised</span>'
+             f'<span class="sup-stat-pill">📖 {_sst["rc"]} second reader</span>'
+             f'<span class="sup-stat-pill">🗓 {", ".join(str(y) for y in _sst["years"][:3]) if _sst["years"] else "n/a"}</span>'
+             f'</div>'),
+            _expertise_html,
+            _bio_html,
+            '</div>',
+        ] if p)
         st.markdown(
-            f"""<div class="sup-profile-hero">
-              <div class="sup-profile-avatar" style="background:{_scol}">{_sini}</div>
-              <div>
-                <div class="sup-profile-name">{_sname}</div>
-                <div class="sup-stats-row">
-                  <span class="sup-stat-pill">📘 {_sst['sc']} supervised</span>
-                  <span class="sup-stat-pill">📖 {_sst['rc']} second reader</span>
-                  <span class="sup-stat-pill">🗓 {', '.join(str(y) for y in _sst['years'][:3]) if _sst['years'] else 'n/a'}</span>
-                </div>
-              </div>
-            </div>""",
+            f'<div class="sup-profile-hero">{_hero_inner}</div>',
             unsafe_allow_html=True,
         )
 
@@ -7582,86 +7920,99 @@ elif page == "Supervisors":
 
         st.markdown("""<div class="sup-finder-hero">
           <h2>🎯 Who Should Supervise My Thesis?</h2>
-          <p>Describe your research interests and we'll match you with the best-fit supervisors
-             based on their full thesis supervision history.</p>
+          <p>Describe your research interests and we'll match you with supervisors
+             whose UU research profile best fits your topic.</p>
         </div>""", unsafe_allow_html=True)
 
-        _fa, _fb, _fc = st.columns([3, 2, 2])
+        # Dept options built from UU profiles (normalise the two name variants)
+        def _norm_dept(d: str) -> str:
+            return (d or '').replace(
+                'Copernicus Institute of Sustainable Development',
+                'Copernicus Institute'
+            )
+
+        _all_dept_opts = ['Any'] + sorted({
+            _norm_dept(p.get('department_group', ''))
+            for p in _PROFILES.values()
+            if p.get('department_group')
+        })
+
+        _fa, _fb = st.columns([3, 2])
         with _fa:
             _ftopic = st.text_input(
-                "Research topic or keywords",
+                "Research interests or keywords",
                 value=st.session_state.sup_finder_topic,
-                placeholder="e.g. energy transition, governance, SMEs, circular economy…",
+                placeholder="e.g. energy transition, governance, circular economy, water quality…",
                 key="sup_topic_input",
             )
-        _all_meth_opts = ['Any'] + sorted({
-            m for n in _all_sorted for m, _ in _stats(n)['meth']
-        })
-        _all_sec_opts = ['Any'] + sorted({
-            s for n in _all_sorted for s, _ in _stats(n)['sec']
-        })
         with _fb:
-            _fmethod = st.selectbox("Preferred method", _all_meth_opts, key="sup_method_input")
-        with _fc:
-            _fsector = st.selectbox("Preferred sector", _all_sec_opts, key="sup_sector_input")
+            _fdept = st.selectbox(
+                "Research group",
+                _all_dept_opts,
+                index=_all_dept_opts.index(st.session_state.sup_finder_dept)
+                      if st.session_state.sup_finder_dept in _all_dept_opts else 0,
+                key="sup_dept_input",
+            )
 
         if st.button("Find matching supervisors →", key="sup_run_finder", type="primary"):
             st.session_state.sup_finder_topic  = _ftopic
-            st.session_state.sup_finder_method = _fmethod
-            st.session_state.sup_finder_sector = _fsector
+            st.session_state.sup_finder_dept   = _fdept
             st.session_state.sup_finder_results = True
             _sync_supervisor_url()
             st.rerun()
 
         if st.session_state.sup_finder_results and (
             st.session_state.sup_finder_topic
-            or st.session_state.sup_finder_method != 'Any'
-            or st.session_state.sup_finder_sector != 'Any'
+            or st.session_state.sup_finder_dept != 'Any'
         ):
             _qt     = st.session_state.sup_finder_topic
-            _qm     = st.session_state.sup_finder_method
-            _qs     = st.session_state.sup_finder_sector
-            _qwords = [w.lower().strip() for w in _qt.split() if len(w) > 2] if _qt else []
+            _fd     = st.session_state.sup_finder_dept
+            _qwords = [w.lower().strip() for w in _qt.replace(',', ' ').split() if len(w) > 2] if _qt else []
 
             _scored = []
-            for _n in _all_sorted:
-                _st2   = _stats(_n)
+            for _n, _nd in _sups.items():
+                _prof2 = _PROFILES.get(_n, {})
+                # Only consider supervisors with UU profile data
+                if not _prof2 or (not _prof2.get('expertise') and not _prof2.get('bio')):
+                    continue
+
+                # Dept is a hard filter — skip if group doesn't match
+                if _fd != 'Any':
+                    if _fd not in _norm_dept(_prof2.get('department_group', '')):
+                        continue
+
                 _score = 0
                 _reas  = []
+                _matched_tags = []
 
                 if _qwords:
-                    _tm = sum(
-                        1 for _r in _st2['all']
-                        if any(w in ' '.join([
-                            str(_r.get('Title', '')),
-                            str(_r.get('Keywords', '')),
-                            str(_r.get('Abstract/Summary', '')),
-                            str(_r.get('Main sector', '')),
-                        ]).lower() for w in _qwords)
-                    )
-                    if _tm:
-                        _score += _tm * 3
-                        _reas.append(f"{_tm} thesis{'es' if _tm > 1 else ''} matching your topic")
+                    for _tag in (_prof2.get('expertise') or []):
+                        _tag_lower = _tag.lower()
+                        _hits = sum(1 for w in _qwords if w in _tag_lower)
+                        if _hits:
+                            # All query words found in one tag → strong signal
+                            _score += 10 if _hits == len(_qwords) else _hits * 4
+                            _matched_tags.append(_tag)
 
-                if _qm != 'Any':
-                    _mm = sum(1 for _r in _st2['all']
-                              if _qm.lower() in str(_r.get('Methodology Type', '')).lower()
-                              or _qm.lower() in str(_r.get('Specific Methods', '')).lower())
-                    if _mm:
-                        _score += _mm * 4
-                        _reas.append(f"Experience with {_qm.lower()} ({_mm} theses)")
+                    _bio_lower = (_prof2.get('bio') or '').lower()
+                    _bio_hits = sum(1 for w in _qwords if w in _bio_lower)
+                    if _bio_hits:
+                        _score += _bio_hits * 2
 
-                if _qs != 'Any':
-                    _sm2 = sum(1 for _r in _st2['all']
-                               if _qs.lower() in str(_r.get('Main sector', '')).lower())
-                    if _sm2:
-                        _score += _sm2 * 4
-                        _reas.append(f"Active in {_qs} ({_sm2} theses)")
+                    if _matched_tags:
+                        _reas.append('Expertise: ' + ', '.join(_matched_tags[:3]))
+                    elif _bio_hits:
+                        _reas.append('Relevant research background')
+                else:
+                    # Dept-only search: include everyone in the group with a base score
+                    _score = 1
 
-                if _st2['sc'] >= 8:
-                    _score += 2
+                if _fd != 'Any':
+                    _reas.append(_fd.split('·')[-1].strip())
+
                 if _score > 0:
-                    _scored.append((_n, _score, _reas, _st2))
+                    _st2 = _stats(_n)
+                    _scored.append((_n, _score, _reas, _st2, _matched_tags))
 
             _scored.sort(key=lambda x: x[1], reverse=True)
             _top = _scored[:8]
@@ -7669,34 +8020,48 @@ elif page == "Supervisors":
             if _top:
                 _max_sc = _top[0][1]
                 st.markdown(f"### Top {len(_top)} Matches")
-                for _rank, (_n, _sc2, _reas2, _st3) in enumerate(_top, 1):
+                for _rank, (_n, _sc2, _reas2, _st3, _mtags) in enumerate(_top, 1):
                     _pct    = int(100 * _sc2 / max(_max_sc, 1))
                     _ci     = _avatar_color(_n)
                     _ii     = _initials(_n)
-                    _kw_str = ', '.join(kw for kw, _ in _st3['kw'][:3])
-                    _enc_n = urllib.parse.quote(_n, safe='')
-                    _enc_p = urllib.parse.quote(PROGRAM, safe='')
+                    _rphoto = _PROFILES.get(_n, {}).get('_photo_b64', '') or ''
+                    _enc_n  = urllib.parse.quote(_n, safe='')
+                    _enc_p  = urllib.parse.quote(PROGRAM, safe='')
+                    _ravatar = (
+                        f'<img class="sup-card-photo" alt="{_n}" '
+                        f'src="data:image/jpeg;base64,{_rphoto}" '
+                        f'style="width:40px;height:40px;margin-bottom:0"/>'
+                        if _rphoto else
+                        f'<div class="sup-avatar" style="background:{_ci};width:40px;height:40px;'
+                        f'font-size:1rem;margin-bottom:0">{_ii}</div>'
+                    )
+                    _tag_chips = ''.join(
+                        f'<span class="sup-expertise-tag">{t}</span>' for t in _mtags[:4]
+                    )
+                    _result_parts = [
+                        '<div class="sup-result-card">',
+                        f'<div style="display:flex;align-items:center;gap:0.8rem;margin-bottom:0.5rem">',
+                        f'<span class="sup-result-rank">{_rank}</span>',
+                        _ravatar,
+                        f'<div><div class="sup-result-name">{_n}</div>'
+                        f'<div style="font-size:.76rem;color:#6b7a8d">'
+                        f'{_st3["sc"]} supervised · {_st3["rc"]} second reader</div></div>',
+                        f'<div style="margin-left:auto;font-size:.88rem;font-weight:800;color:#003660">{_pct}%</div>',
+                        '</div>',
+                        f'<div class="sup-match-bar" style="width:{_pct}%"></div>',
+                        f'<div class="sup-result-reason">{"&nbsp;&nbsp;·&nbsp;&nbsp;".join(f"✓ {r}" for r in _reas2)}</div>',
+                        (f'<div class="sup-expertise-row" style="margin-top:.45rem">{_tag_chips}</div>'
+                         if _tag_chips else ''),
+                        '</div>',
+                    ]
                     st.markdown(
-                        f"""<a href="?program={_enc_p}&sup_selected={_enc_n}" class="sup-card-link" target="_self">
-                          <div class="sup-result-card">
-                            <div style="display:flex;align-items:center;gap:0.8rem;margin-bottom:0.5rem">
-                              <span class="sup-result-rank">{_rank}</span>
-                              <div class="sup-avatar" style="background:{_ci};width:40px;height:40px;font-size:1rem;margin-bottom:0">{_ii}</div>
-                              <div>
-                                <div class="sup-result-name">{_n}</div>
-                                <div style="font-size:.76rem;color:#6b7a8d">{_st3['sc']} supervised · {_st3['rc']} second reader</div>
-                              </div>
-                              <div style="margin-left:auto;font-size:.88rem;font-weight:800;color:#003660">{_pct}% match</div>
-                            </div>
-                            <div class="sup-match-bar" style="width:{_pct}%"></div>
-                            <div class="sup-result-reason">{'&nbsp;&nbsp;·&nbsp;&nbsp;'.join(f'✓ {r}' for r in _reas2)}</div>
-                            {f"<div style='margin-top:.38rem;font-size:.74rem;color:#8a95a3'>Key areas: {_kw_str}</div>" if _kw_str else ''}
-                          </div>
-                        </a>""",
+                        f'<a href="?program={_enc_p}&sup_selected={_enc_n}" class="sup-card-link" target="_self">'
+                        + ''.join(p for p in _result_parts if p)
+                        + '</a>',
                         unsafe_allow_html=True,
                     )
             else:
-                st.info("No supervisors matched your criteria. Try broader keywords or fewer filters.")
+                st.info("No supervisors matched your criteria. Try broader keywords or a different research group.")
 
     # ══════════════════════════════════════════════════════════════════════
     # DIRECTORY PAGE
@@ -7763,23 +8128,44 @@ elif page == "Supervisors":
                 unsafe_allow_html=True,
             )
             _gcols = st.columns(3, gap="medium")
+            _grid_cards = []
             for _idx, _n in enumerate(_filtered):
                 _dst = _stats(_n)
                 _ci  = _avatar_color(_n)
                 _ii  = _initials(_n)
                 _rec = f"Active: {', '.join(str(y) for y in _dst['years'][:3])}" if _dst['years'] else ""
-                with _gcols[_idx % 3]:
-                    _enc_n = urllib.parse.quote(_n, safe='')
-                    _enc_p = urllib.parse.quote(PROGRAM, safe='')
-                    st.markdown(
-                        f"""<a href="?program={_enc_p}&sup_selected={_enc_n}" class="sup-card-link" target="_self">
-                          <div class="sup-card-wrap">
-                            <div class="sup-avatar" style="background:{_ci}">{_ii}</div>
-                            <div class="sup-card-name">{_n}</div>
-                            <div class="sup-card-counts">{_dst['sc']} supervised &nbsp;·&nbsp; {_dst['rc']} second reader</div>
-                            <div class="sup-card-year">{_rec}</div>
-                          </div>
-                        </a>""",
-                        unsafe_allow_html=True,
-                    )
+                _enc_n = urllib.parse.quote(_n, safe='')
+                _enc_p = urllib.parse.quote(PROGRAM, safe='')
+                _cprof = _PROFILES.get(_n, {})
+                _cphoto = _cprof.get('_photo_b64', '') or ''
+                _cexpertise = _cprof.get('expertise') or []
+                _cavatar = (
+                    f'<img class="sup-card-photo" alt="{_n}" src="data:image/jpeg;base64,{_cphoto}"/>'
+                    if _cphoto else
+                    f'<div class="sup-avatar" style="background:{_ci}">{_ii}</div>'
+                )
+                _ctags = (
+                    '<div class="sup-tags">'
+                    + ''.join(f'<span class="sup-tag">{e}</span>' for e in _cexpertise[:3])
+                    + '</div>'
+                    if _cexpertise else ''
+                )
+                _cparts = [
+                    '<div class="sup-card-wrap">',
+                    _cavatar,
+                    f'<div class="sup-card-name">{_n}</div>',
+                    f'<div class="sup-card-counts">{_dst["sc"]} supervised &nbsp;·&nbsp; {_dst["rc"]} second reader</div>',
+                    _ctags,
+                    f'<div class="sup-card-year">{_rec}</div>',
+                    '</div>',
+                ]
+                _grid_cards.append(
+                    f'<a href="?program={_enc_p}&sup_selected={_enc_n}" class="sup-card-link" target="_self">'
+                    + ''.join(p for p in _cparts if p)
+                    + '</a>'
+                )
+            st.markdown(
+                '<div class="sup-card-grid">' + ''.join(_grid_cards) + '</div>',
+                unsafe_allow_html=True,
+            )
 
