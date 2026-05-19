@@ -438,7 +438,12 @@ _FILTER_KEYS = [
 ]
 for _fk in _FILTER_KEYS:
     if _fk not in st.session_state:
-        st.session_state[_fk] = [] if _fk != "saved_search_query" and _fk != "saved_featured_only" else ("" if _fk == "saved_search_query" else False)
+        if _fk == "saved_search_query" or _fk == "saved_theory_filter":
+            st.session_state[_fk] = ""
+        elif _fk == "saved_featured_only":
+            st.session_state[_fk] = False
+        else:
+            st.session_state[_fk] = []
 
 # session state for navigation history (back button)
 if 'nav_history' not in st.session_state:
@@ -467,7 +472,7 @@ _FILTER_URL_KEYS = {
     "saved_sdg_filter":            ("sdgs",     "list"),
     "saved_sector_filter":         ("sectors",  "list"),
     "saved_method_filter":         ("methods",  "list"),
-    "saved_theory_filter":         ("theories", "list"),
+    "saved_theory_filter":         ("theories", "str"),
     "saved_geo_filter":            ("geos",     "list"),
     "saved_scale_filter":          ("scales",   "list"),
     "saved_internship_org_filter": ("orgs",     "list"),
@@ -3711,11 +3716,7 @@ if show_explorer_filters:
                         _org_vals.add(_part)
             internship_org_options = sorted(_org_vals, key=lambda x: x.lower())
 
-            theory_options_set = set()
-            if "Theories" in df.columns:
-                for value in df["Theories"].tolist():
-                    theory_options_set.update(_split_multi_values(value))
-            theory_options = sorted(theory_options_set, key=lambda x: x.lower())
+            # Theory filter is a free-text search — no dropdown needed
 
             year_filter = st.multiselect(
                 "Year", year_options,
@@ -3749,9 +3750,10 @@ if show_explorer_filters:
                 default=[v for v in st.session_state.saved_method_filter if v in method_options],
                 key="filter_method",
             )
-            theory_filter = st.multiselect(
-                "Theories", theory_options,
-                default=[v for v in st.session_state.saved_theory_filter if v in theory_options],
+            theory_filter = st.text_input(
+                "Theory / Framework",
+                value=st.session_state.saved_theory_filter or "",
+                placeholder="e.g. transition, justice, institutional…",
                 key="filter_theory",
             )
             geo_filter = st.multiselect(
@@ -3776,7 +3778,7 @@ if show_explorer_filters:
         # Reset button (outside expander, below it)
         def _reset_filters():
             for _k in _FILTER_KEYS:
-                if _k == "saved_search_query":
+                if _k in ("saved_search_query", "saved_theory_filter"):
                     st.session_state[_k] = ""
                 elif _k == "saved_featured_only":
                     st.session_state[_k] = False
@@ -3802,7 +3804,7 @@ if show_explorer_filters:
         sdg_filter = []
         sector_filter = []
         method_filter = []
-        theory_filter = []
+        theory_filter = ""
         geo_filter = []
         scale_filter = []
         internship_org_filter = []
@@ -3892,11 +3894,11 @@ if show_explorer_filters:
                 _mask = _mask & _search_blob.str.contains(_tok, regex=False, na=False)
             filtered_df = filtered_df[_mask]
 
-    if theory_filter:
-        selected_theories = {item.strip().lower() for item in theory_filter}
+    if theory_filter and theory_filter.strip():
+        _theory_query = theory_filter.strip().lower()
         filtered_df = filtered_df[
             filtered_df["Theories"].apply(
-                lambda raw: bool(selected_theories.intersection({part.lower() for part in _split_multi_values(raw)}))
+                lambda raw: _theory_query in str(raw).lower() if pd.notna(raw) else False
             )
         ]
 
