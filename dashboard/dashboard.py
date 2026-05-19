@@ -5696,55 +5696,72 @@ elif page == "Insights":
 
     /* ── Graphic picker cards ── */
     .ins-picker-row {
-        display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.4rem;
-        margin-bottom: 3rem;
+        display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.6rem;
+        margin-bottom: 3.5rem;
     }
     .ins-picker-card {
         display: flex; flex-direction: column; align-items: flex-start;
-        background: #fff; border: 1.5px solid #e8edf4; border-radius: 20px;
-        padding: 2rem 1.8rem 1.8rem; cursor: pointer; text-decoration: none;
-        transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+        background: #fff;
+        border: 1px solid #e4eaf2;
+        border-radius: 22px;
+        padding: 2.2rem 2rem 2rem;
+        cursor: pointer;
+        text-decoration: none !important;
+        transition: transform 0.2s cubic-bezier(.22,1,.36,1),
+                    box-shadow 0.2s cubic-bezier(.22,1,.36,1),
+                    border-color 0.2s ease;
         position: relative; overflow: hidden;
+        color: inherit;
     }
-    .ins-picker-card::before {
-        content: ''; position: absolute; inset: 0; border-radius: 20px;
-        background: linear-gradient(135deg, rgba(0,54,96,0.03) 0%, transparent 70%);
+    .ins-picker-card::after {
+        content: ''; position: absolute;
+        inset: 0; border-radius: 22px;
+        background: linear-gradient(160deg, rgba(0,54,96,0.025) 0%, transparent 55%);
         pointer-events: none;
     }
     .ins-picker-card:hover {
-        transform: translateY(-4px);
-        box-shadow: 0 12px 32px rgba(0,54,96,0.13);
-        border-color: #003660;
+        transform: translateY(-5px);
+        box-shadow: 0 20px 48px rgba(0,30,70,0.11), 0 4px 12px rgba(0,30,70,0.06);
+        border-color: rgba(0,54,96,0.3);
+        text-decoration: none !important;
     }
+    .ins-picker-card:hover .ins-picker-icon { transform: scale(1.07); }
     .ins-picker-icon {
-        width: 64px; height: 64px; border-radius: 16px;
+        width: 52px; height: 52px; border-radius: 14px;
         display: flex; align-items: center; justify-content: center;
-        font-size: 2rem; margin-bottom: 1.2rem; flex-shrink: 0;
+        margin-bottom: 1.4rem; flex-shrink: 0;
+        transition: transform 0.2s cubic-bezier(.22,1,.36,1);
     }
     .ins-picker-title {
-        font-size: 1.1rem; font-weight: 800; color: #0a2540;
-        margin: 0 0 0.5rem; letter-spacing: -0.01em;
+        font-size: 1.05rem; font-weight: 800; color: #0a2540;
+        margin: 0 0 0.55rem; letter-spacing: -0.02em; line-height: 1.2;
     }
     .ins-picker-desc {
-        font-size: 0.82rem; color: #6b7a8d; line-height: 1.55;
-        margin: 0 0 1.4rem; flex: 1;
+        font-size: 0.82rem; color: #6b7a8d; line-height: 1.6;
+        margin: 0 0 1.8rem; flex: 1;
     }
-    .ins-picker-cta {
-        font-size: 0.78rem; font-weight: 700; color: #003660;
-        display: inline-flex; align-items: center; gap: 5px;
-        text-transform: uppercase; letter-spacing: 0.08em;
+    .ins-picker-arrow {
+        display: flex; align-items: center; justify-content: center;
+        width: 34px; height: 34px; border-radius: 50%;
+        background: #f0f4f8;
+        transition: background 0.2s, transform 0.2s cubic-bezier(.22,1,.36,1);
     }
-    .ins-picker-cta::after { content: '→'; font-size: 0.9rem; }
+    .ins-picker-card:hover .ins-picker-arrow {
+        background: #003660;
+        transform: translateX(3px);
+    }
+    .ins-picker-card:hover .ins-picker-arrow svg { stroke: #fff; }
 
     /* ── Back button ── */
     .ins-back-btn {
         display: inline-flex; align-items: center; gap: 8px;
-        background: #f0f4f8; border: none; border-radius: 10px;
-        padding: 9px 18px; font-size: 0.83rem; font-weight: 700;
-        color: #0a2540; cursor: pointer; text-decoration: none;
-        margin-bottom: 2rem; transition: background 0.15s;
+        background: #f0f4f8; border: 1px solid #e4eaf2; border-radius: 10px;
+        padding: 9px 16px 9px 12px; font-size: 0.82rem; font-weight: 700;
+        color: #0a2540; cursor: pointer; text-decoration: none !important;
+        margin-bottom: 2rem; transition: background 0.15s, border-color 0.15s;
+        letter-spacing: -0.01em;
     }
-    .ins-back-btn:hover { background: #e2eaf4; color: #0a2540; }
+    .ins-back-btn:hover { background: #e2eaf4; border-color: #c8d8e8; color: #0a2540; }
     </style>""", unsafe_allow_html=True)
 
     # ── Hero ─────────────────────────────────────────────────────────────
@@ -5789,45 +5806,57 @@ elif page == "Insights":
     """, unsafe_allow_html=True)
 
     # ── Picker cards (shown when no graphic is selected) ─────────────────
+    _arrow_svg = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#003660" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>'
+    _back_svg   = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>'
+
+    _icon_sdg = '''<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#2a7a3b" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="12" cy="12" r="10"/>
+      <polyline points="12 8 12 12 14.5 14.5"/>
+      <line x1="2" y1="12" x2="6" y2="12"/>
+      <line x1="18" y1="12" x2="22" y2="12"/>
+      <line x1="12" y1="2" x2="12" y2="6"/>
+      <line x1="12" y1="18" x2="12" y2="22"/>
+    </svg>'''
+    _icon_orgs = '''<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#1d4ed8" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="12" cy="5" r="2"/>
+      <circle cx="5" cy="17" r="2"/>
+      <circle cx="19" cy="17" r="2"/>
+      <line x1="12" y1="7" x2="5" y2="15"/>
+      <line x1="12" y1="7" x2="19" y2="15"/>
+      <line x1="5" y1="17" x2="19" y2="17"/>
+    </svg>'''
+    _icon_globe = '''<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#0369a1" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="12" cy="12" r="10"/>
+      <line x1="2" y1="12" x2="22" y2="12"/>
+      <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+    </svg>'''
+
     if not _ins_view:
         st.markdown(f"""
         <div class="ins-picker-row">
           <a class="ins-picker-card" href="{_ins_base_url}&ins_view=sdg" target="_self">
-            <div class="ins-picker-icon" style="background:#e8f4e8;">🎯</div>
+            <div class="ins-picker-icon" style="background:#e6f4eb;">{_icon_sdg}</div>
             <div class="ins-picker-title">SDG Universe</div>
-            <div class="ins-picker-desc">
-              Which Sustainable Development Goals does this programme address?
-              Explore all 17 goals, see how many theses are linked to each,
-              and click any segment to browse them.
-            </div>
-            <span class="ins-picker-cta">Explore goals</span>
+            <div class="ins-picker-desc">Which Sustainable Development Goals does this programme address? Explore all 17 goals, see how many theses are linked to each, and click any segment to browse them.</div>
+            <div class="ins-picker-arrow">{_arrow_svg}</div>
           </a>
           <a class="ins-picker-card" href="{_ins_base_url}&ins_view=orgs" target="_self">
-            <div class="ins-picker-icon" style="background:#e8eef8;">🌐</div>
+            <div class="ins-picker-icon" style="background:#e8effe;">{_icon_orgs}</div>
             <div class="ins-picker-title">Partner Organisations</div>
-            <div class="ins-picker-desc">
-              Which organisations are shaping this programme's research?
-              Each node in this interactive galaxy represents a partner,
-              clustered by sector — hover to identify, click to explore.
-            </div>
-            <span class="ins-picker-cta">View galaxy</span>
+            <div class="ins-picker-desc">Which organisations are shaping this programme's research? Each node in this interactive galaxy represents a partner — hover to identify, click to explore.</div>
+            <div class="ins-picker-arrow">{_arrow_svg}</div>
           </a>
           <a class="ins-picker-card" href="{_ins_base_url}&ins_view=globe" target="_self">
-            <div class="ins-picker-icon" style="background:#eef4fb;">🌍</div>
+            <div class="ins-picker-icon" style="background:#e0f2fc;">{_icon_globe}</div>
             <div class="ins-picker-title">Research Geography</div>
-            <div class="ins-picker-desc">
-              Where in the world does the research take place?
-              Spin the interactive globe and click any country bubble
-              to see the theses conducted there.
-            </div>
-            <span class="ins-picker-cta">Open globe</span>
+            <div class="ins-picker-desc">Where in the world does the research take place? Spin the interactive globe and click any country bubble to see the theses conducted there.</div>
+            <div class="ins-picker-arrow">{_arrow_svg}</div>
           </a>
         </div>
         """, unsafe_allow_html=True)
     else:
-        # Back button
         st.markdown(
-            f"<a class='ins-back-btn' href='{_ins_back_url}' target='_self'>← Back to overview</a>",
+            f"<a class='ins-back-btn' href='{_ins_back_url}' target='_self'>{_back_svg} Back to overview</a>",
             unsafe_allow_html=True,
         )
 
@@ -7042,279 +7071,6 @@ window.addEventListener('resize',function(){{
 """
         _render_html_iframe(_geo_html, height=580)
         st.markdown("<div style='margin-bottom:3rem;'></div>", unsafe_allow_html=True)
-
-    # ══════════════════════════════════════════════════════════════════════
-    # SECTION 4 — METHODOLOGY DNA
-    # ══════════════════════════════════════════════════════════════════════
-    _meth_counts = {k: v for k, v in _ins_data["method_counts"].items()
-                    if k.lower() not in ("n/a", "nan", "") and v >= 1}
-    if _meth_counts:
-        st.markdown("""
-        <div class="ins-section">
-          <div class="ins-section-header">
-            <div class="ins-section-number">04</div>
-            <div class="ins-section-text">
-              <div class="ins-section-title">Methodology DNA</div>
-              <div class="ins-section-desc">The research methods that define how this programme investigates the world.</div>
-            </div>
-          </div>
-        </div>
-        """, unsafe_allow_html=True)
-
-        _meth_sorted = sorted(_meth_counts.items(), key=lambda x: -x[1])
-        _meth_total = sum(v for _, v in _meth_sorted)
-        _meth_payload = []
-        for _mk, _mv in _meth_sorted:
-            _meth_payload.append({
-                "name": _mk,
-                "count": _mv,
-                "pct": round(100 * _mv / max(_meth_total, 1), 1),
-                "color": _INS_METHOD_HEX.get(_mk, "#7a8fa8"),
-            })
-        _meth_json = _ins_json.dumps(_meth_payload, ensure_ascii=False)
-
-        _meth_html = f"""
-<style>
-*{{box-sizing:border-box;margin:0;padding:0;}}
-body{{font-family:'Inter',-apple-system,sans-serif;background:transparent;}}
-#meth-wrap{{padding:4px;}}
-.meth-row{{
-  display:flex;align-items:center;gap:1rem;margin-bottom:1rem;
-  opacity:0;transform:translateX(-24px);
-  animation:methIn 0.55s cubic-bezier(.34,1.56,.64,1) forwards;
-}}
-@keyframes methIn{{to{{opacity:1;transform:translateX(0);}}}}
-.meth-label{{
-  min-width:220px;max-width:220px;font-size:0.82rem;font-weight:700;
-  color:#0a2540;line-height:1.3;flex-shrink:0;
-}}
-.meth-bar-bg{{
-  flex:1;background:#f0f4f9;border-radius:99px;height:20px;overflow:hidden;
-  position:relative;
-}}
-.meth-bar-fill{{
-  height:100%;border-radius:99px;width:0;
-  transition:width 1.2s cubic-bezier(.4,0,.2,1);
-}}
-.meth-count{{
-  min-width:90px;text-align:right;font-size:0.8rem;font-weight:700;
-  color:#0a2540;flex-shrink:0;
-}}
-.meth-pct{{font-size:0.72rem;color:#9aa5b4;font-weight:500;}}
-</style>
-<div id="meth-wrap"></div>
-<script>
-var MDATA={_meth_json};
-var wrap=document.getElementById('meth-wrap');
-var maxCount=MDATA[0].count;
-
-MDATA.forEach(function(d,i){{
-  var row=document.createElement('div');
-  row.className='meth-row';
-  row.style.animationDelay=(i*80)+'ms';
-  var pct=Math.round(100*d.count/maxCount);
-  row.innerHTML=
-    '<div class="meth-label">'+d.name+'</div>'
-    +'<div class="meth-bar-bg"><div class="meth-bar-fill" id="mbar'+i+'" style="background:'+d.color+'"></div></div>'
-    +'<div class="meth-count">'+d.count+' <span class="meth-pct">('+d.pct+'%)</span></div>';
-  wrap.appendChild(row);
-}});
-
-// Animate bars after paint
-requestAnimationFrame(function(){{
-  requestAnimationFrame(function(){{
-    MDATA.forEach(function(d,i){{
-      var pct=Math.round(100*d.count/maxCount);
-      var el=document.getElementById('mbar'+i);
-      if(el)el.style.width=pct+'%';
-    }});
-  }});
-}});
-</script>
-"""
-        _render_html_iframe(_meth_html, height=max(120, len(_meth_sorted) * 60 + 20))
-        st.markdown("<div style='margin-bottom:3rem;'></div>", unsafe_allow_html=True)
-
-    # ══════════════════════════════════════════════════════════════════════
-    # SECTION 5 — SECTOR TIMELINE
-    # ══════════════════════════════════════════════════════════════════════
-    _sector_year = _ins_data["sector_year"]
-    _timeline_years = _ins_data["years"]
-    if _sector_year and len(_timeline_years) >= 2:
-        st.markdown("""
-        <div class="ins-section">
-          <div class="ins-section-header">
-            <div class="ins-section-number">05</div>
-            <div class="ins-section-text">
-              <div class="ins-section-title">Sector Timeline</div>
-              <div class="ins-section-desc">How research focus has shifted across sectors over the years. Hover a line to highlight.</div>
-            </div>
-          </div>
-        </div>
-        """, unsafe_allow_html=True)
-
-        _sec_payload = []
-        for _sec, _sec_counts in sorted(
-            _sector_year.items(),
-            key=lambda x: -sum(x[1]),
-        ):
-            if sum(_sec_counts) == 0:
-                continue
-            _sec_payload.append({
-                "name": _sec,
-                "color": _INS_SECTOR_HEX.get(_sec, "#7a8fa8"),
-                "counts": _sec_counts,
-            })
-        _sec_json = _ins_json.dumps({
-            "sectors": _sec_payload,
-            "years": _timeline_years,
-        }, ensure_ascii=False)
-
-        _timeline_html = f"""
-<style>
-*{{box-sizing:border-box;margin:0;padding:0;}}
-body{{font-family:'Inter',-apple-system,sans-serif;background:transparent;overflow:hidden;}}
-#tl-wrap{{position:relative;width:100%;}}
-#tl-svg{{width:100%;display:block;}}
-#tl-legend{{
-  display:flex;flex-wrap:wrap;gap:0.8rem 1.4rem;
-  margin-top:0.8rem;padding:0 8px;
-}}
-.tl-legend-item{{
-  display:flex;align-items:center;gap:0.4rem;
-  font-size:0.75rem;font-weight:600;color:#4a5568;cursor:pointer;
-  padding:0.2rem 0.4rem;border-radius:6px;transition:background 0.15s;
-}}
-.tl-legend-item:hover{{background:#f0f4f9;}}
-.tl-legend-dot{{width:10px;height:10px;border-radius:50%;flex-shrink:0;}}
-#tl-tooltip{{
-  position:fixed;background:#fff;border:1px solid #e2e8f0;
-  border-radius:10px;padding:0.6rem 0.9rem;pointer-events:none;
-  box-shadow:0 4px 18px rgba(0,54,96,0.13);font-size:0.78rem;
-  display:none;z-index:999;min-width:140px;
-}}
-</style>
-<div id="tl-wrap">
-  <svg id="tl-svg" height="300"></svg>
-  <div id="tl-legend"></div>
-</div>
-<div id="tl-tooltip"></div>
-<script>
-var TL={_sec_json};
-var svg=document.getElementById('tl-svg');
-var legend=document.getElementById('tl-legend');
-var tooltip=document.getElementById('tl-tooltip');
-var W=800,H=300,PAD={{t:20,r:20,b:40,l:48}};
-var years=TL.years;
-var sectors=TL.sectors;
-var maxVal=0;
-sectors.forEach(function(s){{s.counts.forEach(function(c){{if(c>maxVal)maxVal=c;}});}});
-if(maxVal===0)maxVal=1;
-var xStep=(W-PAD.l-PAD.r)/(Math.max(years.length-1,1));
-
-function xPos(i){{return PAD.l+i*xStep;}}
-function yPos(v){{return PAD.t+(H-PAD.t-PAD.b)*(1-v/maxVal);}}
-
-function makePath(counts){{
-  var pts=counts.map(function(c,i){{return xPos(i)+','+yPos(c);}});
-  return 'M'+pts.join(' L');
-}}
-
-svg.setAttribute('viewBox','0 0 '+W+' '+H);
-svg.setAttribute('preserveAspectRatio','xMidYMid meet');
-
-// Grid lines
-for(var gi=0;gi<=4;gi++){{
-  var gy=PAD.t+(H-PAD.t-PAD.b)*gi/4;
-  var gl=document.createElementNS('http://www.w3.org/2000/svg','line');
-  gl.setAttribute('x1',PAD.l);gl.setAttribute('x2',W-PAD.r);
-  gl.setAttribute('y1',gy);gl.setAttribute('y2',gy);
-  gl.setAttribute('stroke','#e8edf3');gl.setAttribute('stroke-width','1');
-  svg.appendChild(gl);
-  var gv=Math.round(maxVal*(1-gi/4));
-  var gt=document.createElementNS('http://www.w3.org/2000/svg','text');
-  gt.setAttribute('x',PAD.l-6);gt.setAttribute('y',gy+4);
-  gt.setAttribute('text-anchor','end');gt.setAttribute('font-size','10');
-  gt.setAttribute('fill','#9aa5b4');gt.textContent=gv;
-  svg.appendChild(gt);
-}}
-
-// X axis labels
-years.forEach(function(y,i){{
-  var xt=document.createElementNS('http://www.w3.org/2000/svg','text');
-  xt.setAttribute('x',xPos(i));xt.setAttribute('y',H-PAD.b+16);
-  xt.setAttribute('text-anchor','middle');xt.setAttribute('font-size','11');
-  xt.setAttribute('fill','#6b7a8d');xt.setAttribute('font-weight','600');
-  xt.textContent=y;
-  svg.appendChild(xt);
-}});
-
-var pathEls={{}};
-sectors.forEach(function(s,si){{
-  var path=document.createElementNS('http://www.w3.org/2000/svg','path');
-  path.setAttribute('d',makePath(s.counts));
-  path.setAttribute('fill','none');
-  path.setAttribute('stroke',s.color);
-  path.setAttribute('stroke-width','2.5');
-  path.setAttribute('stroke-linecap','round');
-  path.setAttribute('stroke-linejoin','round');
-  path.setAttribute('opacity','0.85');
-  path.style.transition='opacity 0.2s,stroke-width 0.2s';
-  // animate draw
-  var len=path.getTotalLength?path.getTotalLength():1000;
-  path.style.strokeDasharray=len;
-  path.style.strokeDashoffset=len;
-  path.style.animation='drawLine 1.4s cubic-bezier(.4,0,.2,1) '+(si*120)+'ms forwards';
-  svg.appendChild(path);
-  pathEls[s.name]=path;
-
-  // dots
-  s.counts.forEach(function(c,i){{
-    if(c===0)return;
-    var circle=document.createElementNS('http://www.w3.org/2000/svg','circle');
-    circle.setAttribute('cx',xPos(i));circle.setAttribute('cy',yPos(c));
-    circle.setAttribute('r','4');circle.setAttribute('fill',s.color);
-    circle.setAttribute('stroke','#fff');circle.setAttribute('stroke-width','2');
-    circle.style.cursor='default';
-    circle.addEventListener('mouseenter',function(e){{
-      showTip(e,s.name,years[i],c);
-    }});
-    circle.addEventListener('mouseleave',hideTip);
-    svg.appendChild(circle);
-  }});
-}});
-
-// CSS animation keyframe via style tag
-var styleEl=document.createElement('style');
-styleEl.textContent='@keyframes drawLine{{to{{stroke-dashoffset:0}}}}';
-document.head.appendChild(styleEl);
-
-// Legend
-sectors.forEach(function(s){{
-  var item=document.createElement('div');
-  item.className='tl-legend-item';
-  item.innerHTML='<div class="tl-legend-dot" style="background:'+s.color+'"></div>'+s.name;
-  item.addEventListener('mouseenter',function(){{
-    Object.values(pathEls).forEach(function(p){{p.style.opacity='0.15';p.style.strokeWidth='2';}});
-    if(pathEls[s.name]){{pathEls[s.name].style.opacity='1';pathEls[s.name].style.strokeWidth='3.5';}}
-  }});
-  item.addEventListener('mouseleave',function(){{
-    Object.values(pathEls).forEach(function(p){{p.style.opacity='0.85';p.style.strokeWidth='2.5';}});
-  }});
-  legend.appendChild(item);
-}});
-
-function showTip(e,sector,year,count){{
-  tooltip.style.display='block';
-  tooltip.innerHTML='<b>'+sector+'</b><br/>'+year+': <b>'+count+'</b> thesis'+(count!==1?'es':'');
-  moveTip(e);
-}}
-function moveTip(e){{tooltip.style.left=(e.clientX+12)+'px';tooltip.style.top=(e.clientY-38)+'px';}}
-function hideTip(){{tooltip.style.display='none';}}
-svg.addEventListener('mousemove',moveTip);
-</script>
-"""
-        _render_html_iframe(_timeline_html, height=420)
 
 elif page == "Supervisors" and PROGRAM == _ALL_PROGRAM_KEY:
     # Supervisors view is per-programme; gracefully redirect users in all-mode.
