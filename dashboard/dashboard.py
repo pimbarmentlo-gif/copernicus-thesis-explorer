@@ -415,7 +415,7 @@ PROGRAM_DIR = os.path.abspath(
 st.set_page_config(page_title="Copernicus Thesis Explorer",
                    page_icon=os.path.join(os.path.dirname(__file__), "Utrecht_University_logo_round.svg"),
                    layout="wide",
-                   initial_sidebar_state="collapsed")
+                   initial_sidebar_state="expanded")
 
 # session state for details overlay
 if 'selected_details' not in st.session_state:
@@ -2148,6 +2148,12 @@ st.markdown(
         font-size: 5rem;
         line-height: 1;
         display: inline-block;
+    }
+    /* hide sidebar collapse/expand toggle buttons */
+    button[data-testid="collapsedControl"],
+    button[aria-label="Close sidebar"],
+    section[data-testid="stSidebar"] > div:first-child > button:first-child {
+        display: none !important;
     }
     </style>
     """,
