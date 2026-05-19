@@ -3716,21 +3716,6 @@ if show_explorer_filters:
                         _org_vals.add(_part)
             internship_org_options = sorted(_org_vals, key=lambda x: x.lower())
 
-            # Theory filter — build deduplicated atomic list, use searchable selectbox
-            _theory_set: set[str] = set()
-            if "Theories" in df.columns:
-                for _tv in df["Theories"].dropna():
-                    for _tp in str(_tv).replace(";", ",").split(","):
-                        _tp = _tp.strip()
-                        if len(_tp) > 3 and _tp.lower() not in ("n/a", "nan", ""):
-                            _theory_set.add(_tp)
-            theory_options = sorted(_theory_set, key=lambda x: x.lower())
-            _saved_theory = st.session_state.saved_theory_filter or None
-            _theory_idx = (
-                theory_options.index(_saved_theory)
-                if _saved_theory and _saved_theory in theory_options
-                else None
-            )
 
             year_filter = st.multiselect(
                 "Year", year_options,
@@ -3764,13 +3749,6 @@ if show_explorer_filters:
                 default=[v for v in st.session_state.saved_method_filter if v in method_options],
                 key="filter_method",
             )
-            theory_filter = st.selectbox(
-                "Theory / Framework",
-                options=theory_options,
-                index=_theory_idx,
-                placeholder="Type to search theories…",
-                key="filter_theory",
-            ) or ""
             geo_filter = st.multiselect(
                 "Country", geo_options,
                 default=[v for v in st.session_state.saved_geo_filter if v in geo_options],
@@ -3819,7 +3797,6 @@ if show_explorer_filters:
         sdg_filter = []
         sector_filter = []
         method_filter = []
-        theory_filter = ""
         geo_filter = []
         scale_filter = []
         internship_org_filter = []
@@ -3900,7 +3877,8 @@ if show_explorer_filters:
             filtered_df["Author(s)"].fillna("") + " " +
             filtered_df["Keywords"].fillna("") + " " +
             filtered_df["Abstract/Summary"].fillna("") + " " +
-            filtered_df["Main Research Question"].fillna("")
+            filtered_df["Main Research Question"].fillna("") + " " +
+            filtered_df["Theories"].fillna("")
         ).str.lower()
         _tokens = [t for t in _q.lower().split() if len(t) >= 2]
         if _tokens:
@@ -3908,14 +3886,6 @@ if show_explorer_filters:
             for _tok in _tokens[1:]:
                 _mask = _mask & _search_blob.str.contains(_tok, regex=False, na=False)
             filtered_df = filtered_df[_mask]
-
-    if theory_filter and theory_filter.strip():
-        _theory_query = theory_filter.strip().lower()
-        filtered_df = filtered_df[
-            filtered_df["Theories"].apply(
-                lambda raw: _theory_query in str(raw).lower() if pd.notna(raw) else False
-            )
-        ]
 
     # show summary of active filters
     active_filters_count = sum(
@@ -3926,7 +3896,6 @@ if show_explorer_filters:
             sdg_filter,
             sector_filter,
             method_filter,
-            theory_filter,
             geo_filter,
             scale_filter,
             internship_org_filter,
@@ -3941,7 +3910,6 @@ if show_explorer_filters:
     st.session_state.saved_sdg_filter = sdg_filter
     st.session_state.saved_sector_filter = sector_filter
     st.session_state.saved_method_filter = method_filter
-    st.session_state.saved_theory_filter = theory_filter
     st.session_state.saved_geo_filter = geo_filter
     st.session_state.saved_scale_filter = scale_filter
     st.session_state.saved_internship_org_filter = internship_org_filter
