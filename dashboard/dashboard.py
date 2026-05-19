@@ -5627,6 +5627,12 @@ elif page == "Insights":
 
     _ins_data = _compute_insights(df, PROGRAM)
 
+    # ── which graphic is selected (if any) ───────────────────────────────
+    _ins_view = st.query_params.get("ins_view", "")
+    _enc_prog = urllib.parse.quote(PROGRAM, safe="")
+    _ins_base_url = f"?program={_enc_prog}&nav=Insights"
+    _ins_back_url = _ins_base_url  # clears ins_view
+
     # ── page CSS ──────────────────────────────────────────────────────────
     st.markdown("""<style>
     /* ── Insights hero ── */
@@ -5687,6 +5693,58 @@ elif page == "Insights":
         font-size: 0.83rem; color: #6b7a8d; margin: 0.2rem 0 0;
         font-weight: 400;
     }
+
+    /* ── Graphic picker cards ── */
+    .ins-picker-row {
+        display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.4rem;
+        margin-bottom: 3rem;
+    }
+    .ins-picker-card {
+        display: flex; flex-direction: column; align-items: flex-start;
+        background: #fff; border: 1.5px solid #e8edf4; border-radius: 20px;
+        padding: 2rem 1.8rem 1.8rem; cursor: pointer; text-decoration: none;
+        transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+        position: relative; overflow: hidden;
+    }
+    .ins-picker-card::before {
+        content: ''; position: absolute; inset: 0; border-radius: 20px;
+        background: linear-gradient(135deg, rgba(0,54,96,0.03) 0%, transparent 70%);
+        pointer-events: none;
+    }
+    .ins-picker-card:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 12px 32px rgba(0,54,96,0.13);
+        border-color: #003660;
+    }
+    .ins-picker-icon {
+        width: 64px; height: 64px; border-radius: 16px;
+        display: flex; align-items: center; justify-content: center;
+        font-size: 2rem; margin-bottom: 1.2rem; flex-shrink: 0;
+    }
+    .ins-picker-title {
+        font-size: 1.1rem; font-weight: 800; color: #0a2540;
+        margin: 0 0 0.5rem; letter-spacing: -0.01em;
+    }
+    .ins-picker-desc {
+        font-size: 0.82rem; color: #6b7a8d; line-height: 1.55;
+        margin: 0 0 1.4rem; flex: 1;
+    }
+    .ins-picker-cta {
+        font-size: 0.78rem; font-weight: 700; color: #003660;
+        display: inline-flex; align-items: center; gap: 5px;
+        text-transform: uppercase; letter-spacing: 0.08em;
+    }
+    .ins-picker-cta::after { content: '→'; font-size: 0.9rem; }
+
+    /* ── Back button ── */
+    .ins-back-btn {
+        display: inline-flex; align-items: center; gap: 8px;
+        background: #f0f4f8; border: none; border-radius: 10px;
+        padding: 9px 18px; font-size: 0.83rem; font-weight: 700;
+        color: #0a2540; cursor: pointer; text-decoration: none;
+        margin-bottom: 2rem; transition: background 0.15s;
+    }
+    .ins-back-btn:hover { background: #e2eaf4; color: #0a2540; }
     </style>""", unsafe_allow_html=True)
 
     # ── Hero ─────────────────────────────────────────────────────────────
@@ -5730,20 +5788,64 @@ elif page == "Insights":
     </div>
     """, unsafe_allow_html=True)
 
+    # ── Picker cards (shown when no graphic is selected) ─────────────────
+    if not _ins_view:
+        st.markdown(f"""
+        <div class="ins-picker-row">
+          <a class="ins-picker-card" href="{_ins_base_url}&ins_view=sdg" target="_self">
+            <div class="ins-picker-icon" style="background:#e8f4e8;">🎯</div>
+            <div class="ins-picker-title">SDG Universe</div>
+            <div class="ins-picker-desc">
+              Which Sustainable Development Goals does this programme address?
+              Explore all 17 goals, see how many theses are linked to each,
+              and click any segment to browse them.
+            </div>
+            <span class="ins-picker-cta">Explore goals</span>
+          </a>
+          <a class="ins-picker-card" href="{_ins_base_url}&ins_view=orgs" target="_self">
+            <div class="ins-picker-icon" style="background:#e8eef8;">🌐</div>
+            <div class="ins-picker-title">Partner Organisations</div>
+            <div class="ins-picker-desc">
+              Which organisations are shaping this programme's research?
+              Each node in this interactive galaxy represents a partner,
+              clustered by sector — hover to identify, click to explore.
+            </div>
+            <span class="ins-picker-cta">View galaxy</span>
+          </a>
+          <a class="ins-picker-card" href="{_ins_base_url}&ins_view=globe" target="_self">
+            <div class="ins-picker-icon" style="background:#eef4fb;">🌍</div>
+            <div class="ins-picker-title">Research Geography</div>
+            <div class="ins-picker-desc">
+              Where in the world does the research take place?
+              Spin the interactive globe and click any country bubble
+              to see the theses conducted there.
+            </div>
+            <span class="ins-picker-cta">Open globe</span>
+          </a>
+        </div>
+        """, unsafe_allow_html=True)
+    else:
+        # Back button
+        st.markdown(
+            f"<a class='ins-back-btn' href='{_ins_back_url}' target='_self'>← Back to overview</a>",
+            unsafe_allow_html=True,
+        )
+
     # ══════════════════════════════════════════════════════════════════════
     # SECTION 1 — SDG UNIVERSE
     # ══════════════════════════════════════════════════════════════════════
-    st.markdown("""
-    <div class="ins-section">
-      <div class="ins-section-header">
-        <div class="ins-section-number">01</div>
-        <div class="ins-section-text">
-          <div class="ins-section-title">SDG Universe</div>
-          <div class="ins-section-desc">Which Sustainable Development Goals does the research address? Click any goal to explore linked theses.</div>
+    if _ins_view == "sdg":
+        st.markdown("""
+        <div class="ins-section">
+          <div class="ins-section-header">
+            <div class="ins-section-number">01</div>
+            <div class="ins-section-text">
+              <div class="ins-section-title">SDG Universe</div>
+              <div class="ins-section-desc">Which Sustainable Development Goals does the research address? Click any goal to explore linked theses.</div>
+            </div>
+          </div>
         </div>
-      </div>
-    </div>
-    """, unsafe_allow_html=True)
+        """, unsafe_allow_html=True)
 
     # Build SDG data payload. Theses are capped at 40 per SDG to keep the
     # JSON payload reasonable while still exposing the full list to the modal.
@@ -6118,12 +6220,13 @@ document.addEventListener('click',function(e){{
 </script>
 """
 
-    _render_html_iframe(_sdg_html, height=760)
+    if _ins_view == "sdg":
+        _render_html_iframe(_sdg_html, height=760)
 
     # ══════════════════════════════════════════════════════════════════════
     # SECTION 2 — PARTNER ORGANISATION GALAXY
     # ══════════════════════════════════════════════════════════════════════
-    if _ins_data["org_theses"]:
+    if _ins_view == "orgs" and _ins_data["org_theses"]:
         st.markdown("""
         <div class="ins-section">
           <div class="ins-section-header">
@@ -6506,7 +6609,7 @@ sim.on('end',function(){{drift();}});
                        if k.lower() not in ("global", "multi-region", "europe", "africa", "asia",
                                             "latin america", "middle east", "n/a", "nan", "")
                        and v >= 1}
-    if _country_counts:
+    if _ins_view == "globe" and _country_counts:
         st.markdown("""
         <div class="ins-section">
           <div class="ins-section-header">
