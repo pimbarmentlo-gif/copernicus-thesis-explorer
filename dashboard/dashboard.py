@@ -381,16 +381,19 @@ class _PDFHandler(_http_server.SimpleHTTPRequestHandler):
     def log_message(self, *args):
         pass  # silence access log
 
-_PDF_SERVER_PORT: int = 0
-for _port in range(8502, 8520):
+@st.cache_resource(show_spinner=False)
+def _start_pdf_server() -> int:
+    """Start a one-off CORS-enabled HTTP server for serving PDFs.
+    Wrapped in cache_resource so it runs exactly once per process lifetime,
+    preventing port exhaustion from multiple script reruns."""
     try:
-        _pdf_srv = _socketserver.TCPServer(("127.0.0.1", _port), _PDFHandler)
-        _pdf_srv.allow_reuse_address = True
-        _threading.Thread(target=_pdf_srv.serve_forever, daemon=True).start()
-        _PDF_SERVER_PORT = _port
-        break
+        srv = _socketserver.TCPServer(("127.0.0.1", 0), _PDFHandler)
+        _threading.Thread(target=srv.serve_forever, daemon=True).start()
+        return srv.server_address[1]  # OS-assigned port
     except OSError:
-        continue
+        return 0
+
+_PDF_SERVER_PORT: int = _start_pdf_server()
 
 # Map programme keys (used in URLs/session state) to actual folder names on disk.
 _PROGRAMME_FOLDER_MAP = {
