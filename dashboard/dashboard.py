@@ -2440,7 +2440,7 @@ pdfjsLib.GlobalWorkerOptions.workerSrc =
 var origin = (window.parent && window.parent.location)
                ? window.parent.location.origin : window.location.origin;
 var rawUrl  = '{static_url}';
-var pdfUrl  = rawUrl.startsWith('http') ? rawUrl : (origin + rawUrl);
+var pdfUrl  = (rawUrl.startsWith('data:') || rawUrl.startsWith('http')) ? rawUrl : (origin + rawUrl);
 var DPR     = window.devicePixelRatio || 1;
 
 var doc = null, pgEls = [], rendered = {{}};
