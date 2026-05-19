@@ -4007,25 +4007,28 @@ if page == "Explorer":
 
             if has_pdf:
                 _render_back_btn("back_btn_details_pdf")
+            else:
+                _render_back_btn("back_btn_details_no_pdf")
 
-                # ── Hero header ──
-                st.markdown(
-                    f"<div class='detail-hero-title'>{matching_row['Title']}</div>"
-                    f"<div class='detail-hero-meta'>"
-                    f"<strong>{matching_row['Author(s)']}</strong>"
-                    f"<span class='sep'>•</span>{matching_row['Year']}"
-                    f"</div>",
-                    unsafe_allow_html=True,
-                )
-                featured_banner = _featured_badge_html(bool(matching_row.get('Featured', False)))
-                if featured_banner:
-                    st.markdown(f"<div class='featured-strip'>{featured_banner}</div>", unsafe_allow_html=True)
-                st.markdown("")
+            # ── Hero header ──
+            st.markdown(
+                f"<div class='detail-hero-title'>{matching_row['Title']}</div>"
+                f"<div class='detail-hero-meta'>"
+                f"<strong>{matching_row['Author(s)']}</strong>"
+                f"<span class='sep'>•</span>{matching_row['Year']}"
+                f"</div>",
+                unsafe_allow_html=True,
+            )
+            featured_banner = _featured_badge_html(bool(matching_row.get('Featured', False)))
+            if featured_banner:
+                st.markdown(f"<div class='featured-strip'>{featured_banner}</div>", unsafe_allow_html=True)
+            st.markdown("")
 
-                # ── Two-column layout: PDF | Metadata ──
-                col_pdf, col_meta = st.columns([5, 4], gap="large")
+            # ── Two-column layout: PDF | Metadata ──
+            col_pdf, col_meta = st.columns([5, 4], gap="large")
 
-                with col_pdf:
+            with col_pdf:
+                if has_pdf:
                     # Embed PDF as base64 data URI — works on Streamlit Cloud where
                     # 127.0.0.1 server URLs are unreachable from the user's browser.
                     _det_dl_bytes_preview = _load_pdf_bytes_cached(pdf_path)
@@ -4055,57 +4058,30 @@ if page == "Explorer":
                                 key=f"details_download_{pdf_name}",
                                 width='stretch',
                             )
-
-                with col_meta:
-                    render_structured_details_sections(matching_row)
-
-                render_related_thesis_cards(matching_row, "details_reader_related_view")
-            else:
-                _render_back_btn("back_btn_details_no_pdf")
-
-                # ── Hero header ──
-                cover_path, _ = resolve_cover_and_pdf_paths(matching_row)
-                hero_c1, hero_c2 = st.columns([1, 4], gap="medium")
-                with hero_c1:
-                    if cover_path and os.path.exists(cover_path):
-                        st.image(cover_path, width=220)
-                    else:
-                        st.markdown(
-                            "<div style='width:200px;height:140px;background:#eee;border-radius:8px;"
-                            "display:flex;align-items:center;justify-content:center;"
-                            "color:#666;font-style:italic;'>No cover available</div>",
-                            unsafe_allow_html=True,
-                        )
-                with hero_c2:
+                else:
+                    # PDF not available locally (e.g. Streamlit Cloud) — show placeholder
                     st.markdown(
-                        f"<div class='detail-hero-title'>{matching_row['Title']}</div>"
-                        f"<div class='detail-hero-meta'>"
-                        f"<strong>{matching_row['Author(s)']}</strong>"
-                        f"<span class='sep'>•</span>{matching_row['Year']}"
-                        f"</div>",
+                        "<div style='"
+                        "height:850px;background:#f0f2f6;border-radius:8px;"
+                        "display:flex;flex-direction:column;align-items:center;"
+                        "justify-content:center;gap:12px;color:#888;"
+                        "border:2px dashed #ccc;'>"
+                        "<svg width='48' height='48' viewBox='0 0 24 24' fill='none' "
+                        "stroke='#bbb' stroke-width='1.5'>"
+                        "<path d='M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z'/>"
+                        "<polyline points='14 2 14 8 20 8'/>"
+                        "</svg>"
+                        "<span style='font-size:15px;font-weight:500;'>PDF not available online</span>"
+                        "<span style='font-size:13px;text-align:center;max-width:260px;'>"
+                        "Download theses via the university repository</span>"
+                        "</div>",
                         unsafe_allow_html=True,
                     )
-                    featured_banner = _featured_badge_html(bool(matching_row.get('Featured', False)))
-                    if featured_banner:
-                        st.markdown(f"<div class='featured-strip'>{featured_banner}</div>", unsafe_allow_html=True)
-                    if pdf_name not in ("n/a", "", "nan"):
-                        if st.button("📖 Open Thesis", key="details_nopdf_open"):
-                            st.session_state.selected_pdf = pdf_name
-                            st.session_state.selected_details = None
-                            st.query_params.clear()
-                            st.query_params["program"] = PROGRAM
-                            st.query_params["pdf"] = pdf_name
-                            st.rerun()
-                        st.markdown(
-                            f"[Browse all theses on Google Drive]({_DRIVE_ROOT_FALLBACK})",
-                            unsafe_allow_html=False,
-                        )
-                    else:
-                        st.caption("PDF not available")
 
-                st.markdown("")
+            with col_meta:
                 render_structured_details_sections(matching_row)
-                render_related_thesis_cards(matching_row, "details_no_pdf_related_view")
+
+            render_related_thesis_cards(matching_row, "details_related_view")
 
         else:
             st.error("The requested thesis details could not be found.")
