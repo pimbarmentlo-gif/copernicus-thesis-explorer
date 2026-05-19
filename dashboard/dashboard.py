@@ -40,7 +40,7 @@ def _render_html_iframe(html_body: str, *, height: int | str = "content") -> Non
 # change (e.g. a different programme directory is requested).
 
 @st.cache_data(show_spinner=False)
-def _load_thesis_data(program_dir: str, program: str, _mtime: float = 0) -> tuple:
+def _load_thesis_data(program_dir: str, program: str, mtime: float = 0) -> tuple:
     """Load, validate and clean the thesis metadata CSV for a programme directory.
 
     Returns (dataframe, error_message).  On success error_message is ''.
@@ -63,6 +63,8 @@ def _load_thesis_data(program_dir: str, program: str, _mtime: float = 0) -> tupl
     # Featured theses for Sustainable Development — matched by Thesis_PDF filename.
     # Koster, Mayer, Harvey, Kálmán, Oelschläger not yet in metadata; will activate once rows are added.
     _featured_sd = {
+        # 2025
+        "aupoix_2025.pdf",          # Séréna Aupoix
         # 2024
         "koster_2024.pdf",          # Fardau Koster (not yet in metadata)
         "mayer_2024.pdf",           # Severin Mayer (not yet in metadata)
@@ -3370,7 +3372,7 @@ if PROGRAM == _ALL_PROGRAM_KEY:
         _p_dir = os.path.abspath(os.path.join(BASE_DIR, "..", "programs", _p_folder))
         _p_metadata = os.path.join(_p_dir, "thesis_metadata_matched.csv")
         _p_mtime = os.path.getmtime(_p_metadata) if os.path.exists(_p_metadata) else 0
-        _p_df, _p_err = _load_thesis_data(_p_dir, _p_key, _p_mtime)
+        _p_df, _p_err = _load_thesis_data(_p_dir, _p_key, mtime=_p_mtime)
         if _p_err:
             _load_errors.append(f"{_p_key}: {_p_err}")
             continue
@@ -3395,7 +3397,7 @@ if PROGRAM == _ALL_PROGRAM_KEY:
 else:
     _metadata_path = os.path.join(PROGRAM_DIR, "thesis_metadata_matched.csv")
     _mtime = os.path.getmtime(_metadata_path) if os.path.exists(_metadata_path) else 0
-    df, _load_error = _load_thesis_data(PROGRAM_DIR, PROGRAM, _mtime)
+    df, _load_error = _load_thesis_data(PROGRAM_DIR, PROGRAM, mtime=_mtime)
     if _load_error:
         st.error(_load_error)
     pdf_folder = os.path.join(PROGRAM_DIR, "pdfs")
