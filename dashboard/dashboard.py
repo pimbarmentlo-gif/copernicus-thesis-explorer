@@ -2184,12 +2184,6 @@ st.markdown(
         line-height: 1;
         display: inline-block;
     }
-    /* hide sidebar collapse/expand toggle buttons */
-    button[data-testid="collapsedControl"],
-    button[aria-label="Close sidebar"],
-    section[data-testid="stSidebar"] > div:first-child > button:first-child {
-        display: none !important;
-    }
     </style>
     """,
     unsafe_allow_html=True,
@@ -3650,6 +3644,29 @@ if not show_explorer_filters:
         </style>
         """,
         unsafe_allow_html=True,
+    )
+else:
+    # On Explorer, force the sidebar to always be visible. Streamlit can
+    # auto-collapse the sidebar on narrow viewports, and since the collapse
+    # button is hidden via CSS the user would have no way to re-expand it.
+    # The JS clicks the (DOM-present but CSS-hidden) expand button whenever
+    # Streamlit has put the sidebar into the collapsed state.
+    _render_html_iframe(
+        """<script>
+(function(){
+  function expand(){
+    var d=window.parent.document;
+    var sb=d.querySelector('[data-testid="stSidebar"]');
+    if(!sb||sb.getAttribute('aria-expanded')!=='false')return;
+    var btn=d.querySelector('button[data-testid="collapsedControl"]');
+    if(btn)btn.click();
+  }
+  expand();
+  setTimeout(expand,150);
+  setTimeout(expand,600);
+})();
+</script>""",
+        height=0,
     )
 
 
