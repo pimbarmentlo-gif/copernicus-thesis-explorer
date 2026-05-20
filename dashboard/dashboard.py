@@ -787,8 +787,19 @@ st.markdown(
        (set in the per-programme tint block) — no opaque white chrome.
        A 1px hairline separates it from content when scrolled. */
     /* Hide Streamlit's built-in top chrome (deploy button, three-dot menu,
-       running indicator) — this dashboard is end-user-facing. */
-    [data-testid="stHeader"] { display: none !important; }
+       running indicator) — this dashboard is end-user-facing.
+       IMPORTANT: stHeader must NOT use display:none because the sidebar
+       expand toggle (collapsedControl) lives inside it. Instead we collapse
+       the header to zero height with overflow:visible so the toggle can still
+       appear as a floating button when the sidebar is collapsed. */
+    [data-testid="stHeader"] {
+        background: transparent !important;
+        height: 0 !important;
+        min-height: 0 !important;
+        overflow: visible !important;
+        border: none !important;
+        box-shadow: none !important;
+    }
     [data-testid="stToolbar"] { display: none !important; }
     [data-testid="stDecoration"] { display: none !important; }
     #MainMenu { display: none !important; }
