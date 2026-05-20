@@ -706,8 +706,14 @@ else:
         st.session_state.selected_details = None
         st.session_state.selected_pdf = None
         _nav_from_query = st.query_params.get("nav")
-        if _nav_from_query in ("Explorer", "Supervisors", "Insights"):
+        if _nav_from_query in ("Supervisors", "Insights"):
             st.session_state.page_nav = _nav_from_query
+        else:
+            # No nav= (or nav=Explorer) means Explorer. Always set explicitly
+            # so stale session state from a previous page never leaks through
+            # when Streamlit handles navigation as an in-session rerun rather
+            # than a full page reload (which doesn't reset session state).
+            st.session_state.page_nav = "Explorer"
 
         # Restore Explorer filter / pagination state from URL — required so
         # that a browser back/forward (which triggers location.replace) lands
