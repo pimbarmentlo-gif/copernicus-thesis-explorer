@@ -3654,36 +3654,45 @@ show_explorer_filters = (
 )
 
 if not show_explorer_filters:
+    # Hide sidebar entirely on non-Explorer pages, and also hide the
+    # floating expand toggle so it doesn't appear as an orphaned button.
     st.markdown(
         """
         <style>
         section[data-testid="stSidebar"] { display: none !important; }
+        button[data-testid="collapsedControl"] { display: none !important; }
         </style>
         """,
         unsafe_allow_html=True,
     )
 else:
-    # On Explorer, force the sidebar to always be visible. Streamlit can
-    # auto-collapse the sidebar on narrow viewports, and since the collapse
-    # button is hidden via CSS the user would have no way to re-expand it.
-    # The JS clicks the (DOM-present but CSS-hidden) expand button whenever
-    # Streamlit has put the sidebar into the collapsed state.
-    _render_html_iframe(
-        """<script>
-(function(){
-  function expand(){
-    var d=window.parent.document;
-    var sb=d.querySelector('[data-testid="stSidebar"]');
-    if(!sb||sb.getAttribute('aria-expanded')!=='false')return;
-    var btn=d.querySelector('button[data-testid="collapsedControl"]');
-    if(btn)btn.click();
-  }
-  expand();
-  setTimeout(expand,150);
-  setTimeout(expand,600);
-})();
-</script>""",
-        height=0,
+    # Force the sidebar permanently open on the Explorer page.
+    # initial_sidebar_state="expanded" only works on first-ever load;
+    # Streamlit Cloud may collapse the sidebar based on stored preferences
+    # or viewport detection on subsequent visits.
+    # window.parent.document JS tricks are blocked by Cloud's iframe CSP.
+    # CSS is the only approach that works in all environments:
+    # override the translateX(-105%) Streamlit applies when collapsing,
+    # and hide close/collapse buttons so users can't collapse it here.
+    st.markdown(
+        """
+        <style>
+        section[data-testid="stSidebar"] {
+            transform: translateX(0) !important;
+            min-width: 18rem !important;
+            width: 18rem !important;
+            display: flex !important;
+            visibility: visible !important;
+            opacity: 1 !important;
+        }
+        button[data-testid="collapsedControl"],
+        section[data-testid="stSidebar"] button[aria-label="Close sidebar"],
+        section[data-testid="stSidebar"] > div:first-child > button:first-child {
+            display: none !important;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
     )
 
 
