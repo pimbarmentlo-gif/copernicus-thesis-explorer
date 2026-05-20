@@ -571,6 +571,13 @@ def _sync_supervisor_url() -> None:
         st.query_params.clear()
         for k, v in qp.items():
             st.query_params[k] = v
+    # Keep _last_synced_params up to date for the Supervisors page so that
+    # _url_changed_externally is computed correctly on the next rerun.
+    # Without this, _last_synced_params stays frozen at whatever the Explorer
+    # last wrote, making _url_changed_externally permanently True on the
+    # Supervisors page and causing sup_search_input to be overwritten from the
+    # URL on every rerun — including while the user is typing.
+    st.session_state._last_synced_params = dict(st.query_params)
 
 
 def _restore_filters_from_url(force: bool = False) -> None:
@@ -705,12 +712,17 @@ else:
         # Restore Explorer filter / pagination state from URL — required so
         # that a browser back/forward (which triggers location.replace) lands
         # the user on the same filtered, paginated grid they left.
+        # Detect whether the URL changed externally (back/forward button, chip
+        # click) vs. a normal widget-triggered rerun.  On a normal rerun the
+        # URL still holds the *previous* value (the sync hasn't fired yet), so
+        # we must NOT clobber widget keys — they already carry the new value.
+        _current_params = dict(st.query_params)
+        _last_params = st.session_state.get("_last_synced_params")
+        _url_changed_externally = (_last_params is None) or (_last_params != _current_params)
+
         # force=True when URL changed externally (chip/clear click or back-button)
         # so widget keys are updated even if session state was preserved.
         if st.session_state.get("page_nav", "Explorer") == "Explorer":
-            _current_params = dict(st.query_params)
-            _last_params = st.session_state.get("_last_synced_params")
-            _url_changed_externally = (_last_params is None) or (_last_params != _current_params)
             _restore_filters_from_url(force=_url_changed_externally)
 
         # Restore Supervisor directory / finder state from URL.
@@ -729,7 +741,13 @@ else:
                     _sup_search_q = st.query_params.get("sup_search")
                     if _sup_search_q is not None:
                         st.session_state.sup_search = str(_sup_search_q)
-                        st.session_state["sup_search_input"] = str(_sup_search_q)
+                        # Only override the widget key when the URL changed
+                        # externally (back/forward). On a normal rerun the
+                        # widget already holds what the user just typed —
+                        # clobbering it here is what caused the search box to
+                        # revert and block further typing.
+                        if _url_changed_externally:
+                            st.session_state["sup_search_input"] = str(_sup_search_q)
 
     else:
         # No URL params → home page (handles browser back-button to home)
@@ -1855,7 +1873,7 @@ st.markdown(
     .homepage-title,
     .stMarkdown h1.homepage-title {
         text-align: center;
-        color: #ffffff !important;
+        color: #0a2540 !important;
         font-size: 2.6em;
         margin-top: 1rem;
         margin-bottom: 0.2rem;
@@ -1863,7 +1881,7 @@ st.markdown(
     .homepage-subtitle,
     .stMarkdown p.homepage-subtitle {
         text-align: center;
-        color: #ffffff !important;
+        color: #0a2540 !important;
         font-size: 1.15em;
         margin-bottom: 2.5rem;
     }
@@ -5993,7 +6011,7 @@ body{{font-family:'Inter',-apple-system,sans-serif;background:transparent;overfl
 .sdg-hd-title{{font-size:1.45rem;font-weight:800;margin-top:2px;letter-spacing:-0.01em;}}
 .sdg-hd-desc{{font-size:0.86rem;line-height:1.5;margin-top:8px;opacity:0.95;max-width:580px;}}
 /* Stats strip */
-.sdg-stats{{display:grid;grid-template-columns:repeat(4,1fr);gap:0;border-bottom:1px solid #eef2f7;background:#fbfcfd;}}
+.sdg-stats{{display:grid;grid-template-columns:repeat(2,1fr);gap:0;border-bottom:1px solid #eef2f7;background:#fbfcfd;}}
 .sdg-stat{{padding:14px 16px;border-right:1px solid #eef2f7;text-align:center;}}
 .sdg-stat:last-child{{border-right:none;}}
 .sdg-stat-v{{font-size:1.35rem;font-weight:800;color:#0a2540;line-height:1.1;}}
@@ -6194,18 +6212,13 @@ function openSDG(d,g,dx,dy){{
     + '</div></div>';
 
   // \u2500\u2500 Stats strip \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
-  var supCount = (d.top_supervisors || []).length;
   var yearKeys = Object.keys(d.year_counts || {{}}).map(Number).filter(function(k){{return !isNaN(k);}}).sort(function(a,b){{return a-b;}});
   var yearSpan = yearKeys.length
     ? (yearKeys[0] === yearKeys[yearKeys.length-1] ? String(yearKeys[0]) : yearKeys[0] + '\u2013' + yearKeys[yearKeys.length-1])
     : '\u2014';
-  var topSector = (d.top_sectors && d.top_sectors.length) ? d.top_sectors[0][0] : '\u2014';
-  var topSectorShort = topSector.length > 22 ? topSector.slice(0,20) + '\u2026' : topSector;
   var stats = '<div class="sdg-stats">'
     + '<div class="sdg-stat"><div class="sdg-stat-v">' + d.count + '</div><div class="sdg-stat-l">Theses</div></div>'
-    + '<div class="sdg-stat"><div class="sdg-stat-v">' + supCount + '</div><div class="sdg-stat-l">Supervisors</div></div>'
     + '<div class="sdg-stat"><div class="sdg-stat-v" style="font-size:1rem;line-height:1.6;">' + yearSpan + '</div><div class="sdg-stat-l">Time Span</div></div>'
-    + '<div class="sdg-stat"><div class="sdg-stat-v" style="font-size:0.95rem;line-height:1.45;">' + esc(topSectorShort) + '</div><div class="sdg-stat-l">Top Sector</div></div>'
     + '</div>';
 
   // \u2500\u2500 Body sections \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
@@ -6217,24 +6230,12 @@ function openSDG(d,g,dx,dy){{
       +   '<div class="sdg-sec-h"><span class="sdg-sec-h-dot"></span>Theses per year</div>'
       +   yearChart(d.year_counts || {{}}, d.color)
       + '</div>';
-    body += '<div class="sdg-sec sdg-grid2">'
-      +   '<div><div class="sdg-sec-h"><span class="sdg-sec-h-dot"></span>Top sectors</div>' + chipRow(d.top_sectors, {{fallback:'No sector data'}}) + '</div>'
-      +   '<div><div class="sdg-sec-h"><span class="sdg-sec-h-dot"></span>Top methodologies</div>' + chipRow(d.top_methods, {{fallback:'No methodology data'}}) + '</div>'
-      + '</div>';
-    if((d.top_theories && d.top_theories.length) || (d.top_countries && d.top_countries.length)){{
-      body += '<div class="sdg-sec sdg-grid2">'
-        +   '<div><div class="sdg-sec-h"><span class="sdg-sec-h-dot"></span>Top theories</div>' + chipRow(d.top_theories, {{fallback:'No theory data'}}) + '</div>'
-        +   '<div><div class="sdg-sec-h"><span class="sdg-sec-h-dot"></span>Top countries</div>' + chipRow(d.top_countries, {{fallback:'No country data'}}) + '</div>'
+    if(d.top_theories && d.top_theories.length){{
+      body += '<div class="sdg-sec">'
+        +   '<div class="sdg-sec-h"><span class="sdg-sec-h-dot"></span>Top theories</div>'
+        +   chipRow(d.top_theories, {{fallback:'No theory data'}})
         + '</div>';
     }}
-    body += '<div class="sdg-sec">'
-      +   '<div class="sdg-sec-h"><span class="sdg-sec-h-dot"></span>Most active supervisors</div>'
-      +   supList(d.top_supervisors)
-      + '</div>';
-    body += '<div class="sdg-sec">'
-      +   '<div class="sdg-sec-h"><span class="sdg-sec-h-dot"></span>Connected goals</div>'
-      +   coRow(d.co_sdgs)
-      + '</div>';
 
     // \u2500\u2500 Theses list \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
     var th = '';
