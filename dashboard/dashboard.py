@@ -3622,7 +3622,6 @@ if not explorer_detail_mode:
 
 show_explorer_filters = (
     page == "Explorer"
-    and not explorer_detail_mode
 )
 
 if not show_explorer_filters:
