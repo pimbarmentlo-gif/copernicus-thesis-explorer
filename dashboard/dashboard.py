@@ -7532,8 +7532,8 @@ elif page == "Supervisors":
     .sup-tag-matched { background: #fff3cd; color: #7c4a00; border: 1px solid #f0c040; }
     .sup-card-year { font-size: 0.71rem; color: #9aa5b4; margin-top: auto; padding-top: 0.25rem; flex-shrink: 0; }
     .sup-profile-hero {
-        background: #f7f9fc; border-radius: 16px; padding: 1.8rem 2rem;
-        border: 1px solid #e2e8f0; margin-bottom: 1.6rem;
+        background: transparent; border-radius: 16px; padding: 1.8rem 2rem;
+        border: none; margin-bottom: 1.6rem;
         display: flex; align-items: flex-start; gap: 1.8rem; flex-wrap: wrap;
     }
     .sup-profile-avatar {
