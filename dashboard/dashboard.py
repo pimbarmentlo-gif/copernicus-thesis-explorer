@@ -3665,15 +3665,37 @@ if not show_explorer_filters:
         """,
         unsafe_allow_html=True,
     )
+elif explorer_detail_mode:
+    # Detail view: sidebar starts collapsed so the thesis content gets full
+    # width, but the expand toggle is visible so the user can pull it open.
+    # Use CSS to force-collapse (translateX away) on page load, then let the
+    # toggle button control it naturally from there.
+    st.markdown(
+        """
+        <style>
+        section[data-testid="stSidebar"] {
+            transform: translateX(-105%) !important;
+            transition: transform 0.3s ease !important;
+        }
+        /* Keep the expand toggle visible and clickable */
+        button[data-testid="collapsedControl"] {
+            display: flex !important;
+            visibility: visible !important;
+            opacity: 1 !important;
+            z-index: 999999 !important;
+        }
+        /* When user manually expands, undo the force-collapse */
+        section[data-testid="stSidebar"][aria-expanded="true"] {
+            transform: translateX(0) !important;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
 else:
-    # Force the sidebar permanently open on the Explorer page.
-    # initial_sidebar_state="expanded" only works on first-ever load;
-    # Streamlit Cloud may collapse the sidebar based on stored preferences
-    # or viewport detection on subsequent visits.
-    # window.parent.document JS tricks are blocked by Cloud's iframe CSP.
-    # CSS is the only approach that works in all environments:
-    # override the translateX(-105%) Streamlit applies when collapsing,
-    # and hide close/collapse buttons so users can't collapse it here.
+    # Explorer grid: force sidebar permanently open — no toggle needed.
+    # CSS override is the only approach that works on Streamlit Cloud
+    # (window.parent JS is blocked by Cloud's iframe CSP).
     st.markdown(
         """
         <style>
@@ -7532,8 +7554,8 @@ elif page == "Supervisors":
     .sup-tag-matched { background: #fff3cd; color: #7c4a00; border: 1px solid #f0c040; }
     .sup-card-year { font-size: 0.71rem; color: #9aa5b4; margin-top: auto; padding-top: 0.25rem; flex-shrink: 0; }
     .sup-profile-hero {
-        background: transparent; border-radius: 16px; padding: 1.8rem 2rem;
-        border: none; margin-bottom: 1.6rem;
+        background: #f7f9fc; border-radius: 16px; padding: 1.8rem 2rem;
+        border: 1px solid #e2e8f0; margin-bottom: 1.6rem;
         display: flex; align-items: flex-start; gap: 1.8rem; flex-wrap: wrap;
     }
     .sup-profile-avatar {
