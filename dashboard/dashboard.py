@@ -6360,6 +6360,14 @@ document.addEventListener('click',function(e){{
             )
             return ctr.most_common(1)[0][0] if ctr else "Other"
 
+        def _describe_org(org_name: str, sector: str, thesis_count: int) -> str:
+            _sector_text = f" in the {sector} cluster" if sector and sector != "Other" else " in this programme"
+            _thesis_word = "thesis" if thesis_count == 1 else "theses"
+            return (
+                f"{org_name} is a partner organisation{_sector_text}. "
+                f"This galaxy links it to {thesis_count} {_thesis_word} in the current research set."
+            )
+
         _org_items_raw = sorted(_ins_data["org_theses"].items(), key=lambda x: -len(x[1]))
         _org_payload = []
         for _org_name, _org_thlist in _org_items_raw:
@@ -6374,6 +6382,7 @@ document.addEventListener('click',function(e){{
                 "sColor": _sec_color,
                 "logo": _logo_b64,
                 "initials": _initials,
+                "description": _describe_org(_org_name, _psector, len(_org_thlist)),
                 "theses": _org_thlist[:10],
             })
 
@@ -6447,6 +6456,7 @@ html,body{{font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-
 .op-logo{{max-width:50px;max-height:50px;object-fit:contain;}}
 .op-ini{{font-size:1.2rem;font-weight:900;color:#fff;}}
 .op-name{{font-size:1rem;font-weight:800;color:#0a2540;line-height:1.3;}}
+.op-desc{{font-size:0.82rem;line-height:1.55;color:#5f6f82;margin-top:0.7rem;}}
 .op-meta{{display:flex;align-items:center;gap:6px;margin-top:4px;}}
 .op-sec-dot{{width:7px;height:7px;border-radius:50%;flex-shrink:0;}}
 .op-sec-label{{font-size:0.7rem;color:rgba(0,0,0,0.45);font-weight:600;}}
@@ -6663,6 +6673,7 @@ function openPanel(d,el){{
     '<div class="op-close"><button onclick="closePanel()" title="Close">&#10005;</button></div>'
     +'<div class="op-hdr">'+lhHtml
     +'<div><div class="op-name">'+esc(d.name)+'</div>'
+        +'<div class="op-desc">'+esc(d.description || '')+'</div>'
     +'<div class="op-meta">'
     +'<span class="op-sec-dot" style="background:'+d.sColor+'"></span>'
     +'<span class="op-sec-label">'+esc(d.sector)+'</span>'
