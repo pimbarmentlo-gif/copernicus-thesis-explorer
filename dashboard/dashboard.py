@@ -415,7 +415,7 @@ PROGRAM_DIR = os.path.abspath(
 st.set_page_config(page_title="Copernicus Thesis Explorer",
                    page_icon=os.path.join(os.path.dirname(__file__), "Utrecht_University_logo_round.svg"),
                    layout="wide",
-                   initial_sidebar_state="expanded")
+                   initial_sidebar_state="collapsed")
 
 # session state for details overlay
 if 'selected_details' not in st.session_state:
@@ -3666,27 +3666,18 @@ if not show_explorer_filters:
         unsafe_allow_html=True,
     )
 elif explorer_detail_mode:
-    # Detail view: sidebar starts collapsed so the thesis content gets full
-    # width, but the expand toggle is visible so the user can pull it open.
-    # Use CSS to force-collapse (translateX away) on page load, then let the
-    # toggle button control it naturally from there.
+    # Detail view: let Streamlit's own collapsed state handle the sidebar.
+    # initial_sidebar_state="collapsed" means every rerun starts collapsed
+    # unless the user explicitly clicked the native toggle.
+    # Just ensure the expand toggle is always visible and reachable.
     st.markdown(
         """
         <style>
-        section[data-testid="stSidebar"] {
-            transform: translateX(-105%) !important;
-            transition: transform 0.3s ease !important;
-        }
-        /* Keep the expand toggle visible and clickable */
         button[data-testid="collapsedControl"] {
             display: flex !important;
             visibility: visible !important;
             opacity: 1 !important;
             z-index: 999999 !important;
-        }
-        /* When user manually expands, undo the force-collapse */
-        section[data-testid="stSidebar"][aria-expanded="true"] {
-            transform: translateX(0) !important;
         }
         </style>
         """,
