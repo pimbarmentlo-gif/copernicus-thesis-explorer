@@ -828,7 +828,7 @@ st.markdown(
         align-items: center;
         gap: 18px;
         padding: 0 14px;
-        flex-wrap: wrap;
+        flex-wrap: nowrap;
     }
     .topbar-brand {
         display: flex;
@@ -856,8 +856,12 @@ st.markdown(
         gap: 10px;
         margin-left: 22px;
         flex: 1;
-        flex-wrap: wrap;
+        flex-wrap: nowrap;
+        min-width: 0;
+        overflow-x: auto;
+        scrollbar-width: none;
     }
+    .topbar-nav::-webkit-scrollbar { display: none; }
     /* Nav links styled as white card pills to match the existing
        sidebar-nav button aesthetic (white bg, blue border, UU-blue text,
        soft shadow, hover lift). */
@@ -874,6 +878,7 @@ st.markdown(
         transition: background 0.18s, border-color 0.18s,
                     box-shadow 0.18s, transform 0.18s;
         box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+        white-space: nowrap;
     }
     .topnav-link:hover {
         background: #f4f8fc;
@@ -949,6 +954,16 @@ st.markdown(
         padding: 6px;
         z-index: 200;
         overflow: hidden;
+    }
+    @media (max-width: 1100px) {
+        .topbar-row {
+            flex-wrap: wrap;
+        }
+        .topbar-nav {
+            flex: 1 1 100%;
+            margin-left: 0;
+            overflow-x: visible;
+        }
     }
     .topbar-switcher-item {
         display: block;
