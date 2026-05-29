@@ -404,8 +404,8 @@ _PROGRAMME_FOLDER_MAP = {
     "water_management": "water_management",
 }
 
-# Special meta-programme: aggregates all programmes' theses into one Explorer
-# view. Supervisors / Insights stay scoped to a single programme.
+# Special meta-programme: aggregates all programmes' theses into one
+# cross-programme view (Explorer, Insights).
 _ALL_PROGRAM_KEY = "all"
 
 PROGRAM_DIR = os.path.abspath(
@@ -5442,24 +5442,6 @@ elif page == "Programme Analytics":
     st.markdown("### Theories used")
     fig4 = px.bar(df["Theories"].value_counts(), labels={'index':'Theory','value':'Count'})
     st.plotly_chart(fig4, width='stretch')
-
-elif page == "Insights" and PROGRAM == _ALL_PROGRAM_KEY:
-    # Insights is computed per-programme; gracefully redirect users in all-mode.
-    st.markdown(
-        "<div style='padding:32px 8px;'>"
-        "<h3 style='color:var(--uu-blue);margin-bottom:8px;'>Insights are per-programme</h3>"
-        "<p style='color:rgba(0,54,96,0.7);max-width:640px;'>"
-        "The Insights view aggregates one programme at a time. "
-        "Pick a programme below to dive into its analytics."
-        "</p>"
-        "<div style='display:flex;flex-wrap:wrap;gap:10px;margin-top:14px;'>"
-        + "".join(
-            f"<a href='?program={k}&nav=Insights' target='_top' class='topnav-link'>{n}</a>"
-            for k, n in PROGRAMME_DISPLAY_NAMES_SINGLE.items()
-        )
-        + "</div></div>",
-        unsafe_allow_html=True,
-    )
 
 elif page == "Insights":
     import re as _ins_re
