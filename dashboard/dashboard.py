@@ -7179,24 +7179,6 @@ window.addEventListener('resize',function(){{
         _render_html_iframe(_geo_html, height=580)
         st.markdown("<div style='margin-bottom:3rem;'></div>", unsafe_allow_html=True)
 
-elif page == "Supervisors" and PROGRAM == _ALL_PROGRAM_KEY:
-    # Supervisors view is per-programme; gracefully redirect users in all-mode.
-    st.markdown(
-        "<div style='padding:32px 8px;'>"
-        "<h3 style='color:var(--uu-blue);margin-bottom:8px;'>Supervisors are per-programme</h3>"
-        "<p style='color:rgba(0,54,96,0.7);max-width:640px;'>"
-        "Supervisor profiles and the directory rely on programme-specific metadata. "
-        "Pick a programme below to continue."
-        "</p>"
-        "<div style='display:flex;flex-wrap:wrap;gap:10px;margin-top:14px;'>"
-        + "".join(
-            f"<a href='?program={k}&nav=Supervisors' target='_self' class='topnav-link'>{n}</a>"
-            for k, n in PROGRAMME_DISPLAY_NAMES_SINGLE.items()
-        )
-        + "</div></div>",
-        unsafe_allow_html=True,
-    )
-
 elif page == "Supervisors":
     import re as _re
     import unicodedata as _ud
@@ -7438,7 +7420,25 @@ elif page == "Supervisors":
         d = _sups.get(name, {'s': [], 'r': []})
         ar = d['s'] + d['r']
         kw, meth, sec = _Counter(), _Counter(), _Counter()
+        prog_sup, prog_all = _Counter(), _Counter()
+
+        def _row_program_key(row) -> str:
+            _k = str(row.get('_program_key', '') or '').strip()
+            if _k in PROGRAMME_SHORT_NAMES:
+                return _k
+            if PROGRAM in PROGRAMME_SHORT_NAMES:
+                return PROGRAM
+            return ''
+
+        for r in d['s']:
+            _pk = _row_program_key(r)
+            if _pk:
+                prog_sup[_pk] += 1
+
         for r in ar:
+            _pk = _row_program_key(r)
+            if _pk:
+                prog_all[_pk] += 1
             for fld in ('Keywords', 'Main sector'):
                 v = str(r.get(fld, '') or '')
                 if v.lower() not in ('n/a', 'nan', ''):
@@ -7460,10 +7460,20 @@ elif page == "Supervisors":
             {int(str(r.get('Year', ''))) for r in ar if str(r.get('Year', '')).isdigit()},
             reverse=True
         )
+
+        _sup_prog_keys = [k for k, _ in prog_sup.most_common()]
+        if not _sup_prog_keys:
+            _sup_prog_keys = [k for k, _ in prog_all.most_common()]
+        _prog_labels_short = [PROGRAMME_SHORT_NAMES.get(k, k) for k in _sup_prog_keys]
+        _prog_labels_full = [PROGRAMME_DISPLAY_NAMES_SINGLE.get(k, PROGRAMME_SHORT_NAMES.get(k, k)) for k in _sup_prog_keys]
+
         return {
             'sc': len(d['s']), 'rc': len(d['r']), 'total': len(ar),
             'kw': kw.most_common(7), 'meth': meth.most_common(6),
             'sec': sec.most_common(4), 'years': years,
+            'prog_keys': _sup_prog_keys,
+            'prog_labels_short': _prog_labels_short,
+            'prog_labels_full': _prog_labels_full,
             's_rows': d['s'], 'r_rows': d['r'], 'all': ar,
         }
 
@@ -7547,6 +7557,13 @@ elif page == "Supervisors":
         overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
     }
     .sup-card-counts { font-size: 0.78rem; color: #5a6a7e; margin-bottom: 0.55rem; font-weight: 500; flex-shrink: 0; }
+    .sup-prog-row { display: flex; flex-wrap: wrap; gap: 0.3rem; margin: -0.15rem 0 0.55rem; }
+    .sup-prog-tag {
+        display: inline-block; background: #eef3fa; color: #214e82;
+        border: 1px solid #d8e2ef; border-radius: 999px;
+        font-size: 0.67rem; font-weight: 700; letter-spacing: 0.01em;
+        padding: 0.14rem 0.48rem;
+    }
     .sup-tags { display: flex; flex-wrap: wrap; gap: 0.28rem; margin-bottom: 0.4rem; flex: 1; align-content: flex-start; overflow: hidden; }
     .sup-tag { background: #f0f4f9; color: #2d5a8e; font-size: 0.69rem;
                padding: 0.17rem 0.52rem; border-radius: 20px; font-weight: 600; }
@@ -7574,6 +7591,12 @@ elif page == "Supervisors":
         margin-bottom: 0.4rem;
     }
     .sup-stats-row { display: flex; gap: 1rem; flex-wrap: wrap; margin-top: 0.5rem; }
+    .sup-profile-prog-row { display: flex; flex-wrap: wrap; gap: 0.36rem; margin-top: 0.65rem; }
+    .sup-profile-prog-tag {
+        display: inline-block; background: #eaf2fb; color: #1f4f84;
+        border: 1px solid #d6e3f2; border-radius: 999px;
+        font-size: 0.72rem; font-weight: 700; padding: 0.18rem 0.62rem;
+    }
     .sup-stat-pill {
         background: #eef3fa; border-radius: 10px; padding: 0.38rem 0.9rem;
         font-size: 0.8rem; font-weight: 700; color: #003660;
@@ -7792,6 +7815,12 @@ elif page == "Supervisors":
              f'<span class="sup-stat-pill">📖 {_sst["rc"]} second reader</span>'
              f'<span class="sup-stat-pill">🗓 {", ".join(str(y) for y in _sst["years"][:3]) if _sst["years"] else "n/a"}</span>'
              f'</div>'),
+            (
+                '<div class="sup-profile-prog-row">'
+                + ''.join(f'<span class="sup-profile-prog-tag">{_pl}</span>' for _pl in _sst.get('prog_labels_full', []))
+                + '</div>'
+                if _sst.get('prog_labels_full') else ''
+            ),
             _expertise_html,
             _bio_html,
             '</div>',
@@ -7861,7 +7890,8 @@ elif page == "Supervisors":
         st.markdown(
             f'<div class="sup-page-hero">'
             f'<h1>\U0001f465 Supervisor Directory</h1>'
-            f'<p>Browse {len(_all_sorted)} supervisors from the {_display_name} programme &mdash; '
+            f'<p>Browse {len(_all_sorted)} supervisors '
+            f'{"across all programmes" if PROGRAM == _ALL_PROGRAM_KEY else f"from the {_display_name} programme"} &mdash; '
             f'explore their expertise, methods and supervised theses.</p>'
             f'</div>',
             unsafe_allow_html=True,
@@ -7981,6 +8011,12 @@ elif page == "Supervisors":
                     _cavatar,
                     f'<div class="sup-card-name">{_n}</div>',
                     f'<div class="sup-card-counts">{_dst["sc"]} supervised &nbsp;·&nbsp; {_dst["rc"]} second reader</div>',
+                    (
+                        '<div class="sup-prog-row">'
+                        + ''.join(f'<span class="sup-prog-tag">{_pl}</span>' for _pl in _dst.get('prog_labels_short', []))
+                        + '</div>'
+                        if _dst.get('prog_labels_short') else ''
+                    ),
                     _ctags,
                     f'<div class="sup-card-year">{_rec}</div>',
                     '</div>',
