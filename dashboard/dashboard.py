@@ -90,6 +90,23 @@ def _load_thesis_data(program_dir: str, program: str, mtime: float = 0) -> tuple
         # 2021
         "visweswaran_2021.pdf",     # Anushri Narayan Visweswaran
     }
+    # Featured theses for Water Management & Climate Adaptation — matched by Thesis_PDF filename.
+    # Zandvliet, Klok, Herring not yet in metadata; will activate once rows are added.
+    _featured_wm = {
+        # 2025
+        "verjaal_2025.pdf",        # Vincent Verjaal
+        "zandvliet_2025.pdf",      # Roos Zandvliet (not yet in metadata)
+        # 2024
+        "klok_2024.pdf",           # Arnoud Klok (not yet in metadata)
+        # 2023
+        "herring_2023.pdf",        # Leonie Herring (not yet in metadata)
+        "parsons_2023.pdf",        # George Parsons
+        # 2022
+        "dematteis_2022.pdf",      # Elisabetta Dematteis
+        # 2020
+        "helden_2020.pdf",         # Lotte van Helden
+        "rivadeneira_2020.pdf",    # Sebastiaan Rivadeneira
+    }
     # Featured theses for Innovation Sciences — matched by Thesis_PDF filename (same as SBI).
     # Bentum, Craen, Tim Dekker, Janssen not yet in metadata; will activate once rows are added.
     _featured_is = {
@@ -161,6 +178,8 @@ def _load_thesis_data(program_dir: str, program: str, mtime: float = 0) -> tuple
         df["Featured"] = df["Thesis_PDF"].astype(str).str.strip().isin(_featured_is)
     elif program == "sustainable_development":
         df["Featured"] = df["Thesis_PDF"].astype(str).str.strip().isin(_featured_sd)
+    elif program == "water_management":
+        df["Featured"] = df["Thesis_PDF"].astype(str).str.strip().isin(_featured_wm)
     else:
         df["Featured"] = False
 
