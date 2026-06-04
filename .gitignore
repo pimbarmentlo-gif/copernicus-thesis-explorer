@@ -19,3 +19,9 @@ __pycache__/
 
 # Streamlit-generated embedded HTML cache (created at runtime beside the script)
 /static/
+
+# Large local thesis archives and documents
+programs/*/pdfs/**/*.pdf
+programs/*/pdfs/**/*.docx
+programs/*/pdfs/**/*.zip
+programs/*/pdfs/*.zip

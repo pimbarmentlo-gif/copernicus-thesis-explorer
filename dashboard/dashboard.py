@@ -168,6 +168,15 @@ def _load_thesis_data(program_dir: str, program: str, mtime: float = 0) -> tuple
 
     df = df.fillna("n/a")
 
+    # Normalize placeholder author names from source metadata.
+    for _author_col in ("Author(s)", "Author"):
+        if _author_col in df.columns:
+            df[_author_col] = (
+                df[_author_col]
+                .astype(str)
+                .str.replace(r"\bJane\s+Doe\b", "unknown", case=False, regex=True)
+            )
+
     # Normalize year values (remove trailing .0 from float conversions).
     df["Year"] = pd.to_numeric(df["Year"], errors="coerce").astype("Int64").astype(str).replace("<NA>", "n/a")
 
