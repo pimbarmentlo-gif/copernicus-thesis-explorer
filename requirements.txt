@@ -3,3 +3,4 @@ pandas==2.1.4
 plotly==5.18.0
 streamlit-pdf-viewer==0.0.27
 Pillow
+openai>=1.30.0

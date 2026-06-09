@@ -71,6 +71,8 @@ def _load_thesis_data(program_dir: str, program: str, mtime: float = 0) -> tuple
         # 2025
         "aupoix_2025.pdf",          # Séréna Aupoix
         # 2024
+        "alsalem_2024.pdf",         # Anya Al-Salem
+        "fenten_2024.pdf",          # Twan Fenten
         "koster_2024.pdf",          # Fardau Koster (not yet in metadata)
         "mayer_2024.pdf",           # Severin Mayer (not yet in metadata)
         # 2023
@@ -81,6 +83,7 @@ def _load_thesis_data(program_dir: str, program: str, mtime: float = 0) -> tuple
         "prawiromaruto_2024.pdf",   # Michele Joie Prawiromaruto
         "popkema_2024.pdf",         # Karst Popkema
         # 2022
+        "suto_2022.pdf",            # Gergő Sütő
         "grunwald_2023.pdf",        # Lotte Grünwald
         "jans_2023.pdf",            # Sem Jans
         "jaspers_2023.pdf",         # Anouk Jaspers
@@ -88,6 +91,7 @@ def _load_thesis_data(program_dir: str, program: str, mtime: float = 0) -> tuple
         "oelschlager_2022.pdf",     # Lucia Oelschläger (not yet in metadata)
         "sijbers_2023.pdf",         # Marije Sijbers
         # 2021
+        "bruijn_2021.pdf",          # Esme de Bruijn
         "visweswaran_2021.pdf",     # Anushri Narayan Visweswaran
     }
     # Featured theses for Water Management & Climate Adaptation — matched by Thesis_PDF filename.
@@ -237,6 +241,37 @@ def _load_html_file(path: str) -> str:
         return ""
     with open(path, "r", encoding="utf-8") as f:
         return f.read()
+
+
+@st.cache_data(show_spinner=False)
+def _build_chat_context(df_json: str) -> str:
+    """Convert serialised dataframe (JSON) into a compact LLM context string.
+
+    Each thesis becomes one line: key fields only, truncated abstract.
+    Cached per unique df_json so it rebuilds only when data changes.
+    """
+    import json as _j
+    rows = _j.loads(df_json)
+    lines = []
+    for r in rows:
+        abstract = str(r.get("Abstract/Summary") or "")
+        abstract_short = abstract[:220].replace("\n", " ") + ("…" if len(abstract) > 220 else "")
+        lines.append(
+            f'PDF:{r.get("Thesis_PDF","n/a")} | '
+            f'Title:{r.get("Title","n/a")} | '
+            f'Author:{r.get("Author(s)","n/a")} | '
+            f'Year:{r.get("Year","n/a")} | '
+            f'Supervisor:{r.get("Supervisor","n/a")} | '
+            f'2ndReader:{r.get("Second reader","n/a")} | '
+            f'SDG:{r.get("SDG","n/a")} | '
+            f'Sector:{r.get("Main sector","n/a")} | '
+            f'Geo:{r.get("Geographical location standardized","n/a")} | '
+            f'Scale:{r.get("Scale","n/a")} | '
+            f'Methods:{r.get("Methodology Type","n/a")} | '
+            f'Keywords:{r.get("Keywords","n/a")} | '
+            f'Abstract:{abstract_short}'
+        )
+    return "\n".join(lines)
 
 
 @st.cache_data(show_spinner=False)
@@ -8059,3 +8094,284 @@ elif page == "Supervisors":
                 unsafe_allow_html=True,
             )
 
+
+# ── Floating chatbot widget (Explorer page only) ────────────────────────────
+# Injected as a zero-height iframe component that writes the full widget DOM
+# into the parent Streamlit page.  Only visible on the Explorer grid view
+# (not in thesis detail / PDF reader / Supervisors / Insights).
+_show_chat_widget = (
+    page == "Explorer"
+    and not st.session_state.get("selected_details")
+    and not st.session_state.get("selected_pdf")
+)
+
+if _show_chat_widget:
+    import json as _cw_json
+
+    _cw_openai_key = os.environ.get("OPENAI_API_KEY", "")
+
+    # ── Dataset context for the LLM system prompt ──────────────────────────
+    _cw_cols = [
+        "Thesis_PDF", "Title", "Author(s)", "Year", "Supervisor", "Second reader",
+        "SDG", "Main sector", "Geographical location standardized", "Scale",
+        "Methodology Type", "Keywords", "Abstract/Summary",
+    ]
+    _cw_df = df[[c for c in _cw_cols if c in df.columns]].copy()
+    _cw_df = _cw_df[_cw_df["Title"].astype(str).str.strip().str.lower() != "n/a"]
+    _cw_context = _build_chat_context(
+        _cw_df.to_json(orient="records", force_ascii=False)
+    )
+
+    # ── UU logo for the FAB button + panel header ──────────────────────────
+    _cw_logo_path = os.path.join(BASE_DIR, "Utrecht_University_logo_round.svg")
+    _cw_logo_b64  = _load_image_b64(_cw_logo_path)
+    _cw_logo_uri  = ("data:image/svg+xml;base64," + _cw_logo_b64) if _cw_logo_b64 else ""
+
+    # ── Thesis lookup for JS card rendering ────────────────────────────────
+    _cw_lookup: dict = {}
+    for _, _cwr in _cw_df.iterrows():
+        _fn = str(_cwr.get("Thesis_PDF", ""))
+        if not _fn or _fn == "n/a":
+            continue
+        _cv_b64 = _load_image_b64(
+            os.path.join(PROGRAM_DIR, "covers", _fn.replace(".pdf", ".png"))
+        )
+        _cw_lookup[_fn] = {
+            "title":  str(_cwr.get("Title", _fn))[:100],
+            "author": str(_cwr.get("Author(s)", "")),
+            "year":   str(_cwr.get("Year", "")),
+            "cover":  ("data:image/png;base64," + _cv_b64) if _cv_b64 else "",
+        }
+
+    # ── JSON-serialise everything for safe JS embedding ────────────────────
+    _cw_key_js     = _cw_json.dumps(_cw_openai_key)
+    _cw_logo_js    = _cw_json.dumps(_cw_logo_uri)
+    _cw_prog_js    = _cw_json.dumps(PROGRAM)
+    _cw_lookup_js  = _cw_json.dumps(_cw_lookup, ensure_ascii=False)
+    _cw_ctx_js     = _cw_json.dumps(_cw_context)   # safe JSON string — no escaping needed
+    _cw_dname_js   = _cw_json.dumps(_display_name)
+    _cw_n          = len(_cw_df)
+
+    # ── Build the widget HTML ──────────────────────────────────────────────
+    # The HTML is injected into the parent window via a hidden 0px iframe.
+    # All JS values come in as JSON (already safe), communicated via variables.
+    _cw_html = """<!DOCTYPE html>
+<html><head><meta charset="utf-8"/>
+<style>*{box-sizing:border-box;margin:0;padding:0}body{background:transparent;overflow:hidden}</style>
+</head><body><script>
+(function(){
+  var pd = window.parent.document;
+  if (pd.getElementById('uu-chat-widget')) return;
+
+  // ── server-provided data ──────────────────────────────────────────────
+  var KEY    = """ + _cw_key_js + """;
+  var PROG   = """ + _cw_prog_js + """;
+  var LOOKUP = """ + _cw_lookup_js + """;
+  var LOGO   = """ + _cw_logo_js + """;
+  var CTX    = """ + _cw_ctx_js + """;
+  var DNAME  = """ + _cw_dname_js + """;
+  var N      = """ + str(_cw_n) + """;
+
+  var SYS = "You are an academic assistant for the Copernicus Institute thesis archive (" + DNAME + " programme, Utrecht University). "
+          + "You have access to " + N + " theses. Each entry: PDF filename, title, author, year, supervisor, second reader, SDG, sector, geography, scale, methodology, keywords, abstract.\\n\\n"
+          + "DATASET:\\n" + CTX + "\\n\\n"
+          + "Rules:\\n"
+          + "- For search queries: find matching theses and list their PDF filenames in 'matches'.\\n"
+          + "- For stats questions: compute from data and give a direct answer.\\n"
+          + "- Be concise. Max 8 thesis matches.\\n"
+          + '- Respond ONLY with raw JSON: {"answer":"...","matches":["file.pdf"]}\\n'
+          + "- Use an empty matches array if no specific theses apply.";
+
+  // ── CSS ───────────────────────────────────────────────────────────────
+  var css = pd.createElement('style');
+  css.id  = 'uu-chat-styles';
+  css.textContent = [
+    "#uu-chat-widget{position:fixed;bottom:28px;right:28px;z-index:99999;font-family:'Merriweather',Georgia,serif}",
+    "#uu-chat-fab{width:58px;height:58px;border-radius:50%;background:#003660;border:none;cursor:pointer;",
+    "  box-shadow:0 4px 18px rgba(0,54,96,.38);display:flex;align-items:center;justify-content:center;",
+    "  transition:transform .18s,box-shadow .18s;padding:0;overflow:hidden;outline:none;margin-left:auto}",
+    "#uu-chat-fab:hover{transform:scale(1.09);box-shadow:0 6px 24px rgba(0,54,96,.48)}",
+    "#uu-chat-fab img{width:58px;height:58px;border-radius:50%;object-fit:cover;display:block}",
+    "#uu-chat-fab .uu-fb{width:58px;height:58px;border-radius:50%;display:flex;align-items:center;",
+    "  justify-content:center;font-size:22px;color:#FFCD00;font-weight:700}",
+    "#uu-chat-panel{position:absolute;bottom:70px;right:0;width:380px;max-height:580px;background:#fff;",
+    "  border-radius:18px;box-shadow:0 12px 48px rgba(0,54,96,.22),0 2px 8px rgba(0,54,96,.10);",
+    "  display:flex;flex-direction:column;overflow:hidden;opacity:0;transform:translateY(12px) scale(.97);",
+    "  pointer-events:none;transition:opacity .22s,transform .22s;border:1px solid rgba(0,54,96,.10)}",
+    "#uu-chat-panel.open{opacity:1;transform:translateY(0) scale(1);pointer-events:all}",
+    "#uu-hdr{background:#003660;color:#fff;padding:14px 16px 12px;display:flex;align-items:center;gap:10px;flex-shrink:0}",
+    "#uu-hdr img{width:30px;height:30px;border-radius:50%;flex-shrink:0}",
+    ".uu-ht{flex:1;min-width:0}",
+    ".uu-ht b{display:block;font-size:.88rem;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}",
+    ".uu-ht small{display:block;font-size:.72rem;color:rgba(255,255,255,.70);margin-top:1px}",
+    "#uu-xcl{background:none;border:none;color:rgba(255,255,255,.75);cursor:pointer;font-size:18px;line-height:1;padding:2px 4px;flex-shrink:0}",
+    "#uu-xcl:hover{color:#fff}",
+    "#uu-msgs{flex:1;overflow-y:auto;padding:14px 14px 8px;display:flex;flex-direction:column;gap:10px;scroll-behavior:smooth}",
+    "#uu-msgs::-webkit-scrollbar{width:4px}",
+    "#uu-msgs::-webkit-scrollbar-thumb{background:#d0dce8;border-radius:4px}",
+    ".uu-row{display:flex;gap:8px;align-items:flex-end}",
+    ".uu-row.u{flex-direction:row-reverse}",
+    ".uu-bub{max-width:82%;padding:9px 13px;border-radius:14px;font-size:.82rem;line-height:1.6;color:#1a2a3a;word-break:break-word}",
+    ".uu-bub.u{background:#003660;color:#fff;border-bottom-right-radius:4px}",
+    ".uu-bub.b{background:#f0f4f8;border-bottom-left-radius:4px}",
+    ".uu-dot{background:#f0f4f8;padding:9px 13px;border-radius:14px;border-bottom-left-radius:4px}",
+    ".uu-dot span{display:inline-block;width:6px;height:6px;background:#a0b4c8;border-radius:50%;margin:0 1px;animation:uu-b 1.2s infinite}",
+    ".uu-dot span:nth-child(2){animation-delay:.2s}.uu-dot span:nth-child(3){animation-delay:.4s}",
+    "@keyframes uu-b{0%,80%,100%{transform:translateY(0)}40%{transform:translateY(-5px)}}",
+    ".uu-rl{font-size:.68rem;font-weight:700;color:#a0b4c8;text-transform:uppercase;letter-spacing:.07em;margin:4px 0 6px}",
+    ".uu-tc{display:flex;gap:10px;background:#fff;border:1px solid rgba(0,54,96,.10);border-radius:9px;",
+    "  padding:9px 11px;margin-bottom:6px;text-decoration:none;color:inherit;transition:box-shadow .15s,border-color .15s}",
+    ".uu-tc:hover{box-shadow:0 2px 8px rgba(0,54,96,.10);border-color:rgba(0,54,96,.22)}",
+    ".uu-tc img{width:34px;height:48px;object-fit:cover;border-radius:4px;flex-shrink:0;background:#e0e8f0}",
+    ".uu-tc .ph{width:34px;height:48px;border-radius:4px;flex-shrink:0;background:#e0e8f0;",
+    "  display:flex;align-items:center;justify-content:center;color:#b0c0d0;font-size:14px}",
+    ".uu-ti{flex:1;min-width:0}",
+    ".uu-tt{font-size:.75rem;font-weight:600;color:#003660;line-height:1.35;display:-webkit-box;",
+    "  -webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}",
+    ".uu-tm{font-size:.68rem;color:#8a9ab0;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}",
+    ".uu-wlc{background:#f5f8fc;border-radius:12px;padding:12px 14px;font-size:.80rem;color:#4a5a6a;line-height:1.6}",
+    ".uu-wlc strong{color:#003660}",
+    ".uu-exs{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}",
+    ".uu-ep{background:#fff;border:1px solid #c8d8e8;border-radius:16px;padding:4px 11px;",
+    "  font-size:.72rem;color:#003660;cursor:pointer;transition:background .12s}",
+    ".uu-ep:hover{background:#e8f0f8}",
+    "#uu-ir{display:flex;gap:8px;padding:10px 12px 12px;border-top:1px solid rgba(0,54,96,.08);flex-shrink:0;background:#fff}",
+    "#uu-inp{flex:1;border:1px solid #c8d8e8;border-radius:20px;padding:8px 14px;",
+    "  font-size:.81rem;font-family:inherit;outline:none;color:#1a2a3a;background:#f5f8fc;transition:border-color .15s}",
+    "#uu-inp:focus{border-color:#003660;background:#fff}",
+    "#uu-snd{width:36px;height:36px;border-radius:50%;background:#003660;border:none;cursor:pointer;",
+    "  display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:background .15s,transform .1s}",
+    "#uu-snd:hover{background:#005090;transform:scale(1.06)}",
+    "#uu-snd:disabled{background:#b0c4d8;cursor:not-allowed;transform:none}",
+    "#uu-fc{text-align:center;padding:0 12px 8px;flex-shrink:0}",
+    "#uu-fc button{background:none;border:none;font-size:.70rem;color:#a0b4c8;cursor:pointer;font-family:inherit}",
+    "#uu-fc button:hover{color:#666}"
+  ].join('');
+  pd.head.appendChild(css);
+
+  // ── DOM ───────────────────────────────────────────────────────────────
+  var root = pd.createElement('div');
+  root.id = 'uu-chat-widget';
+  var lf = LOGO ? '<img src="'+LOGO+'" alt="UU"/>' : '<div class="uu-fb">U</div>';
+  var lh = LOGO ? '<img src="'+LOGO+'" alt="UU"/>' : '';
+  root.innerHTML =
+    '<div id="uu-chat-panel">'
+    + '<div id="uu-hdr">'+lh
+    + '<div class="uu-ht"><b>Thesis Assistant</b><small>Ask anything about the dataset</small></div>'
+    + '<button id="uu-xcl" title="Close">&#x2715;</button></div>'
+    + '<div id="uu-msgs"></div>'
+    + '<div id="uu-fc"><button id="uu-clr">Clear conversation</button></div>'
+    + '<div id="uu-ir">'
+    + '<input id="uu-inp" type="text" placeholder="Ask about theses, supervisors, topics\u2026" autocomplete="off"/>'
+    + '<button id="uu-snd" title="Send">'
+    + '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">'
+    + '<line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>'
+    + '</button></div></div>'
+    + '<button id="uu-chat-fab" title="Ask about theses">'+lf+'</button>';
+  pd.body.appendChild(root);
+
+  // ── refs ──────────────────────────────────────────────────────────────
+  var panel = pd.getElementById('uu-chat-panel');
+  var fab   = pd.getElementById('uu-chat-fab');
+  var msgs  = pd.getElementById('uu-msgs');
+  var inp   = pd.getElementById('uu-inp');
+  var snd   = pd.getElementById('uu-snd');
+  var xcl   = pd.getElementById('uu-xcl');
+  var clr   = pd.getElementById('uu-clr');
+  var isOpen = false, waiting = false, hist = [];
+
+  var EXAMPLES = [
+    "Find a thesis about water governance in Asia",
+    "What % of theses address SDG 13 Climate Action?",
+    "Find all theses supervised by Frank Biermann",
+    "Show theses about circular economy",
+    "Which theses used qualitative methods?",
+    "Most common research sectors?"
+  ];
+
+  function openP()  { isOpen=true;  panel.classList.add('open');    if (!msgs.firstChild) welcome(); setTimeout(function(){ inp.focus(); }, 220); }
+  function closeP() { isOpen=false; panel.classList.remove('open'); }
+  fab.addEventListener('click', function(){ isOpen ? closeP() : openP(); });
+  xcl.addEventListener('click', closeP);
+
+  function welcome() {
+    var d = pd.createElement('div'); d.className = 'uu-wlc';
+    var ps = EXAMPLES.map(function(q){ return '<span class="uu-ep" data-q="'+q.replace(/"/g,'&quot;')+'">'+q+'</span>'; }).join('');
+    d.innerHTML = '<strong>Hi! I can help you explore the thesis archive.</strong><br/>Ask me to find theses by topic, supervisor, geography, SDG, or get dataset statistics.<div class="uu-exs">'+ps+'</div>';
+    d.querySelectorAll('.uu-ep').forEach(function(p){ p.addEventListener('click', function(){ inp.value=p.dataset.q; send(); }); });
+    msgs.appendChild(d); sb();
+  }
+  function sb() { msgs.scrollTop = msgs.scrollHeight; }
+
+  function umsg(t) {
+    var r=pd.createElement('div'); r.className='uu-row u';
+    var b=pd.createElement('div'); b.className='uu-bub u'; b.textContent=t;
+    r.appendChild(b); msgs.appendChild(r); sb();
+  }
+  function bmsg(t, m) {
+    var r=pd.createElement('div'); r.className='uu-row';
+    var b=pd.createElement('div'); b.className='uu-bub b'; b.textContent=t;
+    r.appendChild(b); msgs.appendChild(r);
+    if (m && m.length) {
+      var lbl=pd.createElement('div'); lbl.className='uu-rl';
+      lbl.textContent = m.length+' thesis match'+(m.length!==1?'es':'');
+      msgs.appendChild(lbl);
+      m.forEach(function(fn) {
+        var info = LOOKUP[fn] || {};
+        var tl   = info.title || fn;
+        var mt   = [info.author, info.year].filter(function(x){ return x && x!=='n/a'; }).join(' \u00b7 ');
+        var href = '?program='+encodeURIComponent(PROG)+'&details='+encodeURIComponent(fn.replace('.pdf',''));
+        var c = pd.createElement('a'); c.className='uu-tc'; c.href=href; c.target='_self';
+        var cv = info.cover ? '<img src="'+info.cover+'" alt=""/>' : '<div class="ph">&#x1F4C4;</div>';
+        c.innerHTML = cv+'<div class="uu-ti"><div class="uu-tt">'+tl+'</div><div class="uu-tm">'+mt+'</div></div>';
+        msgs.appendChild(c);
+      });
+    }
+    sb();
+  }
+
+  var typEl = null;
+  function showDot() {
+    typEl=pd.createElement('div'); typEl.className='uu-row';
+    var b=pd.createElement('div'); b.className='uu-dot';
+    b.innerHTML='<span></span><span></span><span></span>';
+    typEl.appendChild(b); msgs.appendChild(typEl); sb();
+  }
+  function hideDot() { if (typEl && typEl.parentNode) typEl.parentNode.removeChild(typEl); typEl=null; }
+
+  clr.addEventListener('click', function(){ hist=[]; while(msgs.firstChild) msgs.removeChild(msgs.firstChild); welcome(); });
+
+  async function callAI(q) {
+    if (!KEY) return { answer: 'No API key configured. Set OPENAI_API_KEY on the server.', matches: [] };
+    var ms = [{ role:'system', content:SYS }];
+    hist.slice(-6).forEach(function(t){ ms.push({ role:t.role, content:t.content }); });
+    ms.push({ role:'user', content:q });
+    try {
+      var r = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Content-Type':'application/json', 'Authorization':'Bearer '+KEY },
+        body: JSON.stringify({ model:'gpt-4o-mini', messages:ms, temperature:0.2, max_tokens:1200, response_format:{ type:'json_object' } })
+      });
+      if (!r.ok) { var e=await r.json().catch(function(){ return {}; }); return { answer:'API error: '+(e.error&&e.error.message||r.status), matches:[] }; }
+      var d = await r.json();
+      var p = JSON.parse(d.choices[0].message.content || '{}');
+      return { answer: String(p.answer||''), matches: (p.matches||[]).filter(function(m){ return String(m).endsWith('.pdf'); }) };
+    } catch(e) { return { answer:'Error: '+e.message, matches:[] }; }
+  }
+
+  async function send() {
+    var q = inp.value.trim(); if (!q || waiting) return;
+    inp.value=''; waiting=true; snd.disabled=true;
+    umsg(q); hist.push({ role:'user', content:q });
+    showDot();
+    var res = await callAI(q);
+    hideDot(); bmsg(res.answer, res.matches);
+    hist.push({ role:'assistant', content:res.answer });
+    waiting=false; snd.disabled=false; inp.focus();
+  }
+  snd.addEventListener('click', send);
+  inp.addEventListener('keydown', function(e){ if (e.key==='Enter' && !e.shiftKey){ e.preventDefault(); send(); } });
+})();
+</script></body></html>"""
+
+    st.components.v1.html(_cw_html, height=0, scrolling=False)
