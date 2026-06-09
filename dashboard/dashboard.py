@@ -8108,7 +8108,21 @@ _show_chat_widget = (
 if _show_chat_widget:
     import json as _cw_json
 
-    _cw_openai_key = os.environ.get("OPENAI_API_KEY", "")
+    # The OpenAI key is NEVER sent to the browser.  Instead the widget calls a
+    # small server-side proxy (Cloudflare Worker — see chat-proxy/) that holds
+    # the key and forwards to OpenAI.  Only the proxy URL (non-secret) is
+    # injected into the page.  Configure CHAT_PROXY_URL in Streamlit secrets
+    # (Settings → Secrets) or as an environment variable.
+    def _cw_get_conf(_name: str, _default: str = "") -> str:
+        try:
+            _v = st.secrets.get(_name)  # type: ignore[attr-defined]
+            if _v:
+                return str(_v)
+        except Exception:
+            pass
+        return os.environ.get(_name, _default)
+
+    _cw_proxy_url = _cw_get_conf("CHAT_PROXY_URL", "")
 
     # ── Dataset context for the LLM system prompt ──────────────────────────
     _cw_cols = [
@@ -8144,7 +8158,7 @@ if _show_chat_widget:
         }
 
     # ── JSON-serialise everything for safe JS embedding ────────────────────
-    _cw_key_js     = _cw_json.dumps(_cw_openai_key)
+    _cw_proxy_js   = _cw_json.dumps(_cw_proxy_url)
     _cw_logo_js    = _cw_json.dumps(_cw_logo_uri)
     _cw_prog_js    = _cw_json.dumps(PROGRAM)
     _cw_lookup_js  = _cw_json.dumps(_cw_lookup, ensure_ascii=False)
@@ -8164,7 +8178,7 @@ if _show_chat_widget:
   if (pd.getElementById('uu-chat-widget')) return;
 
   // ── server-provided data ──────────────────────────────────────────────
-  var KEY    = """ + _cw_key_js + """;
+  var PROXY  = """ + _cw_proxy_js + """;
   var PROG   = """ + _cw_prog_js + """;
   var LOOKUP = """ + _cw_lookup_js + """;
   var LOGO   = """ + _cw_logo_js + """;
@@ -8342,15 +8356,17 @@ if _show_chat_widget:
   clr.addEventListener('click', function(){ hist=[]; while(msgs.firstChild) msgs.removeChild(msgs.firstChild); welcome(); });
 
   async function callAI(q) {
-    if (!KEY) return { answer: 'No API key configured. Set OPENAI_API_KEY on the server.', matches: [] };
+    if (!PROXY) return { answer: 'Chatbot not configured. Set CHAT_PROXY_URL on the server.', matches: [] };
     var ms = [{ role:'system', content:SYS }];
     hist.slice(-6).forEach(function(t){ ms.push({ role:t.role, content:t.content }); });
     ms.push({ role:'user', content:q });
     try {
-      var r = await fetch('https://api.openai.com/v1/chat/completions', {
+      // Only the conversation is sent; the proxy injects the model/params and
+      // the secret OpenAI key, then returns OpenAI's raw response unchanged.
+      var r = await fetch(PROXY, {
         method: 'POST',
-        headers: { 'Content-Type':'application/json', 'Authorization':'Bearer '+KEY },
-        body: JSON.stringify({ model:'gpt-4o-mini', messages:ms, temperature:0.2, max_tokens:1200, response_format:{ type:'json_object' } })
+        headers: { 'Content-Type':'application/json' },
+        body: JSON.stringify({ messages:ms })
       });
       if (!r.ok) { var e=await r.json().catch(function(){ return {}; }); return { answer:'API error: '+(e.error&&e.error.message||r.status), matches:[] }; }
       var d = await r.json();
@@ -8374,4 +8390,4 @@ if _show_chat_widget:
 })();
 </script></body></html>"""
 
-    st.components.v1.html(_cw_html, height=0, scrolling=False)
+    st.components.v1.html(_cw_html, height=1, scrolling=False)

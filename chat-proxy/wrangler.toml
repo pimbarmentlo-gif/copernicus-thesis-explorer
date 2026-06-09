@@ -1,0 +1,13 @@
+name = "thesis-chat-proxy"
+main = "worker.js"
+compatibility_date = "2024-11-01"
+
+# Restrict which website origins may use this proxy from a browser.
+# Set this to your deployed Streamlit URL after the first deploy, e.g.:
+#   [vars]
+#   ALLOWED_ORIGIN = "https://your-app.streamlit.app"
+#
+# OPENAI_API_KEY is a SECRET — do not put it here. Set it with:
+#   wrangler secret put OPENAI_API_KEY
+[vars]
+ALLOWED_ORIGIN = ""
