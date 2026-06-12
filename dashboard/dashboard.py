@@ -6151,6 +6151,58 @@ elif page == "Insights":
     }
     .ins-picker-card:hover .ins-picker-arrow svg { stroke: #fff; }
 
+    /* ── Picker card teaser graphics (full-bleed mini-viz per card) ── */
+    .ins-picker-viz{
+        position:relative; width:calc(100% + 4rem);
+        margin:-2.2rem -2rem 1.55rem; height:122px;
+        border-radius:22px 22px 0 0; overflow:hidden;
+        display:flex; align-items:center; justify-content:center;
+        box-shadow:inset 0 -1px 0 rgba(10,37,64,.06);
+    }
+    /* SDG — ring built from the 17 official goal colours */
+    .ipv-sdg{background:radial-gradient(120% 120% at 50% 28%, #f4faf6 0%, #e3f1e8 68%, #d7ecde 100%);}
+    .ipv-sdg-wheel{
+        width:94px; height:94px; border-radius:50%;
+        -webkit-mask:radial-gradient(circle, transparent 0 30px, #000 31px);
+                mask:radial-gradient(circle, transparent 0 30px, #000 31px);
+        box-shadow:0 8px 20px rgba(13,70,35,.22);
+        transition:transform .7s cubic-bezier(.22,1,.36,1);
+    }
+    .ins-picker-card:hover .ipv-sdg-wheel{transform:rotate(43deg) scale(1.05);}
+    .ipv-sdg-core{
+        position:absolute; width:60px; height:60px; border-radius:50%;
+        background:#fff; box-shadow:0 2px 9px rgba(13,70,35,.18);
+        display:flex; flex-direction:column; align-items:center; justify-content:center;
+    }
+    .ipv-sdg-core b{font-size:1.18rem; font-weight:800; color:#2a7a3b; line-height:1;}
+    .ipv-sdg-core span{font-size:.5rem; font-weight:700; letter-spacing:.13em; text-transform:uppercase; color:#86968a; margin-top:2px;}
+    /* Partner organisations — node galaxy on a night-sky field */
+    .ipv-orgs{background:radial-gradient(130% 130% at 28% 18%, #16365f 0%, #0c2245 56%, #07182f 100%);}
+    .ipv-orgs-svg{position:absolute; inset:0; width:100%; height:100%;}
+    .ipv-star{animation:ipvTwinkle 3.6s ease-in-out infinite;}
+    .ipv-star:nth-child(2n){animation-duration:2.6s; animation-delay:.5s;}
+    .ipv-star:nth-child(3n){animation-duration:4.4s; animation-delay:1.2s;}
+    .ipv-orgs-hub{transform-box:fill-box; transform-origin:center; animation:ipvPulse 3.4s ease-in-out infinite;}
+    .ipv-orgs-halo{transform-box:fill-box; transform-origin:center; animation:ipvHalo 2.9s ease-out infinite;}
+    /* Research geography — wireframe globe with location pins */
+    .ipv-globe{background:radial-gradient(120% 120% at 50% 24%, #eaf6fd 0%, #d2ebf9 70%, #c1e2f5 100%);}
+    .ipv-globe-svg{filter:drop-shadow(0 8px 18px rgba(10,79,134,.28)); transition:transform .6s cubic-bezier(.22,1,.36,1);}
+    .ins-picker-card:hover .ipv-globe-svg{transform:rotate(-6deg) scale(1.05);}
+    /* Trends — flowing streamgraph ribbons */
+    .ipv-trends{background:linear-gradient(135deg,#fffaef 0%, #fdeecb 100%);}
+    .ipv-trends-svg{position:absolute; inset:0; width:100%; height:100%;}
+    .ipv-trends-svg path{transform-box:view-box; transform-origin:center; animation:ipvDrift 10s ease-in-out infinite;}
+    .ipv-trends-svg path:nth-child(2){animation-duration:13s;}
+    .ipv-trends-svg path:nth-child(3){animation-duration:8.5s;}
+    .ipv-trends-svg path:nth-child(4){animation-duration:11.5s;}
+    @keyframes ipvTwinkle{0%,100%{opacity:.25}50%{opacity:.95}}
+    @keyframes ipvPulse{0%,100%{transform:scale(1)}50%{transform:scale(1.13)}}
+    @keyframes ipvHalo{0%{transform:scale(1);opacity:.55}70%,100%{transform:scale(2.2);opacity:0}}
+    @keyframes ipvDrift{0%,100%{transform:translateX(0)}50%{transform:translateX(-9px)}}
+    @media (prefers-reduced-motion: reduce){
+        .ipv-star,.ipv-orgs-hub,.ipv-orgs-halo,.ipv-trends-svg path{animation:none !important;}
+    }
+
     /* ── Back button ── */
     .ins-back-btn {
         display: inline-flex; align-items: center; gap: 8px;
@@ -6208,56 +6260,133 @@ elif page == "Insights":
     _arrow_svg = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#003660" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>'
     _back_svg   = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>'
 
-    _icon_sdg = '''<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#2a7a3b" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-      <circle cx="12" cy="12" r="10"/>
-      <polyline points="12 8 12 12 14.5 14.5"/>
-      <line x1="2" y1="12" x2="6" y2="12"/>
-      <line x1="18" y1="12" x2="22" y2="12"/>
-      <line x1="12" y1="2" x2="12" y2="6"/>
-      <line x1="12" y1="18" x2="12" y2="22"/>
-    </svg>'''
-    _icon_orgs = '''<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#1d4ed8" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-      <circle cx="12" cy="5" r="2"/>
-      <circle cx="5" cy="17" r="2"/>
-      <circle cx="19" cy="17" r="2"/>
-      <line x1="12" y1="7" x2="5" y2="15"/>
-      <line x1="12" y1="7" x2="19" y2="15"/>
-      <line x1="5" y1="17" x2="19" y2="17"/>
-    </svg>'''
-    _icon_globe = '''<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#0369a1" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-      <circle cx="12" cy="12" r="10"/>
-      <line x1="2" y1="12" x2="22" y2="12"/>
-      <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
-    </svg>'''
-    _icon_trends = '''<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#b07a00" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-      <path d="M3 14c3-6 6 2 9-3s6-5 9-2"/>
-      <path d="M3 19c3-5 6 1 9-3s6-4 9-1" opacity="0.45"/>
-      <polyline points="3 4 3 21 21 21" opacity="0.55"/>
-    </svg>'''
+    # ── Teaser graphics: each card gets a full-bleed mini-visualisation that
+    #    previews the section it links to, in the UU navy/gold palette. ──────
+
+    # SDG — a ring assembled from the 17 official goal colours (the SDG wheel).
+    _sdg_seg = 360.0 / 17.0
+    _sdg_conic = "conic-gradient(from -90deg, " + ", ".join(
+        f"{_INS_SDG_HEX[i + 1]} {round(i * _sdg_seg, 2)}deg {round((i + 1) * _sdg_seg, 2)}deg"
+        for i in range(17)
+    ) + ")"
+    _viz_sdg = (
+        '<div class="ins-picker-viz ipv-sdg">'
+        f'<div class="ipv-sdg-wheel" style="background:{_sdg_conic};"></div>'
+        '<div class="ipv-sdg-core"><b>17</b><span>goals</span></div>'
+        '</div>'
+    )
+
+    # Partner organisations — a constellation of partner nodes around a hub.
+    _viz_orgs = (
+        '<div class="ins-picker-viz ipv-orgs">'
+        '<svg class="ipv-orgs-svg" viewBox="0 0 240 124" preserveAspectRatio="xMidYMid slice">'
+        '<g class="ipv-stars" fill="#cfe0ff">'
+        '<circle cx="26" cy="24" r="1.1" class="ipv-star"/><circle cx="210" cy="22" r="1" class="ipv-star"/>'
+        '<circle cx="50" cy="100" r="1.2" class="ipv-star"/><circle cx="150" cy="18" r="1" class="ipv-star"/>'
+        '<circle cx="220" cy="104" r="1.1" class="ipv-star"/><circle cx="92" cy="30" r="0.9" class="ipv-star"/>'
+        '<circle cx="130" cy="108" r="1" class="ipv-star"/><circle cx="34" cy="66" r="0.9" class="ipv-star"/>'
+        '<circle cx="206" cy="70" r="1" class="ipv-star"/>'
+        '</g>'
+        '<g stroke="rgba(150,190,245,.45)" stroke-width="1.1" fill="none">'
+        '<line x1="120" y1="62" x2="64" y2="34"/><line x1="120" y1="62" x2="186" y2="40"/>'
+        '<line x1="120" y1="62" x2="74" y2="92"/><line x1="120" y1="62" x2="178" y2="92"/>'
+        '<line x1="120" y1="62" x2="44" y2="64"/><line x1="120" y1="62" x2="200" y2="66"/>'
+        '</g>'
+        '<circle cx="64" cy="34" r="6" fill="#7fb0ef"/><circle cx="186" cy="40" r="7" fill="#9ec6f7"/>'
+        '<circle cx="74" cy="92" r="5.5" fill="#5e95dd"/><circle cx="178" cy="92" r="6.5" fill="#bcdaff"/>'
+        '<circle cx="44" cy="64" r="4.5" fill="#6fa4e8"/><circle cx="200" cy="66" r="5" fill="#8fbef5"/>'
+        '<circle class="ipv-orgs-halo" cx="120" cy="62" r="13" fill="none" stroke="#FFCD00" stroke-width="2"/>'
+        '<circle class="ipv-orgs-hub" cx="120" cy="62" r="13" fill="#FFCD00"/>'
+        '<circle cx="120" cy="62" r="13" fill="none" stroke="#fff" stroke-width="2"/>'
+        '</svg></div>'
+    )
+
+    # Research geography — a wireframe globe whose meridians sweep (rotating)
+    # with a few colourful location pins dropped on the sphere.
+    _viz_globe = (
+        '<div class="ins-picker-viz ipv-globe">'
+        '<svg class="ipv-globe-svg" viewBox="0 0 120 120" width="106" height="106">'
+        '<defs><radialGradient id="ipvOcean" cx="38%" cy="32%" r="80%">'
+        '<stop offset="0%" stop-color="#8fd6f7"/><stop offset="55%" stop-color="#2491d4"/>'
+        '<stop offset="100%" stop-color="#0a4f86"/></radialGradient></defs>'
+        '<circle cx="60" cy="60" r="42" fill="url(#ipvOcean)" stroke="#0a4f86" stroke-width="1.4"/>'
+        '<path d="M43 39 q9 -5 15 1 q5 6 -3 10 q-10 3 -14 -3 q-3 -5 2 -8z" fill="rgba(76,159,56,.85)"/>'
+        '<path d="M66 58 q9 1 11 9 q1 7 -7 10 q-9 1 -11 -7 q-1 -9 7 -12z" fill="rgba(76,159,56,.8)"/>'
+        '<g fill="none" stroke="rgba(255,255,255,.55)" stroke-width="1.1">'
+        '<line x1="18" y1="60" x2="102" y2="60"/><path d="M24.5 43 H95.5"/><path d="M24.5 77 H95.5"/>'
+        '<ellipse cx="60" cy="60" ry="42"><animate attributeName="rx" values="42;6;42" dur="7s" repeatCount="indefinite"/></ellipse>'
+        '<ellipse cx="60" cy="60" ry="42"><animate attributeName="rx" values="20;42;20" dur="7s" repeatCount="indefinite"/></ellipse>'
+        '</g>'
+        '<g><circle cx="50" cy="46" r="4.4" fill="#FFCD00" stroke="#fff" stroke-width="1.6"/>'
+        '<circle cx="72" cy="64" r="3.6" fill="#FF6B3D" stroke="#fff" stroke-width="1.6"/>'
+        '<circle cx="55" cy="76" r="3.2" fill="#fff" stroke="#0a4f86" stroke-width="1.6"/></g>'
+        '</svg></div>'
+    )
+
+    # Trends over time — a flowing streamgraph of stacked, smoothed ribbons.
+    def _ins_smooth(pts):
+        if not pts:
+            return ""
+        d = f"M {pts[0][0]:.1f} {pts[0][1]:.1f}"
+        n = len(pts)
+        for i in range(n - 1):
+            p0 = pts[i - 1] if i > 0 else pts[i]
+            p1, p2 = pts[i], pts[i + 1]
+            p3 = pts[i + 2] if i + 2 < n else pts[i + 1]
+            c1x, c1y = p1[0] + (p2[0] - p0[0]) / 6.0, p1[1] + (p2[1] - p0[1]) / 6.0
+            c2x, c2y = p2[0] - (p3[0] - p1[0]) / 6.0, p2[1] - (p3[1] - p1[1]) / 6.0
+            d += f" C {c1x:.1f} {c1y:.1f} {c2x:.1f} {c2y:.1f} {p2[0]:.1f} {p2[1]:.1f}"
+        return d
+
+    def _ins_ribbon(top, bot):
+        d_top = _ins_smooth(top)
+        d_bot = _ins_smooth(list(reversed(bot)))
+        return f"{d_top} L{d_bot[1:]} Z"
+
+    _tr_xs = [-20, 30, 90, 150, 210, 260]
+    _tr_bounds = [
+        [20, 8, 24, 10, 20, 12],
+        [44, 32, 50, 34, 46, 36],
+        [68, 58, 74, 60, 70, 62],
+        [92, 82, 96, 84, 92, 86],
+        [114, 106, 116, 108, 112, 108],
+    ]
+    _tr_cols = ["#003660", "#0a97d9", "#4C9F38", "#FCC30B"]
+    _tr_paths = ""
+    for _bi in range(4):
+        _top = list(zip(_tr_xs, _tr_bounds[_bi]))
+        _bot = list(zip(_tr_xs, _tr_bounds[_bi + 1]))
+        _tr_paths += f'<path d="{_ins_ribbon(_top, _bot)}" fill="{_tr_cols[_bi]}" opacity="0.92"/>'
+    _viz_trends = (
+        '<div class="ins-picker-viz ipv-trends">'
+        '<svg class="ipv-trends-svg" viewBox="0 0 240 120" preserveAspectRatio="none">'
+        + _tr_paths +
+        '</svg></div>'
+    )
 
     if not _ins_view:
         st.markdown(f"""
         <div class="ins-picker-row">
           <a class="ins-picker-card" href="{_ins_base_url}&ins_view=sdg" target="_self">
-            <div class="ins-picker-icon" style="background:#e6f4eb;">{_icon_sdg}</div>
+            {_viz_sdg}
             <div class="ins-picker-title">SDG Universe</div>
             <div class="ins-picker-desc">Which Sustainable Development Goals does this programme address? Explore all 17 goals, see how many theses are linked to each, and click any segment to browse them.</div>
             <div class="ins-picker-arrow">{_arrow_svg}</div>
           </a>
           <a class="ins-picker-card" href="{_ins_base_url}&ins_view=orgs" target="_self">
-            <div class="ins-picker-icon" style="background:#e8effe;">{_icon_orgs}</div>
+            {_viz_orgs}
             <div class="ins-picker-title">Partner Organisations</div>
             <div class="ins-picker-desc">Which organisations are shaping this programme's research? Each node in this interactive galaxy represents a partner — hover to identify, click to explore.</div>
             <div class="ins-picker-arrow">{_arrow_svg}</div>
           </a>
           <a class="ins-picker-card" href="{_ins_base_url}&ins_view=globe" target="_self">
-            <div class="ins-picker-icon" style="background:#e0f2fc;">{_icon_globe}</div>
+            {_viz_globe}
             <div class="ins-picker-title">Research Geography</div>
             <div class="ins-picker-desc">Where in the world does the research take place? Spin the interactive globe and click any country bubble to see the theses conducted there.</div>
             <div class="ins-picker-arrow">{_arrow_svg}</div>
           </a>
           <a class="ins-picker-card" href="{_ins_base_url}&ins_view=trends" target="_self">
-            <div class="ins-picker-icon" style="background:#fdf4d9;">{_icon_trends}</div>
+            {_viz_trends}
             <div class="ins-picker-title">Trends over Time</div>
             <div class="ins-picker-desc">How has the focus of the research shifted across cohorts? Watch the composition flow year by year, see which themes are rising or fading, and click any band to browse the theses behind it.</div>
             <div class="ins-picker-arrow">{_arrow_svg}</div>
