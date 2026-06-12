@@ -918,7 +918,9 @@ st.markdown(
         display: flex;
         gap: 10px;
         margin-left: 22px;
-        flex: 1;
+        /* grow to push the switcher right, but never shrink: the three nav
+           pills (Explorer / Supervisors / Insights) must always stay intact. */
+        flex: 1 0 auto;
         flex-wrap: nowrap;
         min-width: 0;
         overflow-x: auto;
@@ -963,7 +965,10 @@ st.markdown(
     /* Programme switcher — <details>-based dropdown */
     .topbar-switcher-wrap {
         position: relative;
-        flex-shrink: 0;
+        /* The switcher yields space first (its label ellipsises) so it can
+           never push the nav pills off-screen or onto a second row. */
+        flex-shrink: 1;
+        min-width: 0;
     }
     .topbar-switcher {
         display: inline-flex;
@@ -979,10 +984,19 @@ st.markdown(
         font-family: inherit;
         font-weight: 600;
         max-width: 260px;
+        min-width: 0;
+        white-space: nowrap;
         box-shadow: 0 2px 8px rgba(0,0,0,0.06);
         transition: border-color 0.18s, box-shadow 0.18s;
         list-style: none;
         user-select: none;
+    }
+    /* Programme name: always one line; truncate with an ellipsis if too long. */
+    .topbar-switcher-label {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        min-width: 0;
     }
     .topbar-switcher::-webkit-details-marker,
     .topbar-switcher::marker {
@@ -997,6 +1011,7 @@ st.markdown(
         font-size: 0.8rem;
         opacity: 0.6;
         transition: transform 0.18s;
+        flex-shrink: 0;
     }
     .topbar-switcher-wrap[open] .topbar-switcher {
         border-color: rgba(0,54,96,0.25);
@@ -3543,8 +3558,10 @@ def _render_top_bar() -> None:
         nav_parts.append(f'<a class="topnav-link{active_cls}" href="{href}" target="_self">{sect}</a>')
     nav_html = "".join(nav_parts)
 
-    # Programme switcher dropdown
-    _current_label = _display_name if len(_display_name) <= 32 else _display_name[:30] + "…"
+    # Programme switcher dropdown — the label is kept on a single line and
+    # truncated with a CSS ellipsis (by pixel width), so long programme names
+    # never wrap onto a second row.
+    _current_label = f'<span class="topbar-switcher-label">{_display_name}</span>'
     _switcher_items = []
     for p_key, p_name in PROGRAMME_DISPLAY_NAMES.items():
         active_cls = " active" if p_key == PROGRAM else ""
