@@ -1,2 +1,10 @@
 [server]
 enableStaticServing = true
+showEmailPrompt = false
+
+[logger]
+level = "info"
+
+[client]
+showErrorDetails = "none"
+
