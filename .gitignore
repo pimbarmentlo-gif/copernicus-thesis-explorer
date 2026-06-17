@@ -25,3 +25,5 @@ programs/*/pdfs/**/*.pdf
 programs/*/pdfs/**/*.docx
 programs/*/pdfs/**/*.zip
 programs/*/pdfs/*.zip
+
+pdfs/*

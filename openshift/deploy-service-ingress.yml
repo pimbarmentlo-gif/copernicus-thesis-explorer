@@ -1,0 +1,89 @@
+kind: Deployment
+apiVersion: apps/v1
+metadata:
+  name: thesis-explorer-deployment
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: thesis-explorer-deployment
+  template:
+    metadata:
+      labels:
+        app: thesis-explorer-deployment
+    spec:
+      securityContext:
+        runAsUser: 1002860000
+        runAsGroup: 1002860000
+      containers:
+        - name: thesis-explorer-deployment
+          image: 'registry.cp.its.uu.nl/geo-tst-thesisexplorer/thesis-explorer-is:latest'
+          ports:
+            - containerPort: 8501
+          imagePullPolicy: Always
+          volumeMounts:
+            - name: pdfs-water-management
+              mountPath: /cte/programs/water_management/pdfs
+            - name: pdfs-innosci
+              mountPath: /cte/programs/innovation_sciences/pdfs
+            - name: pdfs-susdev
+              mountPath: /cte/programs/sustainable_development/pdfs
+            - name: pdfs-sbi
+              mountPath: /cte/programs/sbi/pdfs
+            - name: pdfs-energy-sci
+              mountPath: /cte/programs/energy_science/pdfs
+      volumes:
+        - name: pdfs-water-management
+          PersistentVolumeClaim:
+            claimName: thesis-watermgmt-pdfs
+        - name: pdfs-innosci
+          PersistentVolumeClaim:
+            claimName: thesis-innosci-pdfs
+        - name: pdfs-susdev
+          PersistentVolumeClaim:
+            claimName: thesis-susdev-pdfs
+        - name: pdfs-sbi
+          PersistentVolumeClaim:
+            claimName: thesis-sbi-pdfs
+        - name: pdfs-energy-sci
+          PersistentVolumeClaim:
+            claimName: thesis-energyscience-pdfs
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: thesis-explorer-service
+spec:
+  type: NodePort
+  selector:
+    app: thesis-explorer-deployment
+  ports:
+  - protocol: TCP
+    port: 443
+    targetPort: 8501
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: thesis-explorer-ingress
+  annotations:
+    acme.cert-manager.io/http01-edit-in-place: "true"
+    cert-manager.io/cluster-issuer: harica
+    ingress.citrix.com/insecure-termination: redirect
+spec:
+  ingressClassName: nsic-vpx
+  rules:
+  - host: test-thesisexplorer.geo.uu.nl
+    http:
+      paths:
+      - backend:
+          service:
+            name: thesis-explorer-service
+            port:
+              number: 443
+        path: /
+        pathType: Prefix
+  tls:
+  - hosts:
+    - test-thesisexplorer.geo.uu.nl
+    secretName: test-thesis-explorer-tls

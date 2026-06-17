@@ -8,3 +8,6 @@ level = "info"
 [client]
 showErrorDetails = "none"
 
+[browser]
+gatherUsageStats = false
+serverAddress = "test-thesisexplorer.geo.uu.nl"

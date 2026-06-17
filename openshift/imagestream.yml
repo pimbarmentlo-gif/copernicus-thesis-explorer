@@ -1,0 +1,7 @@
+apiVersion: image.openshift.io/v1
+kind: ImageStream
+metadata: 
+  name: thesis-explorer-is
+spec:
+  lookupPolicy:
+    local: true

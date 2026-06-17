@@ -34,9 +34,9 @@ from pathlib import Path
 
 
 def _render_html_iframe(html_body: str, *, height: int | str = "content") -> None:
-    """Render custom HTML inline via st.components.v1.html."""
+    """Render custom HTML inline via st.iframe."""
     iframe_height = 1 if isinstance(height, int) and height <= 0 else height
-    st.components.v1.html(html_body, height=iframe_height, scrolling=False)
+    st.iframe(html_body, height=iframe_height)
 
 # ----- cached data-loading helpers -----------------------------------------
 # These functions are decorated with @st.cache_data so that expensive I/O and
@@ -8390,4 +8390,4 @@ if _show_chat_widget:
 })();
 </script></body></html>"""
 
-    st.components.v1.html(_cw_html, height=1, scrolling=False)
+    st.iframe(_cw_html, height=1)

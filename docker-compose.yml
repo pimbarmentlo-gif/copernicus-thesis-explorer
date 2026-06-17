@@ -1,0 +1,11 @@
+services:
+  cte:
+    image: cte:latest
+    ports:
+      - 8501:8501
+    volumes:
+      - ./pdfs/Energysciencepdfs:/cte/programs/energy_science/pdfs
+      - ./pdfs/Innovationsciencepdfs:/cte/programs/innovation_sciences/pdfs
+      - ./pdfs/SusDevPDFs:/cte/programs/sustainable_development/pdfs
+      - ./pdfs/SBIpdfs:/cte/programs/sbi/pdfs
+      - ./pdfs/WatermanagementPDFs:/cte/programs/water_management/pdfs
