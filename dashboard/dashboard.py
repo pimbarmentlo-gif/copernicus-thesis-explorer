@@ -30,11 +30,29 @@ import threading as _threading
 import socketserver as _socketserver
 import http.server as _http_server
 from pathlib import Path
+import time as _time
 
+# ----- application logging --------------------------------------------------
+# Plain Python logging (Garrett's request) so we can see which functions run
+# during startup and where the time goes.  `app_logging` lives next to this
+# file; make sure that folder is importable whether the app is launched via
+# `streamlit run dashboard/dashboard.py` (folder already on sys.path) or via the
+# root `dashboard.py` launcher.
+import sys as _sys
+_THIS_DIR = os.path.dirname(os.path.abspath(__file__))
+if _THIS_DIR not in _sys.path:
+    _sys.path.insert(0, _THIS_DIR)
+from app_logging import logger
+
+# Module-level timer so we can measure total top-to-bottom script execution time
+# (Streamlit re-runs this whole file on every interaction).
+_SCRIPT_START_TS = _time.time()
+logger.debug("=== dashboard.py module execution START ===")
 
 
 def _render_html_iframe(html_body: str, *, height: int | str = "content") -> None:
     """Render custom HTML inline via st.iframe."""
+    logger.debug("enter _render_html_iframe()")
     iframe_height = 1 if isinstance(height, int) and height <= 0 else height
     st.iframe(html_body, height=iframe_height)
 
@@ -52,6 +70,7 @@ def _load_thesis_data(program_dir: str, program: str, mtime: float = 0) -> tuple
     All post-load transforms (fillna, Year normalisation, Featured flag) are
     applied inside this function so they are also covered by the cache.
     """
+    logger.debug("enter _load_thesis_data()")
     import zipfile as _zf
 
     _featured_sbi = {
@@ -127,8 +146,11 @@ def _load_thesis_data(program_dir: str, program: str, mtime: float = 0) -> tuple
     }
 
     metadata_path = os.path.join(program_dir, "thesis_metadata_matched.csv")
+    logger.debug("_load_thesis_data: reading metadata CSV at %s (exists=%s)",
+                 metadata_path, os.path.exists(metadata_path))
 
     if not os.path.exists(metadata_path):
+        logger.debug("_load_thesis_data: metadata file MISSING at %s", metadata_path)
         return pd.DataFrame(), (
             f"Metadata file not found: {metadata_path}. Run prepare_thesis_files.py first."
         )
@@ -163,7 +185,11 @@ def _load_thesis_data(program_dir: str, program: str, mtime: float = 0) -> tuple
         return pd.DataFrame(), f"Error reading metadata: {exc}"
 
     if not loaded:
+        logger.debug("_load_thesis_data: could not parse CSV (last_error=%s)", last_error)
         return pd.DataFrame(), f"Could not read metadata file: {last_error}"
+
+    logger.debug("_load_thesis_data: CSV parsed, %d raw rows, %d columns",
+                 len(df), len(df.columns))
 
     # Post-load transforms -------------------------------------------------------
     # Exclude unresolved records from all dashboard views.
@@ -196,12 +222,14 @@ def _load_thesis_data(program_dir: str, program: str, mtime: float = 0) -> tuple
     else:
         df["Featured"] = False
 
+    logger.debug("_load_thesis_data: returning %d cleaned rows for program=%s", len(df), program)
     return df, ""
 
 
 @st.cache_data(show_spinner=False)
 def _load_image_b64(path: str) -> str:
     """Return a base64-encoded string for a binary file, or '' if the file does not exist."""
+    logger.debug("enter _load_image_b64()")
     if not os.path.exists(path):
         return ""
     with open(path, "rb") as f:
@@ -211,6 +239,7 @@ def _load_image_b64(path: str) -> str:
 @st.cache_data(show_spinner=False)
 def _load_sup_profiles_global() -> dict:
     """Load supervisor_profiles.json and embed photo b64 into each entry. Cached for lifetime."""
+    logger.debug("enter _load_sup_profiles_global()")
     _p = Path(__file__).parent / "supervisor_profiles.json"
     if not _p.exists():
         return {}
@@ -226,17 +255,23 @@ def _load_sup_profiles_global() -> dict:
         return {}
 
 
+_t0 = _time.time()
 _SUP_PROFILES = _load_sup_profiles_global()
+logger.debug("loaded supervisor profiles (%d entries) in %.3fs",
+             len(_SUP_PROFILES) if hasattr(_SUP_PROFILES, "__len__") else -1,
+             _time.time() - _t0)
 
 
 def _sup_photo_b64(name: str) -> str:
     """Return cached base64 photo for a canonical supervisor name, or ''."""
+    logger.debug("enter _sup_photo_b64()")
     return _SUP_PROFILES.get(name, {}).get("_photo_b64", "") or ""
 
 
 @st.cache_data(show_spinner=False)
 def _load_html_file(path: str) -> str:
     """Return the text content of a file, or '' if it does not exist."""
+    logger.debug("enter _load_html_file()")
     if not os.path.exists(path):
         return ""
     with open(path, "r", encoding="utf-8") as f:
@@ -250,6 +285,7 @@ def _build_chat_context(df_json: str) -> str:
     Each thesis becomes one line: key fields only, truncated abstract.
     Cached per unique df_json so it rebuilds only when data changes.
     """
+    logger.debug("enter _build_chat_context()")
     import json as _j
     rows = _j.loads(df_json)
     lines = []
@@ -277,6 +313,7 @@ def _build_chat_context(df_json: str) -> str:
 @st.cache_data(show_spinner=False)
 def _build_logo_index(logos_dir: str) -> list:
     """Scan logos_dir and return list of (token_set, joined_slug, filepath) tuples."""
+    logger.debug("enter _build_logo_index()")
     import re as _rl
     _NOISE = {
         "logo","favicon","brand","svg","png","jpg","jpeg","webp","avif","rgb","seeklogo",
@@ -311,6 +348,7 @@ def _build_logo_index(logos_dir: str) -> list:
 @st.cache_data(show_spinner=False)
 def _load_org_logo_b64(logos_dir: str, org_name: str) -> str:
     """Fuzzy-match org_name against messy logo filenames using multi-phase scoring."""
+    logger.debug("enter _load_org_logo_b64()")
     import re as _rl
     from difflib import SequenceMatcher as _SM
     index = _build_logo_index(logos_dir)
@@ -437,11 +475,14 @@ PROGRAM = "sbi"
 # straight from the project root — no symlink involved.
 class _PDFHandler(_http_server.SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
+        logger.debug("enter _PDFHandler.__init__()")
         super().__init__(*args, directory=_PROJECT_ROOT, **kwargs)
     def end_headers(self):
+        logger.debug("enter _PDFHandler.end_headers()")
         self.send_header("Access-Control-Allow-Origin", "*")
         super().end_headers()
     def log_message(self, *args):
+        logger.debug("enter _PDFHandler.log_message()")
         pass  # silence access log
 
 @st.cache_resource(show_spinner=False)
@@ -449,6 +490,7 @@ def _start_pdf_server() -> int:
     """Start a one-off CORS-enabled HTTP server for serving PDFs.
     Wrapped in cache_resource so it runs exactly once per process lifetime,
     preventing port exhaustion from multiple script reruns."""
+    logger.debug("enter _start_pdf_server()")
     try:
         srv = _socketserver.TCPServer(("127.0.0.1", 0), _PDFHandler)
         _threading.Thread(target=srv.serve_forever, daemon=True).start()
@@ -456,7 +498,9 @@ def _start_pdf_server() -> int:
     except OSError:
         return 0
 
+_t0 = _time.time()
 _PDF_SERVER_PORT: int = _start_pdf_server()
+logger.debug("PDF server started on port %s in %.3fs", _PDF_SERVER_PORT, _time.time() - _t0)
 
 # Map programme keys (used in URLs/session state) to actual folder names on disk.
 _PROGRAMME_FOLDER_MAP = {
@@ -514,6 +558,7 @@ if 'nav_history' not in st.session_state:
 
 def _push_nav_history() -> None:
     """Capture current page state onto the navigation history stack (max 10 entries)."""
+    logger.debug("enter _push_nav_history()")
     _entry = {
         'program': st.session_state.get('program', 'sbi'),
         'page_nav': st.session_state.get('page_nav', 'Explorer'),
@@ -569,6 +614,7 @@ def _sync_explorer_url() -> None:
     so this is silent — the user only sees a history entry when a major
     navigation (detail / pdf / supervisor / nav switch) happens.
     """
+    logger.debug("enter _sync_explorer_url()")
     if st.session_state.get('page') != 'dashboard':
         return
     if st.session_state.get('selected_details') or st.session_state.get('selected_pdf'):
@@ -605,6 +651,7 @@ def _sync_explorer_url() -> None:
 
 def _sync_supervisor_url() -> None:
     """Mirror Supervisor directory/finder state into st.query_params."""
+    logger.debug("enter _sync_supervisor_url()")
     if st.session_state.get('page') != 'dashboard':
         return
     if st.session_state.get('page_nav') != 'Supervisors':
@@ -660,6 +707,7 @@ def _restore_filters_from_url(force: bool = False) -> None:
     When `force=True` (URL changed externally — chip click / page navigation),
     we update widget keys unconditionally so the widgets reflect the new URL.
     """
+    logger.debug("enter _restore_filters_from_url()")
     for saved_key, (short, kind) in _FILTER_URL_KEYS.items():
         raw = st.query_params.get(short)
         if raw is None:
@@ -2288,6 +2336,7 @@ st.markdown(
 
 def sdg_badge(sdg_text: str) -> str:
     """Return HTML for a coloured SDG badge, including optional icon."""
+    logger.debug("enter sdg_badge()")
 
     number = None
     if sdg_text and sdg_text != "n/a":
@@ -2348,6 +2397,7 @@ def sdg_badge(sdg_text: str) -> str:
 
 
 def _has_value(value) -> bool:
+    logger.debug("enter _has_value()")
     if pd.isna(value):
         return False
     text = str(value).strip().lower()
@@ -2355,6 +2405,7 @@ def _has_value(value) -> bool:
 
 
 def _normalize_name_key(text: str) -> str:
+    logger.debug("enter _normalize_name_key()")
     import re
     import unicodedata
 
@@ -2368,6 +2419,7 @@ def _normalize_name_key(text: str) -> str:
 
 def _author_surname_keys(author_text: str) -> set[str]:
     """Extract normalized surname-like keys from an author field."""
+    logger.debug("enter _author_surname_keys()")
     import re
 
     particles = {"van", "de", "den", "der", "ter", "ten", "von", "da", "di", "del", "della", "du", "la", "le"}
@@ -2401,6 +2453,7 @@ def _author_surname_keys(author_text: str) -> set[str]:
 
 def _author_person_name_parts(author_text: str) -> list[tuple[set[str], set[str]]]:
     """Return per-person (surname_keys, given_name_keys) extracted from an author field."""
+    logger.debug("enter _author_person_name_parts()")
     import re
 
     particles = {"van", "de", "den", "der", "ter", "ten", "von", "da", "di", "del", "della", "du", "la", "le"}
@@ -2461,6 +2514,7 @@ def _author_person_name_parts(author_text: str) -> list[tuple[set[str], set[str]
 
 def _parse_featured_name(name: str) -> tuple[str, set[str]]:
     """Parse coordinator-provided name into (surname_key, given_tokens)."""
+    logger.debug("enter _parse_featured_name()")
     parts = [p.strip() for p in str(name).split(",", 1)]
     if len(parts) == 2:
         surname_raw, given_raw = parts[0], parts[1]
@@ -2479,6 +2533,7 @@ def _parse_featured_name(name: str) -> tuple[str, set[str]]:
 
 
 def _featured_badge_html(is_featured: bool) -> str:
+    logger.debug("enter _featured_badge_html()")
     return "<span class='featured-badge'>★ Featured</span>" if is_featured else ""
 
 
@@ -2489,6 +2544,7 @@ _DRIVE_ROOT_FALLBACK = "https://drive.google.com/drive/folders/1Gy0Ez7MtbexaV6y8
 @st.cache_data(show_spinner=False, max_entries=12)
 def _load_pdf_bytes_cached(pdf_path: str) -> bytes | None:
     """Cache PDF bytes by path — used only for the download button."""
+    logger.debug("enter _load_pdf_bytes_cached()")
     try:
         with open(pdf_path, "rb") as _f:
             return _f.read()
@@ -2498,6 +2554,7 @@ def _load_pdf_bytes_cached(pdf_path: str) -> bytes | None:
 
 def _pdf_iframe_html(static_url: str, height: int = 1100) -> str:
     """Inline PDF.js viewer: lazy rendering, HiDPI canvas, auto-fit-to-width, page nav."""
+    logger.debug("enter _pdf_iframe_html()")
     tb = 44
     vh = height - tb
     return f"""<!DOCTYPE html>
@@ -2766,6 +2823,7 @@ def _get_program_dir_for_row(row) -> str:
     programme. Falls back to the module-level PROGRAM_DIR when the column
     is absent (single-programme mode).
     """
+    logger.debug("enter _get_program_dir_for_row()")
     try:
         key = str(row.get("_program_key", "") or "").strip()
     except Exception:
@@ -2778,6 +2836,7 @@ def _get_program_dir_for_row(row) -> str:
 
 
 def resolve_cover_and_pdf_paths(row) -> tuple[str, str]:
+    logger.debug("enter resolve_cover_and_pdf_paths()")
     pdf_name = str(row.get("Thesis_PDF", "")).strip()
     _row_program_dir = _get_program_dir_for_row(row)
     pdf_path = ""
@@ -2815,6 +2874,7 @@ def resolve_cover_and_pdf_paths(row) -> tuple[str, str]:
 
 def render_cover_html(cover_path: str, pdf_path: str = "", featured: bool = False) -> str:
     """Render a fixed-size cover block so all cards align, even without an image."""
+    logger.debug("enter render_cover_html()")
     badge = "<span class='thesis-cover-badge'>&#9733; Featured</span>" if featured else ""
     cover_b64 = _load_image_b64(cover_path)
     if cover_b64:
@@ -2832,6 +2892,7 @@ def render_cover_html(cover_path: str, pdf_path: str = "", featured: bool = Fals
 
 
 def find_row_by_pdf_name(dataframe, pdf_name: str):
+    logger.debug("enter find_row_by_pdf_name()")
     for _, row in dataframe.iterrows():
         row_pdf = str(row.get("Thesis_PDF", ""))
         if pd.notna(row_pdf) and row_pdf not in ("", "n/a", "nan") and row_pdf == pdf_name:
@@ -2840,6 +2901,7 @@ def find_row_by_pdf_name(dataframe, pdf_name: str):
 
 
 def render_keyword_pills(raw_keywords):
+    logger.debug("enter render_keyword_pills()")
     if pd.notna(raw_keywords) and str(raw_keywords).strip().lower() != "n/a":
         keyword_items = [k.strip() for k in str(raw_keywords).split(",") if k.strip() and k.strip().lower() != "n/a"]
         if keyword_items:
@@ -2851,15 +2913,18 @@ def render_keyword_pills(raw_keywords):
 
 def _detail_field(label: str, value) -> None:
     """Render a single label + value pair in detail view."""
+    logger.debug("enter _detail_field()")
     st.markdown(f"<div class='detail-label'>{label}</div>", unsafe_allow_html=True)
     text = str(value).strip() if _has_value(value) else "n/a"
     st.markdown(f"<div class='detail-field-value'>{text}</div>", unsafe_allow_html=True)
 
 
 def render_structured_details_sections(row):
+    logger.debug("enter render_structured_details_sections()")
     import html as _html
 
     def _v(val) -> str:
+        logger.debug("enter render_structured_details_sections._v()")
         safe = _html.escape(str(val).strip()) if _has_value(val) else ""
         return f"<span class='ds-val'>{safe}</span>" if safe else "<span class='ds-na'>—</span>"
 
@@ -2929,6 +2994,7 @@ def render_structured_details_sections(row):
 
     # Supervisor / Second-reader clickable links (with optional photo)
     def _sup_link_html(name_str) -> str:
+        logger.debug("enter render_structured_details_sections._sup_link_html()")
         if not _has_value(name_str):
             return "<span class='ds-na'>\u2014</span>"
         _enc_p = urllib.parse.quote(PROGRAM, safe='')
@@ -3039,6 +3105,7 @@ def render_structured_details_sections(row):
 
 
 def _normalized_set(value: str) -> set[str]:
+    logger.debug("enter _normalized_set()")
     if pd.isna(value):
         return set()
     parts = [item.strip().lower() for item in str(value).split(",")]
@@ -3046,6 +3113,7 @@ def _normalized_set(value: str) -> set[str]:
 
 
 def _normalized_value(value: str) -> str:
+    logger.debug("enter _normalized_value()")
     if pd.isna(value):
         return ""
     normalized = str(value).strip().lower()
@@ -3055,6 +3123,7 @@ def _normalized_value(value: str) -> str:
 
 
 def compute_similarity_score(row_a, row_b):
+    logger.debug("enter compute_similarity_score()")
     score = 0.0
 
     if _normalized_value(row_a.get("SDG", "")) == _normalized_value(row_b.get("SDG", "")) and _normalized_value(row_a.get("SDG", "")):
@@ -3081,6 +3150,7 @@ def compute_similarity_score(row_a, row_b):
 
 
 def get_related_theses(df, current_row, top_n=4):
+    logger.debug("enter get_related_theses()")
     related = []
     current_pdf = _normalized_value(current_row.get("Thesis_PDF", ""))
 
@@ -3100,6 +3170,7 @@ def get_related_theses(df, current_row, top_n=4):
 
 
 def render_related_thesis_cards(current_row, key_prefix: str):
+    logger.debug("enter render_related_thesis_cards()")
     st.markdown("### Similar Theses")
     related_rows = get_related_theses(df, current_row, top_n=4)
     if related_rows:
@@ -3212,6 +3283,7 @@ _PROG_ICON_PATH = {
 
 def _programme_icon_html(key: str, title: str) -> str:
     """Return a large circular icon button with the programme title overlaid."""
+    logger.debug("enter _programme_icon_html()")
     meta = _PROG_ICON_PATH.get(key)
     if not meta:
         return (
@@ -3237,6 +3309,7 @@ def _programme_icon_html(key: str, title: str) -> str:
 
 def _asset_data_uri(filename: str, mime: str) -> str:
     """Return a base64 data URI for an asset in the current programme assets folder."""
+    logger.debug("enter _asset_data_uri()")
     asset_path = os.path.join(PROGRAM_DIR, "assets", filename)
     if not os.path.exists(asset_path):
         # Fall back to shared SBI assets
@@ -3249,6 +3322,7 @@ def _asset_data_uri(filename: str, mime: str) -> str:
 
 def show_homepage():
     """Landing page where users select a programme."""
+    logger.debug("enter show_homepage()")
     # Front-page background image (highest quality: original file bytes embedded as data URL).
     # Check root folder first, then fall back to SBI assets folder.
     bg_root_dir = os.path.join(BASE_DIR, "..")
@@ -3425,6 +3499,7 @@ if st.session_state.back_btn_requested:
 
 def _render_back_btn(key: str) -> None:
     """Yellow ← Back button that triggers browser history.back()."""
+    logger.debug("enter _render_back_btn()")
     if st.button("← Back", key=key):
         st.session_state.back_btn_requested = True
         st.rerun()
@@ -3454,6 +3529,7 @@ def _explorer_url(omit_list: tuple | None = None,
     omit_bool = short_key — clear that bool filter.
     omit_str  = short_key — clear that string field (e.g. "q" to remove the search query).
     """
+    logger.debug("enter _explorer_url()")
     parts = [f"program={PROGRAM}"]
     for saved_key, (short, kind) in _FILTER_URL_KEYS.items():
         val = st.session_state.get(saved_key)
@@ -3477,6 +3553,7 @@ def _explorer_url(omit_list: tuple | None = None,
 
 def _render_filter_chips() -> None:
     """Active-filter chips above the Explorer grid (Amazon/Airbnb pattern)."""
+    logger.debug("enter _render_filter_chips()")
     chips: list[tuple[str, str]] = []
     for saved_key, (short, kind) in _FILTER_URL_KEYS.items():
         val = st.session_state.get(saved_key)
@@ -3524,6 +3601,7 @@ def _render_top_bar() -> None:
     Rendered via st.markdown so anchor links work natively without any
     iframe / postMessage boundary — plain <a href="?..."> tags.
     """
+    logger.debug("enter _render_top_bar()")
     active_section = st.session_state.get('page_nav', 'Explorer')
     selected_details = st.session_state.get('selected_details')
     selected_pdf = st.session_state.get('selected_pdf')
@@ -3624,6 +3702,8 @@ else:
     )
 
 # ----- load data ------------------------------------------------------------
+logger.debug("loading thesis data for PROGRAM=%s (PROGRAM_DIR=%s)", PROGRAM, PROGRAM_DIR)
+_data_load_t0 = _time.time()
 if PROGRAM == _ALL_PROGRAM_KEY:
     _all_frames: list[pd.DataFrame] = []
     _load_errors: list[str] = []
@@ -3660,6 +3740,10 @@ else:
     if _load_error:
         st.error(_load_error)
     pdf_folder = os.path.join(PROGRAM_DIR, "pdfs")
+
+logger.debug("thesis data loaded: %d rows in %.3fs (PROGRAM=%s)",
+             len(df) if hasattr(df, "__len__") else -1,
+             _time.time() - _data_load_t0, PROGRAM)
 
 # ----- explorer page background colour (per-programme palette tint) -------
 _PROG_BG_TINT = {
@@ -3707,7 +3791,9 @@ page = st.session_state.page_nav
 
 # Persistent top app-bar — replaces the old programme-header + sidebar-nav +
 # in-page detail-nav row. Renders on every programme-scoped page.
+_t0 = _time.time()
 _render_top_bar()
+logger.debug("rendered top bar in %.3fs", _time.time() - _t0)
 
 # Sidebar discipline: it now contains *only* the Filter panel, which is only
 # meaningful on the Explorer grid. Hide the sidebar everywhere else (detail
@@ -3788,16 +3874,19 @@ else:
 
 
 def _is_valid_value(value) -> bool:
+    logger.debug("enter _is_valid_value()")
     text = str(value).strip().lower()
     return text not in ("", "n/a", "na", "nan")
 
 
 def _split_multi_values(raw_value) -> list[str]:
+    logger.debug("enter _split_multi_values()")
     parts = [part.strip() for part in str(raw_value).split(",")]
     return [part for part in parts if _is_valid_value(part)]
 
 
 def _series_options(series: pd.Series, *, sdg_sort: bool = False) -> list[str]:
+    logger.debug("enter _series_options()")
     cleaned = [str(v).strip() for v in series.tolist() if _is_valid_value(v)]
     unique_vals = sorted(set(cleaned), key=lambda x: x.lower())
     if not sdg_sort:
@@ -3806,6 +3895,7 @@ def _series_options(series: pd.Series, *, sdg_sort: bool = False) -> list[str]:
     import re
 
     def _sdg_key(item: str):
+        logger.debug("enter _series_options._sdg_key()")
         match = re.match(r"^\s*(\d+)", item)
         if match:
             return (0, int(match.group(1)), item.lower())
@@ -3827,6 +3917,7 @@ if show_explorer_filters:
     }
     def _sdg_format(option: str) -> str:
         """Return SDG option label with a colored circle prefix."""
+        logger.debug("enter _sdg_format()")
         import re as _re
         m = _re.match(r"^\s*(\d+)", str(option))
         if m:
@@ -3971,6 +4062,7 @@ if show_explorer_filters:
 
         # Reset button (outside expander, below it)
         def _reset_filters():
+            logger.debug("enter _reset_filters()")
             for _k in _FILTER_KEYS:
                 if _k in ("saved_search_query", "saved_theory_filter"):
                     st.session_state[_k] = ""
@@ -4632,6 +4724,7 @@ if page == "Explorer":
             )
 
             def set_explorer_page(new_page: int):
+                logger.debug("enter set_explorer_page()")
                 new_page = max(0, min(new_page, total_pages - 1))
                 st.session_state.explorer_page = new_page
                 # Mirror to URL immediately so the upcoming rerun's init pass
@@ -4641,6 +4734,7 @@ if page == "Explorer":
 
             # Top pagination controls
             def render_pagination(position):
+                logger.debug("enter render_pagination()")
                 nav_cols = st.columns([1, 1, 1, 1])
                 with nav_cols[0]:
                     if st.button("\u00ab First", key=f"first_{position}", disabled=(current_page == 0)):
@@ -4710,6 +4804,7 @@ elif page == "Programme Analytics":
     st.markdown("### Programme Analytics")
 
     def _normalize_method_text(value: str) -> str:
+        logger.debug("enter _normalize_method_text()")
         import re
         import unicodedata
 
@@ -4733,6 +4828,7 @@ elif page == "Programme Analytics":
         return " ".join(text.split())
 
     def _pretty_method_label(value: str) -> str:
+        logger.debug("enter _pretty_method_label()")
         cleaned = str(value).strip()
         if not cleaned:
             return "n/a"
@@ -4740,6 +4836,7 @@ elif page == "Programme Analytics":
 
     @st.cache_data(show_spinner=False)
     def build_methodology_map(series: pd.Series) -> dict[str, str]:
+        logger.debug("enter build_methodology_map()")
         from difflib import SequenceMatcher
 
         cleaned = series[series.notna()].astype(str).str.strip()
@@ -4759,6 +4856,7 @@ elif page == "Programme Analytics":
         generic_tokens = {"method", "methodology", "research", "study", "approach", "empirical"}
 
         def likely_same_method(a: str, b: str) -> bool:
+            logger.debug("enter build_methodology_map.likely_same_method()")
             if a == b:
                 return True
             if a in b or b in a:
@@ -4818,6 +4916,7 @@ elif page == "Programme Analytics":
     method_map = build_methodology_map(df["Methodology Type"])
 
     def canonical_methodology(value: str) -> str:
+        logger.debug("enter canonical_methodology()")
         if pd.isna(value):
             return "n/a"
         raw = str(value).strip()
@@ -4828,6 +4927,7 @@ elif page == "Programme Analytics":
         return method_map.get(raw, _pretty_method_label(raw))
 
     def top_non_na(series):
+        logger.debug("enter top_non_na()")
         cleaned = series[series.notna()].astype(str).str.strip()
         cleaned = cleaned[cleaned.str.lower() != "n/a"]
         cleaned = cleaned[cleaned != ""]
@@ -4835,6 +4935,7 @@ elif page == "Programme Analytics":
         return counts.index[0] if not counts.empty else "n/a"
 
     def _extract_sdg_number(sdg_text: str) -> int | None:
+        logger.debug("enter _extract_sdg_number()")
         import re
 
         match = re.match(r"^\s*(\d+)", str(sdg_text))
@@ -4847,6 +4948,7 @@ elif page == "Programme Analytics":
             return None
 
     def _country_flag_emoji(name: str) -> str:
+        logger.debug("enter _country_flag_emoji()")
         lookup = {
             "Netherlands": "🇳🇱",
             "Germany": "🇩🇪",
@@ -4885,6 +4987,7 @@ elif page == "Programme Analytics":
     most_common_sdg_number = _extract_sdg_number(most_common_sdg)
 
     def _insight_card(title: str, value_html: str) -> None:
+        logger.debug("enter _insight_card()")
         st.markdown(
             f"<div class='programme-insight-card'>"
             f"<div class='programme-insight-title'>{title}</div>"
@@ -5008,11 +5111,13 @@ elif page == "Programme Analytics":
           - keyword_lookup_df: per-row keyword index with columns
             [row_index, keyword_norm, keyword_canonical]
         """
+        logger.debug("enter _compute_keyword_data()")
         from collections import Counter
         from difflib import SequenceMatcher
         import re as _re
 
         def normalize_keyword(keyword: str) -> str:
+            logger.debug("enter _compute_keyword_data.normalize_keyword()")
             k = str(keyword).lower().strip()
             k = k.replace("&", " and ").replace("/", " ").replace("-", " ")
             k = _re.sub(r"[^a-z0-9\s]", " ", k)
@@ -5034,11 +5139,13 @@ elif page == "Programme Analytics":
             return k.strip()
 
         def pretty_keyword(keyword: str) -> str:
+            logger.debug("enter _compute_keyword_data.pretty_keyword()")
             if not keyword:
                 return ""
             return keyword[0].upper() + keyword[1:]
 
         def similar_keyword(a: str, b: str) -> bool:
+            logger.debug("enter _compute_keyword_data.similar_keyword()")
             if a == b:
                 return True
             if a.replace(" ", "") == b.replace(" ", ""):
@@ -5098,6 +5205,7 @@ elif page == "Programme Analytics":
     kw_df, keyword_lookup_df = _compute_keyword_data(df)
 
     def get_topic_df(keyword_canonical: str) -> pd.DataFrame:
+        logger.debug("enter get_topic_df()")
         if keyword_lookup_df.empty:
             return pd.DataFrame(columns=df.columns)
         row_indexes = keyword_lookup_df[keyword_lookup_df["keyword_canonical"] == keyword_canonical]["row_index"].unique()
@@ -5119,6 +5227,7 @@ elif page == "Programme Analytics":
         }
 
         def _lighten_hex(hx: str, amount: float = 0.35) -> str:
+            logger.debug("enter _lighten_hex()")
             hx = hx.lstrip("#")
             rv, gv, bv = int(hx[:2], 16), int(hx[2:4], 16), int(hx[4:6], 16)
             rv = min(255, int(rv + (255 - rv) * amount))
@@ -5642,6 +5751,7 @@ elif page == "Insights":
         # AND aggregate counters (sectors, methods, theories, supervisors,
         # year trend, co-occurring SDGs) so the click-through modal can
         # surface meaningful context, not just a flat thesis list.
+        logger.debug("enter _compute_insights()")
         sdg_counts = _ins_Counter()
         sdg_theses: dict = {}
         sdg_sectors: dict[int, _ins_Counter] = {}
@@ -5653,10 +5763,12 @@ elif page == "Insights":
         sdg_cooccur: dict[int, _ins_Counter] = {}
 
         def _clean(value) -> str:
+            logger.debug("enter _compute_insights._clean()")
             text = str(value).strip()
             return "" if text.lower() in ("", "n/a", "nan") else text
 
         def _split_multi(value) -> list[str]:
+            logger.debug("enter _compute_insights._split_multi()")
             txt = str(value)
             parts: list[str] = []
             for chunk in txt.replace(";", ",").split(","):
@@ -5666,6 +5778,7 @@ elif page == "Insights":
             return parts
 
         def _all_sdg_nums(value) -> list[int]:
+            logger.debug("enter _compute_insights._all_sdg_nums()")
             return [int(m) for m in _ins_re.findall(r'\d+', str(value)) if 1 <= int(m) <= 17]
 
         for _, row in df.iterrows():
@@ -5720,6 +5833,7 @@ elif page == "Insights":
                         sdg_cooccur.setdefault(n, _ins_Counter())[other] += 1
 
         def _top_items(counter: _ins_Counter, k: int = 6) -> list[list]:
+            logger.debug("enter _compute_insights._top_items()")
             return [[name, int(cnt)] for name, cnt in counter.most_common(k)]
 
         sdg_aggregates: dict[int, dict] = {}
@@ -6431,6 +6545,7 @@ document.addEventListener('click',function(e){{
 
         # Derive primary sector for each org from most common thesis sector
         def _derive_sector(theses_list):
+            logger.debug("enter _derive_sector()")
             from collections import Counter as _C
             ctr = _C(
                 t.get("sector", "") for t in theses_list
@@ -6439,6 +6554,7 @@ document.addEventListener('click',function(e){{
             return ctr.most_common(1)[0][0] if ctr else "Other"
 
         def _describe_org(org_name: str, sector: str, thesis_count: int) -> str:
+            logger.debug("enter _describe_org()")
             _sector_text = f" in the {sector} cluster" if sector and sector != "Other" else " in this programme"
             _thesis_word = "thesis" if thesis_count == 1 else "theses"
             return (
@@ -7345,6 +7461,7 @@ elif page == "Supervisors":
     ]
 
     def _strip_titles(s: str) -> str:
+        logger.debug("enter _strip_titles()")
         s = s.strip().lstrip('.,;: ')
         while True:
             m = _TITLE_PAT.match(s)
@@ -7354,9 +7471,11 @@ elif page == "Supervisors":
                 return s
 
     def _fold_ascii(s: str) -> str:
+        logger.debug("enter _fold_ascii()")
         return ''.join(ch for ch in _ud.normalize('NFKD', s) if not _ud.combining(ch))
 
     def _name_tokens(s: str) -> list[str]:
+        logger.debug("enter _name_tokens()")
         s = _strip_titles(s)
         s = _re.sub(r'\([^)]*\)', ' ', s)
         s = s.replace('/', ' ')
@@ -7368,10 +7487,12 @@ elif page == "Supervisors":
         return [t for t in s.split(' ') if t]
 
     def _is_initial(tok: str) -> bool:
+        logger.debug("enter _is_initial()")
         t = tok.replace('.', '')
         return bool(t) and len(t) <= 3 and t.isalpha() and t.upper() == t
 
     def _title_case_name(s: str) -> str:
+        logger.debug("enter _title_case_name()")
         bits = []
         for b in s.split():
             lb = b.lower()
@@ -7384,6 +7505,7 @@ elif page == "Supervisors":
         return ' '.join(bits)
 
     def _first_last_from_tokens(toks: list[str]) -> tuple[str, str] | tuple[None, None]:
+        logger.debug("enter _first_last_from_tokens()")
         if len(toks) < 2:
             return None, None
         first = toks[0]
@@ -7401,6 +7523,7 @@ elif page == "Supervisors":
         return first, last
 
     def _build_person(name: str) -> dict | None:
+        logger.debug("enter _build_person()")
         toks = _name_tokens(name)
         first, last = _first_last_from_tokens(toks)
         if not first or not last:
@@ -7432,6 +7555,7 @@ elif page == "Supervisors":
         }
 
     def _split_cell(cell) -> list:
+        logger.debug("enter _split_cell()")
         if pd.isna(cell): return []
         raw = str(cell).strip()
         if raw.lower() in ('n/a', 'nan', ''): return []
@@ -7458,6 +7582,7 @@ elif page == "Supervisors":
         _cluster_canon[_k] = max(_choices.items(), key=lambda kv: kv[1])[0]
 
     def _norm(raw: str) -> str:
+        logger.debug("enter _norm()")
         _p = _build_person(raw.strip())
         if not _p:
             return _strip_titles(raw.strip())
@@ -7480,12 +7605,14 @@ elif page == "Supervisors":
     _PROFILES = _SUP_PROFILES
 
     def _stats(name: str) -> dict:
+        logger.debug("enter _stats()")
         d = _sups.get(name, {'s': [], 'r': []})
         ar = d['s'] + d['r']
         kw, meth, sec = _Counter(), _Counter(), _Counter()
         prog_sup, prog_all = _Counter(), _Counter()
 
         def _row_program_key(row) -> str:
+            logger.debug("enter _stats._row_program_key()")
             _k = str(row.get('_program_key', '') or '').strip()
             if _k in PROGRAMME_SHORT_NAMES:
                 return _k
@@ -7541,9 +7668,11 @@ elif page == "Supervisors":
         }
 
     def _avatar_color(name: str) -> str:
+        logger.debug("enter _avatar_color()")
         return _AVATAR_PALETTE[sum(ord(c) for c in name) % len(_AVATAR_PALETTE)]
 
     def _initials(name: str) -> str:
+        logger.debug("enter _initials()")
         pts = name.split()
         return (pts[0][0] + pts[-1][0]).upper() if len(pts) >= 2 else name[:2].upper()
 
@@ -7904,6 +8033,7 @@ elif page == "Supervisors":
         ])
 
         def _render_thesis_list(rows, _tab_key):
+            logger.debug("enter _render_thesis_list()")
             if not rows:
                 st.caption("No theses in this category.")
                 return
@@ -7983,6 +8113,7 @@ elif page == "Supervisors":
 
         def _topic_score(name: str) -> tuple[int, list[str]]:
             """Return (relevance_score, matched_tags) for topic-mode search."""
+            logger.debug("enter _topic_score()")
             if not _qwords:
                 return 0, []
             _prof2 = _PROFILES.get(name, {})
@@ -8114,6 +8245,7 @@ if _show_chat_widget:
     # injected into the page.  Configure CHAT_PROXY_URL in Streamlit secrets
     # (Settings → Secrets) or as an environment variable.
     def _cw_get_conf(_name: str, _default: str = "") -> str:
+        logger.debug("enter _cw_get_conf()")
         try:
             _v = st.secrets.get(_name)  # type: ignore[attr-defined]
             if _v:
@@ -8391,3 +8523,11 @@ if _show_chat_widget:
 </script></body></html>"""
 
     st.iframe(_cw_html, height=1)
+
+
+# ----- end of script --------------------------------------------------------
+# Streamlit re-runs this whole file top-to-bottom on every interaction; this
+# marker lets us measure total execution time per run and confirm the script
+# reached the end (vs. hanging somewhere in the middle).
+logger.debug("=== dashboard.py module execution END (total %.3fs) ===",
+             _time.time() - _SCRIPT_START_TS)
