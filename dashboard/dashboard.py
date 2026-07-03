@@ -918,7 +918,9 @@ st.markdown(
         display: flex;
         gap: 10px;
         margin-left: 22px;
-        flex: 1;
+        /* grow to push the switcher right, but never shrink: the three nav
+           pills (Explorer / Supervisors / Insights) must always stay intact. */
+        flex: 1 0 auto;
         flex-wrap: nowrap;
         min-width: 0;
         overflow-x: auto;
@@ -963,7 +965,10 @@ st.markdown(
     /* Programme switcher — <details>-based dropdown */
     .topbar-switcher-wrap {
         position: relative;
-        flex-shrink: 0;
+        /* The switcher yields space first (its label ellipsises) so it can
+           never push the nav pills off-screen or onto a second row. */
+        flex-shrink: 1;
+        min-width: 0;
     }
     .topbar-switcher {
         display: inline-flex;
@@ -979,10 +984,19 @@ st.markdown(
         font-family: inherit;
         font-weight: 600;
         max-width: 260px;
+        min-width: 0;
+        white-space: nowrap;
         box-shadow: 0 2px 8px rgba(0,0,0,0.06);
         transition: border-color 0.18s, box-shadow 0.18s;
         list-style: none;
         user-select: none;
+    }
+    /* Programme name: always one line; truncate with an ellipsis if too long. */
+    .topbar-switcher-label {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        min-width: 0;
     }
     .topbar-switcher::-webkit-details-marker,
     .topbar-switcher::marker {
@@ -997,6 +1011,7 @@ st.markdown(
         font-size: 0.8rem;
         opacity: 0.6;
         transition: transform 0.18s;
+        flex-shrink: 0;
     }
     .topbar-switcher-wrap[open] .topbar-switcher {
         border-color: rgba(0,54,96,0.25);
@@ -3543,8 +3558,10 @@ def _render_top_bar() -> None:
         nav_parts.append(f'<a class="topnav-link{active_cls}" href="{href}" target="_self">{sect}</a>')
     nav_html = "".join(nav_parts)
 
-    # Programme switcher dropdown
-    _current_label = _display_name if len(_display_name) <= 32 else _display_name[:30] + "…"
+    # Programme switcher dropdown — the label is kept on a single line and
+    # truncated with a CSS ellipsis (by pixel width), so long programme names
+    # never wrap onto a second row.
+    _current_label = f'<span class="topbar-switcher-label">{_display_name}</span>'
     _switcher_items = []
     for p_key, p_name in PROGRAMME_DISPLAY_NAMES.items():
         active_cls = " active" if p_key == PROGRAM else ""
@@ -3688,7 +3705,7 @@ st.markdown(
 
 # ----- navigation ----------------------------------------------------------
 
-_display_name = PROGRAMME_DISPLAY_NAMES.get(PROGRAM, PROGRAM)
+_display_name = PROGRAMME_DISPLAY_NAMES.get(PROGRAM, PROGRAM) 
 
 logo_path = os.path.join(PROGRAM_DIR, "assets", "uu_logo.png")
 if not os.path.exists(logo_path):
@@ -5578,6 +5595,21 @@ elif page == "Insights":
         "Food & Agriculture":            "#DDA63A",
         "Transport & Mobility":          "#9B59B6",
     }
+    # Geographic scale — ordered local → global, cool-to-warm so the gradient
+    # itself reads as "zooming out" from the field site to the planet.
+    _INS_SCALE_HEX = {
+        "Local":                "#4C9F38",
+        "Regional":             "#26BDE2",
+        "National":             "#003660",
+        "Global/International":  "#FD6925",
+    }
+    # Generic categorical palette (UU navy/gold family) for dimensions without a
+    # canonical colour identity — keywords, and any "Other" overflow buckets.
+    _INS_TREND_PALETTE = [
+        "#003660", "#FCC30B", "#0a97d9", "#4C9F38", "#FD6925", "#DD1367",
+        "#9B59B6", "#26BDE2", "#A21942", "#56C02B", "#DDA63A", "#19486A",
+    ]
+    _INS_OTHER_HEX = "#c2cad6"
 
     # ── org domain map for Clearbit logo API ─────────────────────────────
     _ORG_DOMAIN = {
@@ -5803,6 +5835,213 @@ elif page == "Insights":
 
     _ins_data = _compute_insights(df, PROGRAM)
 
+    # ── Trends over time ──────────────────────────────────────────────────
+    # Composition-over-time payload for the streamgraph + Rising/Fading panel.
+    # We deliberately work in *share of year* (not raw counts) so the story is
+    # "what slice of the programme's work does each theme occupy", immune to the
+    # fact that some cohort years are simply more complete in the dataset than
+    # others. Raw counts are still carried for tooltips + the honesty strip.
+    #
+    # Honesty rules (the "visible but subtle" guardrail):
+    #   • years with < _TR_MIN_YEAR theses for a dimension are dropped (noise —
+    #     e.g. a stray 2019/2026 row), and reported in the omitted-years note;
+    #   • years with < _TR_THIN_YEAR theses are kept but flagged "thin" so the
+    #     graphic can hatch them and the tooltip can caveat the share.
+    _TR_MIN_YEAR = 5
+    _TR_THIN_YEAR = 15
+
+    @st.cache_data(show_spinner=False)
+    def _compute_trends(df: pd.DataFrame, program: str):
+        import re as _tr_re
+
+        def _yr(v):
+            s = _tr_re.sub(r"\.0$", "", str(v).strip())
+            return int(s) if _tr_re.fullmatch(r"(19|20)\d{2}", s) else None
+
+        def _bad(s):
+            return (not s) or s.lower() in ("n/a", "nan", "")
+
+        def _primary(v):
+            # First listed value of a (possibly) multi-value cell — the thesis's
+            # main classification. Used for single-label dimensions so each year
+            # sums cleanly to 100%.
+            for part in str(v).replace(";", ",").split(","):
+                p = part.strip()
+                if not _bad(p):
+                    return p
+            return ""
+
+        def _multi(v):
+            out, seen = [], set()
+            for part in str(v).replace(";", ",").split(","):
+                p = part.strip()
+                if not _bad(p) and p.lower() not in seen:
+                    seen.add(p.lower())
+                    out.append(p)
+            return out
+
+        def _sdg_primary(v):
+            for m in _tr_re.findall(r"\d+", str(v)):
+                if 1 <= int(m) <= 17:
+                    return int(m)
+            return None
+
+        # Dimension specs. `extract(row)` returns the list of categories this
+        # thesis contributes to for that dimension (1 item for single-label,
+        # N for multi-label keywords). `label`/`color` map a raw key → display.
+        def _sector_lbl(k):  return k
+        def _sector_col(k):  return _INS_SECTOR_HEX.get(k, _INS_OTHER_HEX)
+        def _method_col(k):  return _INS_METHOD_HEX.get(k, _INS_OTHER_HEX)
+        def _scale_col(k):   return _INS_SCALE_HEX.get(k, _INS_OTHER_HEX)
+        def _sdg_lbl(k):
+            n = int(k)
+            return f"{n} · {_INS_SDG_NAMES.get(n, 'SDG ' + str(n))}"
+        def _sdg_col(k):     return _INS_SDG_HEX.get(int(k), _INS_OTHER_HEX)
+
+        DIMS = [
+            {"key": "sector", "label": "Research Sector",
+             "blurb": "Which fields of sustainability does the work belong to?",
+             "extract": lambda r: ([_primary(r.get("Main sector", ""))]
+                                   if _primary(r.get("Main sector", "")) else []),
+             "lbl": _sector_lbl, "col": _sector_col, "cap": 8, "other": True},
+            {"key": "sdg", "label": "Sustainable Development Goal",
+             "blurb": "Which global goal does each thesis primarily advance?",
+             "extract": lambda r: ([_sdg_primary(r.get("SDG", ""))]
+                                   if _sdg_primary(r.get("SDG", "")) is not None else []),
+             "lbl": _sdg_lbl, "col": _sdg_col, "cap": 8, "other": True},
+            {"key": "method", "label": "Methodology",
+             "blurb": "How is the research carried out — and how is that changing?",
+             "extract": lambda r: ([_primary(r.get("Methodology Type", ""))]
+                                   if _primary(r.get("Methodology Type", "")) else []),
+             "lbl": _sector_lbl, "col": _method_col, "cap": 6, "other": True},
+            {"key": "scale", "label": "Geographic Scale",
+             "blurb": "At what scale does the research operate — local to global?",
+             "extract": lambda r: ([_primary(r.get("Scale", ""))]
+                                   if _primary(r.get("Scale", "")) else []),
+             "lbl": _sector_lbl, "col": _scale_col, "cap": 5, "other": False},
+            {"key": "keyword", "label": "Topic Keywords",
+             "blurb": "Which specific topics are rising — and which are cooling?",
+             "extract": lambda r: _multi(r.get("Keywords", "")),
+             "lbl": _sector_lbl, "col": None, "cap": 10, "other": True},
+        ]
+
+        out = {"dims": [{"key": d["key"], "label": d["label"], "blurb": d["blurb"]}
+                        for d in DIMS],
+               "data": {}}
+
+        for d in DIMS:
+            # year_total[y]      = theses that have ANY value for this dimension
+            # cell[(key, y)]     = theses in category `key` in year y
+            # cat_theses[key]    = sample thesis records for the click-through
+            year_total = {}
+            cell = {}
+            cat_total = {}
+            cat_theses = {}
+            for _, row in df.iterrows():
+                y = _yr(row.get("Year", ""))
+                if y is None:
+                    continue
+                keys = d["extract"](row)
+                keys = [k for k in keys if k is not None and str(k) != ""]
+                if not keys:
+                    continue
+                year_total[y] = year_total.get(y, 0) + 1
+                rec = None
+                for k in keys:
+                    cell[(k, y)] = cell.get((k, y), 0) + 1
+                    cat_total[k] = cat_total.get(k, 0) + 1
+                    bucket = cat_theses.setdefault(k, [])
+                    if len(bucket) < 60:
+                        if rec is None:
+                            _pk = str(row.get("_program_key", "") or "").strip() or program
+                            _pdf = str(row.get("Thesis_PDF", "") or "").strip()
+                            rec = {
+                                "title": str(row.get("Title", "") or "").strip(),
+                                "author": str(row.get("Author(s)", "") or "").strip(),
+                                "year": y,
+                                "pdf": _pdf[:-4] if _pdf.lower().endswith(".pdf") else _pdf,
+                                "prog": _pk,
+                            }
+                        bucket.append(rec)
+
+            # Keep years with enough data; flag thin ones.
+            kept_years = sorted(y for y, n in year_total.items() if n >= _TR_MIN_YEAR)
+            omitted = sorted(y for y, n in year_total.items() if n < _TR_MIN_YEAR)
+            if len(kept_years) < 2:
+                out["data"][d["key"]] = {"years": [], "categories": [],
+                                         "totals": {}, "thin": {}, "omitted": omitted}
+                continue
+            thin = {y: (year_total[y] < _TR_THIN_YEAR) for y in kept_years}
+
+            # Early vs recent windows for momentum (first/last up-to-2 kept years).
+            early_yrs = kept_years[:2]
+            recent_yrs = kept_years[-2:]
+
+            def _win_share(key, yrs):
+                num = sum(cell.get((key, y), 0) for y in yrs)
+                den = sum(year_total[y] for y in yrs)
+                return (100.0 * num / den) if den else 0.0
+
+            # Rank categories by total volume; overflow → "Other".
+            ranked = sorted(cat_total.items(), key=lambda kv: -kv[1])
+            top_keys = [k for k, _ in ranked[:d["cap"]]]
+            overflow = [k for k, _ in ranked[d["cap"]:]]
+
+            categories = []
+            for k in top_keys:
+                counts = {y: cell.get((k, y), 0) for y in kept_years}
+                col = d["col"](k) if d["col"] else \
+                    _INS_TREND_PALETTE[len(categories) % len(_INS_TREND_PALETTE)]
+                e, rc = _win_share(k, early_yrs), _win_share(k, recent_yrs)
+                # Sort theses newest-first for the modal.
+                theses = sorted(cat_theses.get(k, []), key=lambda t: -t["year"])[:40]
+                categories.append({
+                    "key": str(k),
+                    "label": d["lbl"](k),
+                    "color": col,
+                    "counts": {str(y): counts[y] for y in kept_years},
+                    "total": cat_total[k],
+                    "early": round(e, 1),
+                    "recent": round(rc, 1),
+                    "delta": round(rc - e, 1),
+                    "theses": theses,
+                })
+
+            if d["other"] and overflow:
+                ocounts = {}
+                ototal = 0
+                for y in kept_years:
+                    s = sum(cell.get((k, y), 0) for k in overflow)
+                    ocounts[str(y)] = s
+                for k in overflow:
+                    ototal += cat_total[k]
+                e = sum(_win_share(k, early_yrs) for k in overflow)
+                rc = sum(_win_share(k, recent_yrs) for k in overflow)
+                categories.append({
+                    "key": "__other__",
+                    "label": f"Other ({len(overflow)})",
+                    "color": _INS_OTHER_HEX,
+                    "counts": ocounts,
+                    "total": ototal,
+                    "early": round(e, 1),
+                    "recent": round(rc, 1),
+                    "delta": round(rc - e, 1),
+                    "theses": [],
+                    "is_other": True,
+                })
+
+            out["data"][d["key"]] = {
+                "years": kept_years,
+                "totals": {str(y): year_total[y] for y in kept_years},
+                "thin": {str(y): thin[y] for y in kept_years},
+                "omitted": omitted,
+                "early_years": early_yrs,
+                "recent_years": recent_yrs,
+                "categories": categories,
+            }
+
+        return out
+
     # ── which graphic is selected (if any) ───────────────────────────────
     _ins_view = st.query_params.get("ins_view", "")
     _enc_prog = urllib.parse.quote(PROGRAM, safe="")
@@ -5872,7 +6111,8 @@ elif page == "Insights":
 
     /* ── Graphic picker cards ── */
     .ins-picker-row {
-        display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.6rem;
+        display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        gap: 1.6rem;
         margin-bottom: 3.5rem;
     }
     .ins-picker-card {
@@ -5927,6 +6167,58 @@ elif page == "Insights":
         transform: translateX(3px);
     }
     .ins-picker-card:hover .ins-picker-arrow svg { stroke: #fff; }
+
+    /* ── Picker card teaser graphics (full-bleed mini-viz per card) ── */
+    .ins-picker-viz{
+        position:relative; width:calc(100% + 4rem);
+        margin:-2.2rem -2rem 1.55rem; height:122px;
+        border-radius:22px 22px 0 0; overflow:hidden;
+        display:flex; align-items:center; justify-content:center;
+        box-shadow:inset 0 -1px 0 rgba(10,37,64,.06);
+    }
+    /* SDG — ring built from the 17 official goal colours */
+    .ipv-sdg{background:radial-gradient(120% 120% at 50% 28%, #f4faf6 0%, #e3f1e8 68%, #d7ecde 100%);}
+    .ipv-sdg-wheel{
+        width:94px; height:94px; border-radius:50%;
+        -webkit-mask:radial-gradient(circle, transparent 0 30px, #000 31px);
+                mask:radial-gradient(circle, transparent 0 30px, #000 31px);
+        box-shadow:0 8px 20px rgba(13,70,35,.22);
+        transition:transform .7s cubic-bezier(.22,1,.36,1);
+    }
+    .ins-picker-card:hover .ipv-sdg-wheel{transform:rotate(43deg) scale(1.05);}
+    .ipv-sdg-core{
+        position:absolute; width:60px; height:60px; border-radius:50%;
+        background:#fff; box-shadow:0 2px 9px rgba(13,70,35,.18);
+        display:flex; flex-direction:column; align-items:center; justify-content:center;
+    }
+    .ipv-sdg-core b{font-size:1.18rem; font-weight:800; color:#2a7a3b; line-height:1;}
+    .ipv-sdg-core span{font-size:.5rem; font-weight:700; letter-spacing:.13em; text-transform:uppercase; color:#86968a; margin-top:2px;}
+    /* Partner organisations — node galaxy on a night-sky field */
+    .ipv-orgs{background:radial-gradient(130% 130% at 28% 18%, #16365f 0%, #0c2245 56%, #07182f 100%);}
+    .ipv-orgs-svg{position:absolute; inset:0; width:100%; height:100%;}
+    .ipv-star{animation:ipvTwinkle 3.6s ease-in-out infinite;}
+    .ipv-star:nth-child(2n){animation-duration:2.6s; animation-delay:.5s;}
+    .ipv-star:nth-child(3n){animation-duration:4.4s; animation-delay:1.2s;}
+    .ipv-orgs-hub{transform-box:fill-box; transform-origin:center; animation:ipvPulse 3.4s ease-in-out infinite;}
+    .ipv-orgs-halo{transform-box:fill-box; transform-origin:center; animation:ipvHalo 2.9s ease-out infinite;}
+    /* Research geography — wireframe globe with location pins */
+    .ipv-globe{background:radial-gradient(120% 120% at 50% 24%, #eaf6fd 0%, #d2ebf9 70%, #c1e2f5 100%);}
+    .ipv-globe-svg{filter:drop-shadow(0 8px 18px rgba(10,79,134,.28)); transition:transform .6s cubic-bezier(.22,1,.36,1);}
+    .ins-picker-card:hover .ipv-globe-svg{transform:rotate(-6deg) scale(1.05);}
+    /* Trends — flowing streamgraph ribbons */
+    .ipv-trends{background:linear-gradient(135deg,#fffaef 0%, #fdeecb 100%);}
+    .ipv-trends-svg{position:absolute; inset:0; width:100%; height:100%;}
+    .ipv-trends-svg path{transform-box:view-box; transform-origin:center; animation:ipvDrift 10s ease-in-out infinite;}
+    .ipv-trends-svg path:nth-child(2){animation-duration:13s;}
+    .ipv-trends-svg path:nth-child(3){animation-duration:8.5s;}
+    .ipv-trends-svg path:nth-child(4){animation-duration:11.5s;}
+    @keyframes ipvTwinkle{0%,100%{opacity:.25}50%{opacity:.95}}
+    @keyframes ipvPulse{0%,100%{transform:scale(1)}50%{transform:scale(1.13)}}
+    @keyframes ipvHalo{0%{transform:scale(1);opacity:.55}70%,100%{transform:scale(2.2);opacity:0}}
+    @keyframes ipvDrift{0%,100%{transform:translateX(0)}50%{transform:translateX(-9px)}}
+    @media (prefers-reduced-motion: reduce){
+        .ipv-star,.ipv-orgs-hub,.ipv-orgs-halo,.ipv-trends-svg path{animation:none !important;}
+    }
 
     /* ── Back button ── */
     .ins-back-btn {
@@ -5985,47 +6277,135 @@ elif page == "Insights":
     _arrow_svg = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#003660" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>'
     _back_svg   = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>'
 
-    _icon_sdg = '''<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#2a7a3b" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-      <circle cx="12" cy="12" r="10"/>
-      <polyline points="12 8 12 12 14.5 14.5"/>
-      <line x1="2" y1="12" x2="6" y2="12"/>
-      <line x1="18" y1="12" x2="22" y2="12"/>
-      <line x1="12" y1="2" x2="12" y2="6"/>
-      <line x1="12" y1="18" x2="12" y2="22"/>
-    </svg>'''
-    _icon_orgs = '''<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#1d4ed8" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-      <circle cx="12" cy="5" r="2"/>
-      <circle cx="5" cy="17" r="2"/>
-      <circle cx="19" cy="17" r="2"/>
-      <line x1="12" y1="7" x2="5" y2="15"/>
-      <line x1="12" y1="7" x2="19" y2="15"/>
-      <line x1="5" y1="17" x2="19" y2="17"/>
-    </svg>'''
-    _icon_globe = '''<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#0369a1" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-      <circle cx="12" cy="12" r="10"/>
-      <line x1="2" y1="12" x2="22" y2="12"/>
-      <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
-    </svg>'''
+    # ── Teaser graphics: each card gets a full-bleed mini-visualisation that
+    #    previews the section it links to, in the UU navy/gold palette. ──────
+
+    # SDG — a ring assembled from the 17 official goal colours (the SDG wheel).
+    _sdg_seg = 360.0 / 17.0
+    _sdg_conic = "conic-gradient(from -90deg, " + ", ".join(
+        f"{_INS_SDG_HEX[i + 1]} {round(i * _sdg_seg, 2)}deg {round((i + 1) * _sdg_seg, 2)}deg"
+        for i in range(17)
+    ) + ")"
+    _viz_sdg = (
+        '<div class="ins-picker-viz ipv-sdg">'
+        f'<div class="ipv-sdg-wheel" style="background:{_sdg_conic};"></div>'
+        '<div class="ipv-sdg-core"><b>17</b><span>goals</span></div>'
+        '</div>'
+    )
+
+    # Partner organisations — a constellation of partner nodes around a hub.
+    _viz_orgs = (
+        '<div class="ins-picker-viz ipv-orgs">'
+        '<svg class="ipv-orgs-svg" viewBox="0 0 240 124" preserveAspectRatio="xMidYMid slice">'
+        '<g class="ipv-stars" fill="#cfe0ff">'
+        '<circle cx="26" cy="24" r="1.1" class="ipv-star"/><circle cx="210" cy="22" r="1" class="ipv-star"/>'
+        '<circle cx="50" cy="100" r="1.2" class="ipv-star"/><circle cx="150" cy="18" r="1" class="ipv-star"/>'
+        '<circle cx="220" cy="104" r="1.1" class="ipv-star"/><circle cx="92" cy="30" r="0.9" class="ipv-star"/>'
+        '<circle cx="130" cy="108" r="1" class="ipv-star"/><circle cx="34" cy="66" r="0.9" class="ipv-star"/>'
+        '<circle cx="206" cy="70" r="1" class="ipv-star"/>'
+        '</g>'
+        '<g stroke="rgba(150,190,245,.45)" stroke-width="1.1" fill="none">'
+        '<line x1="120" y1="62" x2="64" y2="34"/><line x1="120" y1="62" x2="186" y2="40"/>'
+        '<line x1="120" y1="62" x2="74" y2="92"/><line x1="120" y1="62" x2="178" y2="92"/>'
+        '<line x1="120" y1="62" x2="44" y2="64"/><line x1="120" y1="62" x2="200" y2="66"/>'
+        '</g>'
+        '<circle cx="64" cy="34" r="6" fill="#7fb0ef"/><circle cx="186" cy="40" r="7" fill="#9ec6f7"/>'
+        '<circle cx="74" cy="92" r="5.5" fill="#5e95dd"/><circle cx="178" cy="92" r="6.5" fill="#bcdaff"/>'
+        '<circle cx="44" cy="64" r="4.5" fill="#6fa4e8"/><circle cx="200" cy="66" r="5" fill="#8fbef5"/>'
+        '<circle class="ipv-orgs-halo" cx="120" cy="62" r="13" fill="none" stroke="#FFCD00" stroke-width="2"/>'
+        '<circle class="ipv-orgs-hub" cx="120" cy="62" r="13" fill="#FFCD00"/>'
+        '<circle cx="120" cy="62" r="13" fill="none" stroke="#fff" stroke-width="2"/>'
+        '</svg></div>'
+    )
+
+    # Research geography — a wireframe globe whose meridians sweep (rotating)
+    # with a few colourful location pins dropped on the sphere.
+    _viz_globe = (
+        '<div class="ins-picker-viz ipv-globe">'
+        '<svg class="ipv-globe-svg" viewBox="0 0 120 120" width="106" height="106">'
+        '<defs><radialGradient id="ipvOcean" cx="38%" cy="32%" r="80%">'
+        '<stop offset="0%" stop-color="#8fd6f7"/><stop offset="55%" stop-color="#2491d4"/>'
+        '<stop offset="100%" stop-color="#0a4f86"/></radialGradient></defs>'
+        '<circle cx="60" cy="60" r="42" fill="url(#ipvOcean)" stroke="#0a4f86" stroke-width="1.4"/>'
+        '<path d="M43 39 q9 -5 15 1 q5 6 -3 10 q-10 3 -14 -3 q-3 -5 2 -8z" fill="rgba(76,159,56,.85)"/>'
+        '<path d="M66 58 q9 1 11 9 q1 7 -7 10 q-9 1 -11 -7 q-1 -9 7 -12z" fill="rgba(76,159,56,.8)"/>'
+        '<g fill="none" stroke="rgba(255,255,255,.55)" stroke-width="1.1">'
+        '<line x1="18" y1="60" x2="102" y2="60"/><path d="M24.5 43 H95.5"/><path d="M24.5 77 H95.5"/>'
+        '<ellipse cx="60" cy="60" ry="42"><animate attributeName="rx" values="42;6;42" dur="7s" repeatCount="indefinite"/></ellipse>'
+        '<ellipse cx="60" cy="60" ry="42"><animate attributeName="rx" values="20;42;20" dur="7s" repeatCount="indefinite"/></ellipse>'
+        '</g>'
+        '<g><circle cx="50" cy="46" r="4.4" fill="#FFCD00" stroke="#fff" stroke-width="1.6"/>'
+        '<circle cx="72" cy="64" r="3.6" fill="#FF6B3D" stroke="#fff" stroke-width="1.6"/>'
+        '<circle cx="55" cy="76" r="3.2" fill="#fff" stroke="#0a4f86" stroke-width="1.6"/></g>'
+        '</svg></div>'
+    )
+
+    # Trends over time — a flowing streamgraph of stacked, smoothed ribbons.
+    def _ins_smooth(pts):
+        if not pts:
+            return ""
+        d = f"M {pts[0][0]:.1f} {pts[0][1]:.1f}"
+        n = len(pts)
+        for i in range(n - 1):
+            p0 = pts[i - 1] if i > 0 else pts[i]
+            p1, p2 = pts[i], pts[i + 1]
+            p3 = pts[i + 2] if i + 2 < n else pts[i + 1]
+            c1x, c1y = p1[0] + (p2[0] - p0[0]) / 6.0, p1[1] + (p2[1] - p0[1]) / 6.0
+            c2x, c2y = p2[0] - (p3[0] - p1[0]) / 6.0, p2[1] - (p3[1] - p1[1]) / 6.0
+            d += f" C {c1x:.1f} {c1y:.1f} {c2x:.1f} {c2y:.1f} {p2[0]:.1f} {p2[1]:.1f}"
+        return d
+
+    def _ins_ribbon(top, bot):
+        d_top = _ins_smooth(top)
+        d_bot = _ins_smooth(list(reversed(bot)))
+        return f"{d_top} L{d_bot[1:]} Z"
+
+    _tr_xs = [-20, 30, 90, 150, 210, 260]
+    _tr_bounds = [
+        [20, 8, 24, 10, 20, 12],
+        [44, 32, 50, 34, 46, 36],
+        [68, 58, 74, 60, 70, 62],
+        [92, 82, 96, 84, 92, 86],
+        [114, 106, 116, 108, 112, 108],
+    ]
+    _tr_cols = ["#003660", "#0a97d9", "#4C9F38", "#FCC30B"]
+    _tr_paths = ""
+    for _bi in range(4):
+        _top = list(zip(_tr_xs, _tr_bounds[_bi]))
+        _bot = list(zip(_tr_xs, _tr_bounds[_bi + 1]))
+        _tr_paths += f'<path d="{_ins_ribbon(_top, _bot)}" fill="{_tr_cols[_bi]}" opacity="0.92"/>'
+    _viz_trends = (
+        '<div class="ins-picker-viz ipv-trends">'
+        '<svg class="ipv-trends-svg" viewBox="0 0 240 120" preserveAspectRatio="none">'
+        + _tr_paths +
+        '</svg></div>'
+    )
 
     if not _ins_view:
         st.markdown(f"""
         <div class="ins-picker-row">
           <a class="ins-picker-card" href="{_ins_base_url}&ins_view=sdg" target="_self">
-            <div class="ins-picker-icon" style="background:#e6f4eb;">{_icon_sdg}</div>
+            {_viz_sdg}
             <div class="ins-picker-title">SDG Universe</div>
             <div class="ins-picker-desc">Which Sustainable Development Goals does this programme address? Explore all 17 goals, see how many theses are linked to each, and click any segment to browse them.</div>
             <div class="ins-picker-arrow">{_arrow_svg}</div>
           </a>
           <a class="ins-picker-card" href="{_ins_base_url}&ins_view=orgs" target="_self">
-            <div class="ins-picker-icon" style="background:#e8effe;">{_icon_orgs}</div>
+            {_viz_orgs}
             <div class="ins-picker-title">Partner Organisations</div>
             <div class="ins-picker-desc">Which organisations are shaping this programme's research? Each node in this interactive galaxy represents a partner — hover to identify, click to explore.</div>
             <div class="ins-picker-arrow">{_arrow_svg}</div>
           </a>
           <a class="ins-picker-card" href="{_ins_base_url}&ins_view=globe" target="_self">
-            <div class="ins-picker-icon" style="background:#e0f2fc;">{_icon_globe}</div>
+            {_viz_globe}
             <div class="ins-picker-title">Research Geography</div>
             <div class="ins-picker-desc">Where in the world does the research take place? Spin the interactive globe and click any country bubble to see the theses conducted there.</div>
+            <div class="ins-picker-arrow">{_arrow_svg}</div>
+          </a>
+          <a class="ins-picker-card" href="{_ins_base_url}&ins_view=trends" target="_self">
+            {_viz_trends}
+            <div class="ins-picker-title">Trends over Time</div>
+            <div class="ins-picker-desc">How has the focus of the research shifted across cohorts? Watch the composition flow year by year, see which themes are rising or fading, and click any band to browse the theses behind it.</div>
             <div class="ins-picker-arrow">{_arrow_svg}</div>
           </a>
         </div>
@@ -7242,6 +7622,402 @@ window.addEventListener('resize',function(){{
         _render_html_iframe(_geo_html, height=580)
         st.markdown("<div style='margin-bottom:3rem;'></div>", unsafe_allow_html=True)
 
+    # ══════════════════════════════════════════════════════════════════════
+    # SECTION 4 — TRENDS OVER TIME
+    # ══════════════════════════════════════════════════════════════════════
+    if _ins_view == "trends":
+        st.markdown("""
+        <div class="ins-section">
+          <div class="ins-section-header">
+            <div class="ins-section-number">04</div>
+            <div class="ins-section-text">
+              <div class="ins-section-title">Trends over Time</div>
+              <div class="ins-section-desc">How has the focus of the research shifted across cohorts? Switch the lens, watch the composition flow year by year, and see which themes are rising or fading. Click any band to browse the theses behind it.</div>
+            </div>
+          </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+        _tr_data = _compute_trends(df, PROGRAM)
+        # Default lens: first dimension with a usable (≥2-year) series,
+        # preferring the sector view as the most legible entry point.
+        _tr_dim_default = ""
+        for _pref in ("sector", "method", "sdg", "scale", "keyword"):
+            _dd = _tr_data["data"].get(_pref)
+            if _dd and len(_dd.get("years", [])) >= 2:
+                _tr_dim_default = _pref
+                break
+        if not _tr_dim_default:
+            for _k, _v in _tr_data["data"].items():
+                if len(_v.get("years", [])) >= 2:
+                    _tr_dim_default = _k
+                    break
+
+        if not _tr_dim_default:
+            st.info("Not enough dated theses in this programme to chart a trend yet.")
+        else:
+            _tr_json = _ins_json.dumps(_tr_data, ensure_ascii=False)
+            _tr_prog = urllib.parse.quote(PROGRAM, safe="")
+
+            # Data + globals first; the render script (loaded after d3) reads them.
+            _tr_prefix = (
+                "<script>"
+                f"var TR_DATA={_tr_json};"
+                f'var TR_PROG="{_tr_prog}";'
+                f'var TR_DIM0="{_tr_dim_default}";'
+                "</script>"
+            )
+
+            _tr_body = """
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'Inter',-apple-system,sans-serif;background:transparent;overflow:hidden;color:#0a2540;}
+#tr-root{position:relative;padding:2px 2px 0;}
+/* Lens toggle */
+.tr-pills{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px;}
+.tr-pill{border:1px solid #d8e2ee;background:#fff;color:#3d5670;font-size:0.82rem;font-weight:600;
+  padding:7px 15px;border-radius:999px;cursor:pointer;transition:all .15s;white-space:nowrap;}
+.tr-pill:hover{border-color:#9cb6d4;color:#0a2540;}
+.tr-pill.on{background:#003660;border-color:#003660;color:#fff;box-shadow:0 4px 12px rgba(0,54,96,0.22);}
+/* Layout */
+.tr-grid{display:grid;grid-template-columns:1.55fr 1fr;gap:18px;align-items:start;}
+@media(max-width:760px){.tr-grid{grid-template-columns:1fr;}}
+.tr-card{background:#fff;border:1px solid #e7edf4;border-radius:16px;padding:16px 16px 12px;
+  box-shadow:0 2px 10px rgba(10,37,64,0.04);}
+.tr-card-h{font-size:0.72rem;font-weight:700;color:#6b7a8d;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:2px;}
+.tr-card-sub{font-size:0.78rem;color:#9aa5b4;margin-bottom:10px;}
+/* Stream */
+#tr-stream-wrap{position:relative;}
+#tr-stream{width:100%;display:block;cursor:default;}
+.tr-band{cursor:pointer;transition:opacity .15s,filter .15s;}
+.tr-band:hover{filter:brightness(1.06);}
+.tr-dim{opacity:0.18 !important;}
+.tr-xlbl{font-size:0.72rem;font-weight:600;fill:#6b7a8d;}
+.tr-xlbl.thin{fill:#b9c2cf;}
+/* Tooltip */
+#tr-tip{position:absolute;pointer-events:none;background:#0a2540;color:#fff;border-radius:10px;
+  padding:9px 12px;font-size:0.78rem;line-height:1.45;box-shadow:0 8px 24px rgba(0,0,0,0.25);
+  opacity:0;transition:opacity .12s;z-index:30;max-width:240px;}
+#tr-tip .tt-cat{font-weight:800;display:flex;align-items:center;gap:6px;margin-bottom:3px;}
+#tr-tip .tt-dot{width:9px;height:9px;border-radius:3px;flex-shrink:0;}
+#tr-tip .tt-big{font-size:1.05rem;font-weight:800;}
+#tr-tip .tt-cav{color:#ffd98a;font-size:0.7rem;margin-top:3px;}
+/* Honesty strip */
+.tr-honesty{margin-top:12px;border-top:1px dashed #e2e8f0;padding-top:10px;}
+.tr-vol{display:flex;align-items:flex-end;gap:0;height:34px;}
+.tr-vol-col{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;min-width:0;}
+.tr-vol-bar{width:62%;max-width:26px;border-radius:3px 3px 0 0;background:#cfdbe8;}
+.tr-vol-bar.thin{background:repeating-linear-gradient(45deg,#e6c98a,#e6c98a 3px,#f3e3bd 3px,#f3e3bd 6px);}
+.tr-vol-yr{display:flex;gap:0;margin-top:3px;}
+.tr-vol-yr .c{flex:1;text-align:center;font-size:0.66rem;font-weight:700;color:#94a3b4;min-width:0;}
+.tr-note{font-size:0.72rem;color:#9aa5b4;margin-top:9px;line-height:1.5;}
+.tr-note b{color:#6b7a8d;font-weight:700;}
+/* Legend */
+.tr-legend{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:12px;}
+.tr-leg{display:flex;align-items:center;gap:7px;font-size:0.78rem;color:#3d5670;cursor:pointer;font-weight:600;}
+.tr-leg .d{width:11px;height:11px;border-radius:3px;flex-shrink:0;}
+.tr-leg:hover{color:#0a2540;}
+/* Rising / fading panel */
+.tr-mom-group{margin-bottom:14px;}
+.tr-mom-gh{display:flex;align-items:center;gap:7px;font-size:0.74rem;font-weight:800;text-transform:uppercase;
+  letter-spacing:0.08em;margin-bottom:8px;}
+.tr-mom-gh.up{color:#1f9d57;}
+.tr-mom-gh.dn{color:#d4445f;}
+.tr-mom{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:9px;cursor:pointer;transition:background .12s;}
+.tr-mom:hover{background:#f5f8fc;}
+.tr-mom .d{width:10px;height:10px;border-radius:3px;flex-shrink:0;}
+.tr-mom-lbl{flex:1;min-width:0;font-size:0.82rem;font-weight:600;color:#0a2540;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.tr-mom-track{font-size:0.7rem;color:#94a3b4;font-weight:600;margin-right:2px;white-space:nowrap;}
+.tr-mom-delta{font-size:0.82rem;font-weight:800;white-space:nowrap;}
+.tr-mom-delta.up{color:#1f9d57;}
+.tr-mom-delta.dn{color:#d4445f;}
+.tr-mom-empty{font-size:0.78rem;color:#9aa5b4;padding:4px 2px;}
+/* Thesis modal */
+#tr-ov{display:none;position:fixed;inset:0;background:rgba(10,30,55,0.42);backdrop-filter:blur(2px);z-index:40;}
+#tr-ov.open{display:block;}
+#tr-modal{display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%) scale(.95);
+  width:min(640px,93%);max-height:86vh;background:#fff;border-radius:18px;overflow:hidden;z-index:41;
+  box-shadow:0 18px 60px rgba(0,54,96,0.3);flex-direction:column;opacity:0;transition:transform .2s,opacity .2s;}
+#tr-modal.open{display:flex;transform:translate(-50%,-50%) scale(1);opacity:1;}
+.tr-mhd{padding:20px 24px 16px;color:#fff;position:relative;}
+.tr-mhd .x{position:absolute;top:13px;right:14px;width:30px;height:30px;border-radius:50%;border:none;cursor:pointer;
+  background:rgba(255,255,255,0.2);color:#fff;font-size:1rem;display:flex;align-items:center;justify-content:center;}
+.tr-mhd .x:hover{background:rgba(255,255,255,0.34);}
+.tr-mhd-eye{font-size:0.7rem;font-weight:700;letter-spacing:0.13em;text-transform:uppercase;opacity:0.85;}
+.tr-mhd-t{font-size:1.3rem;font-weight:800;margin-top:3px;letter-spacing:-0.01em;padding-right:30px;}
+.tr-mhd-s{font-size:0.82rem;opacity:0.95;margin-top:7px;}
+.tr-mbody{overflow-y:auto;flex:1;}
+.tr-th{padding:11px 14px;border-bottom:1px solid #f0f4f9;display:flex;gap:12px;align-items:flex-start;
+  text-decoration:none;color:inherit;cursor:pointer;}
+.tr-th:last-child{border-bottom:none;}
+.tr-th:hover{background:#f5f8ff;}
+.tr-th .yr{flex-shrink:0;width:42px;background:#eef2f7;color:#0a2540;font-weight:800;font-size:0.76rem;
+  text-align:center;padding:3px 0;border-radius:6px;}
+.tr-th-t{font-size:0.86rem;font-weight:700;color:#0a2540;line-height:1.34;}
+.tr-th-m{font-size:0.74rem;color:#6b7a8d;margin-top:2px;}
+.tr-empty{padding:22px;text-align:center;color:#9aa5b4;font-size:0.84rem;line-height:1.5;}
+</style>
+<div id="tr-root">
+  <div class="tr-pills" id="tr-pills"></div>
+  <div class="tr-grid">
+    <div class="tr-card">
+      <div class="tr-card-h" id="tr-stream-h">Composition by share of cohort</div>
+      <div class="tr-card-sub" id="tr-stream-sub"></div>
+      <div id="tr-stream-wrap">
+        <svg id="tr-stream"></svg>
+        <div id="tr-tip"></div>
+      </div>
+      <div class="tr-legend" id="tr-legend"></div>
+      <div class="tr-honesty">
+        <div class="tr-vol" id="tr-vol"></div>
+        <div class="tr-vol-yr" id="tr-vol-yr"></div>
+        <div class="tr-note" id="tr-note"></div>
+      </div>
+    </div>
+    <div class="tr-card">
+      <div class="tr-card-h">Rising &amp; Fading</div>
+      <div class="tr-card-sub" id="tr-mom-sub"></div>
+      <div id="tr-mom"></div>
+    </div>
+  </div>
+</div>
+<div id="tr-ov"></div>
+<div id="tr-modal"><div class="tr-mhd" id="tr-mhd"></div><div class="tr-mbody" id="tr-mbody"></div></div>
+<script src="https://d3js.org/d3.v7.min.js"></script>
+<script>
+(function(){
+  var DATA=TR_DATA, PROG=TR_PROG, curDim=TR_DIM0, hoverKey=null;
+  function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+  function navTo(u){window.parent.postMessage({type:'stNavigateTo',url:u},'*');}
+  var $=function(id){return document.getElementById(id);};
+
+  // ── lens pills ──────────────────────────────────────────────────────────
+  var pillsEl=$('tr-pills');
+  DATA.dims.forEach(function(dim){
+    var d=DATA.data[dim.key];
+    if(!d||!d.years||d.years.length<2) return;
+    var b=document.createElement('button');
+    b.className='tr-pill'+(dim.key===curDim?' on':'');
+    b.textContent=dim.label;
+    b.setAttribute('data-k',dim.key);
+    b.onclick=function(){
+      if(dim.key===curDim) return;
+      curDim=dim.key;
+      Array.prototype.forEach.call(pillsEl.children,function(c){
+        c.classList.toggle('on',c.getAttribute('data-k')===curDim);});
+      render();
+    };
+    pillsEl.appendChild(b);
+  });
+
+  var tip=$('tr-tip'), wrap=$('tr-stream-wrap');
+  function showTip(html,x,y){
+    tip.innerHTML=html; tip.style.opacity=1;
+    var w=tip.offsetWidth, ww=wrap.clientWidth;
+    var lx=Math.max(4,Math.min(x+14,ww-w-4));
+    tip.style.left=lx+'px'; tip.style.top=Math.max(4,y-10)+'px';
+  }
+  function hideTip(){tip.style.opacity=0;}
+
+  // ── main render ─────────────────────────────────────────────────────────
+  function render(){
+    var D=DATA.data[curDim];
+    var dimMeta=DATA.dims.filter(function(m){return m.key===curDim;})[0]||{};
+    $('tr-stream-sub').textContent=dimMeta.blurb||'';
+    var cats=D.categories, years=D.years;
+    var H=320, W=Math.max(320, wrap.clientWidth||640);
+    var step=W/years.length;
+    var xc=function(i){return step*(i+0.5);};
+
+    // rows of normalised share (sum of shown cats = 100 each year)
+    var rows=years.map(function(y){
+      var tot=0; cats.forEach(function(c){tot+=(c.counts[String(y)]||0);});
+      var row={};
+      cats.forEach(function(c){row[c.key]=tot>0?100*(c.counts[String(y)]||0)/tot:0;});
+      return row;
+    });
+    var keys=cats.map(function(c){return c.key;});
+    var colorOf={}; cats.forEach(function(c){colorOf[c.key]=c.color;});
+    var labelOf={}; cats.forEach(function(c){labelOf[c.key]=c.label;});
+    var series=d3.stack().keys(keys).offset(d3.stackOffsetWiggle).order(d3.stackOrderInsideOut)(rows);
+    var yMin=d3.min(series,function(s){return d3.min(s,function(d){return d[0];});});
+    var yMax=d3.max(series,function(s){return d3.max(s,function(d){return d[1];});});
+    if(yMin===yMax){yMin-=1;yMax+=1;}
+    var pad=14;
+    var y=d3.scaleLinear().domain([yMin,yMax]).range([H-pad-22,pad]);
+    var area=d3.area().x(function(d,i){return xc(i);}).y0(function(d){return y(d[0]);})
+                .y1(function(d){return y(d[1]);}).curve(d3.curveBasis);
+
+    var svg=d3.select('#tr-stream').attr('viewBox','0 0 '+W+' '+H).attr('height',H).html('');
+    // hatch for thin years
+    var defs=svg.append('defs');
+    defs.append('pattern').attr('id','tr-hatch').attr('width',6).attr('height',6)
+      .attr('patternUnits','userSpaceOnUse').attr('patternTransform','rotate(45)')
+      .append('rect').attr('width',3).attr('height',6).attr('fill','#1d3a5f').attr('opacity',0.06);
+    years.forEach(function(yr,i){
+      if(D.thin[String(yr)]){
+        svg.append('rect').attr('x',step*i).attr('y',pad-4).attr('width',step)
+           .attr('height',H-pad-22-(pad-4)).attr('fill','url(#tr-hatch)').style('pointer-events','none');
+      }
+    });
+
+    var bands=svg.selectAll('.tr-band').data(series).enter().append('path')
+      .attr('class','tr-band').attr('d',area)
+      .attr('fill',function(s){return colorOf[s.key];})
+      .attr('data-k',function(s){return s.key;});
+
+    bands.on('mousemove',function(ev,s){
+        hoverKey=s.key;
+        svg.selectAll('.tr-band').classed('tr-dim',function(o){return o.key!==s.key;});
+        var rect=wrap.getBoundingClientRect();
+        var mx=ev.clientX-rect.left;
+        var i=Math.max(0,Math.min(years.length-1,Math.round(mx/step-0.5)));
+        var yr=years[i];
+        var cat=cats.filter(function(c){return c.key===s.key;})[0];
+        var cnt=cat.counts[String(yr)]||0;
+        var ytot=D.totals[String(yr)]||0;
+        var share=ytot>0?Math.round(100*cnt/ytot):0;
+        var cav=D.thin[String(yr)]?'<div class="tt-cav">⚠ only '+ytot+' theses this year — read with care</div>':'';
+        showTip('<div class="tt-cat"><span class="tt-dot" style="background:'+colorOf[s.key]+'"></span>'+esc(labelOf[s.key])+'</div>'
+          +'<div><span class="tt-big">'+share+'%</span> of '+yr+'</div>'
+          +'<div style="opacity:.8">'+cnt+' of '+ytot+' theses</div>'+cav,
+          ev.clientX-rect.left, ev.clientY-rect.top);
+      })
+      .on('mouseleave',function(){hoverKey=null;svg.selectAll('.tr-band').classed('tr-dim',false);hideTip();})
+      .on('click',function(ev,s){openModal(s.key);});
+
+    // year labels along the baseline
+    years.forEach(function(yr,i){
+      svg.append('text').attr('class','tr-xlbl'+(D.thin[String(yr)]?' thin':''))
+        .attr('x',xc(i)).attr('y',H-6).attr('text-anchor','middle')
+        .text("'"+String(yr).slice(2));
+    });
+
+    drawLegend(cats);
+    drawVolume(D,years,step);
+    drawNote(D);
+    drawMomentum(D,cats);
+  }
+
+  function drawLegend(cats){
+    var el=$('tr-legend'); el.innerHTML='';
+    cats.forEach(function(c){
+      var d=document.createElement('div'); d.className='tr-leg';
+      d.innerHTML='<span class="d" style="background:'+c.color+'"></span>'+esc(c.label);
+      d.onmouseenter=function(){d3.select('#tr-stream').selectAll('.tr-band').classed('tr-dim',function(o){return o.key!==c.key;});};
+      d.onmouseleave=function(){d3.select('#tr-stream').selectAll('.tr-band').classed('tr-dim',false);};
+      d.onclick=function(){openModal(c.key);};
+      el.appendChild(d);
+    });
+  }
+
+  function drawVolume(D,years,step){
+    var vol=$('tr-vol'), yr=$('tr-vol-yr'); vol.innerHTML=''; yr.innerHTML='';
+    var maxN=Math.max.apply(null,years.map(function(y){return D.totals[String(y)]||0;}));
+    years.forEach(function(y){
+      var n=D.totals[String(y)]||0, thin=D.thin[String(y)];
+      var col=document.createElement('div'); col.className='tr-vol-col';
+      var bar=document.createElement('div'); bar.className='tr-vol-bar'+(thin?' thin':'');
+      bar.style.height=Math.max(3,Math.round(100*n/(maxN||1)))+'%';
+      bar.title=n+' theses in '+y+(thin?' (thin)':'');
+      col.appendChild(bar); vol.appendChild(col);
+      var c=document.createElement('div'); c.className='c'; c.textContent=n; yr.appendChild(c);
+    });
+  }
+
+  function drawNote(D){
+    var n=$('tr-note');
+    var html='<b>How to read this:</b> each band is a theme\\'s <b>share of that year\\'s theses</b> — '
+      +'not a raw count, so a more complete cohort year doesn\\'t distort the picture. Numbers below show the actual theses per year.';
+    var thinYrs=D.years.filter(function(y){return D.thin[String(y)];});
+    if(thinYrs.length) html+=' Shaded years have fewer than 15 theses — interpret their slices with caution.';
+    if(D.omitted&&D.omitted.length) html+=' Years with under 5 theses ('+D.omitted.join(', ')+') are omitted.';
+    n.innerHTML=html;
+  }
+
+  function drawMomentum(D,cats){
+    var box=$('tr-mom'); box.innerHTML='';
+    var ey=D.early_years||[], ry=D.recent_years||[];
+    $('tr-mom-sub').textContent='Change in share of cohort, '
+      +(ey.length?ey[0]:'')+(ey.length>1?'–'+ey[ey.length-1]:'')+'  →  '
+      +(ry.length?ry[0]:'')+(ry.length>1?'–'+ry[ry.length-1]:'');
+    var real=cats.filter(function(c){return !c.is_other;});
+    var risers=real.filter(function(c){return c.delta>=0.5;}).sort(function(a,b){return b.delta-a.delta;}).slice(0,6);
+    var faders=real.filter(function(c){return c.delta<=-0.5;}).sort(function(a,b){return a.delta-b.delta;}).slice(0,6);
+    function row(c,dir){
+      var d=document.createElement('div'); d.className='tr-mom';
+      var sign=c.delta>0?'+':'';
+      d.innerHTML='<span class="d" style="background:'+c.color+'"></span>'
+        +'<span class="tr-mom-lbl">'+esc(c.label)+'</span>'
+        +'<span class="tr-mom-track">'+Math.round(c.early)+'% → '+Math.round(c.recent)+'%</span>'
+        +'<span class="tr-mom-delta '+dir+'">'+sign+c.delta.toFixed(1)+'pp</span>';
+      d.onclick=function(){openModal(c.key);};
+      d.onmouseenter=function(){d3.select('#tr-stream').selectAll('.tr-band').classed('tr-dim',function(o){return o.key!==c.key;});};
+      d.onmouseleave=function(){d3.select('#tr-stream').selectAll('.tr-band').classed('tr-dim',false);};
+      return d;
+    }
+    var g1=document.createElement('div'); g1.className='tr-mom-group';
+    g1.innerHTML='<div class="tr-mom-gh up">▲ Rising</div>';
+    if(risers.length) risers.forEach(function(c){g1.appendChild(row(c,'up'));});
+    else g1.innerHTML+='<div class="tr-mom-empty">No clearly rising theme.</div>';
+    box.appendChild(g1);
+    var g2=document.createElement('div'); g2.className='tr-mom-group';
+    g2.innerHTML='<div class="tr-mom-gh dn">▼ Fading</div>';
+    if(faders.length) faders.forEach(function(c){g2.appendChild(row(c,'dn'));});
+    else g2.innerHTML+='<div class="tr-mom-empty">No clearly fading theme.</div>';
+    box.appendChild(g2);
+  }
+
+  // ── thesis modal ──────────────────────────────────────────────────────────
+  var ov=$('tr-ov'), modal=$('tr-modal');
+  function closeModal(){modal.classList.remove('open');ov.classList.remove('open');}
+  ov.onclick=closeModal;
+  document.addEventListener('keydown',function(e){if(e.key==='Escape')closeModal();});
+
+  function openModal(key){
+    var D=DATA.data[curDim];
+    var c=D.categories.filter(function(x){return x.key===key;})[0];
+    if(!c) return;
+    var dir=c.delta>=0.5?'rising':(c.delta<=-0.5?'fading':'steady');
+    var sign=c.delta>0?'+':'';
+    var sub=c.total+' theses · '+(dir==='steady'?'broadly steady':sign+c.delta.toFixed(1)+'pp '+dir)
+      +' ('+Math.round(c.early)+'% → '+Math.round(c.recent)+'%)';
+    $('tr-mhd').style.background=c.is_other?'#5a6b7d':c.color;
+    $('tr-mhd').innerHTML='<button class="x" onclick="">✕</button>'
+      +'<div class="tr-mhd-eye">'+esc((DATA.dims.filter(function(m){return m.key===curDim;})[0]||{}).label||'')+'</div>'
+      +'<div class="tr-mhd-t">'+esc(c.label)+'</div>'
+      +'<div class="tr-mhd-s">'+esc(sub)+'</div>';
+    $('tr-mhd').querySelector('.x').onclick=closeModal;
+    var body=$('tr-mbody');
+    if(c.is_other){
+      body.innerHTML='<div class="tr-empty">This band groups the smaller categories together. Open a specific theme from the legend or the Rising &amp; Fading list to browse its theses.</div>';
+    } else if(!c.theses||!c.theses.length){
+      body.innerHTML='<div class="tr-empty">No linked theses available.</div>';
+    } else {
+      body.innerHTML=c.theses.map(function(t){
+        var pdf=t.pdf&&t.pdf!=='nan'?t.pdf:'';
+        var url=pdf?('?program='+encodeURIComponent(t.prog||PROG)+'&details='+encodeURIComponent(pdf)):'';
+        var meta=esc(t.author||'')+(t.year?' · '+t.year:'');
+        return '<a class="tr-th"'+(url?' data-u="'+esc(url)+'"':'')+'>'
+          +'<span class="yr">'+esc(t.year||'—')+'</span>'
+          +'<span><span class="tr-th-t">'+esc(t.title||'Untitled')+'</span>'
+          +'<span class="tr-th-m">'+meta+'</span></span></a>';
+      }).join('');
+      Array.prototype.forEach.call(body.querySelectorAll('.tr-th[data-u]'),function(a){
+        a.onclick=function(){navTo(a.getAttribute('data-u'));};
+      });
+    }
+    ov.classList.add('open'); modal.classList.add('open');
+  }
+
+  render();
+  var rt; window.addEventListener('resize',function(){clearTimeout(rt);rt=setTimeout(render,160);});
+})();
+</script>
+"""
+            _render_html_iframe(_tr_prefix + _tr_body, height=620)
+            st.markdown("<div style='margin-bottom:3rem;'></div>", unsafe_allow_html=True)
+
 elif page == "Supervisors":
     import re as _re
     import unicodedata as _ud
@@ -8356,7 +9132,18 @@ if _show_chat_widget:
   clr.addEventListener('click', function(){ hist=[]; while(msgs.firstChild) msgs.removeChild(msgs.firstChild); welcome(); });
 
   async function callAI(q) {
-    if (!PROXY) return { answer: 'Chatbot not configured. Set CHAT_PROXY_URL on the server.', matches: [] };
+    if (!PROXY) {
+      // Demo fallback: no proxy configured yet, so return a friendly canned
+      // reply with a few real thesis cards so the feature can be shown live.
+      await new Promise(function(r){ setTimeout(r, 650); });
+      var demoKeys = Object.keys(LOOKUP).slice(0, 3);
+      return {
+        answer: 'Here are some theses from the archive that may be relevant to "'
+              + q + '". (Demo preview — connect the assistant to get full, '
+              + 'AI-powered answers across all ' + N + ' theses.)',
+        matches: demoKeys
+      };
+    }
     var ms = [{ role:'system', content:SYS }];
     hist.slice(-6).forEach(function(t){ ms.push({ role:t.role, content:t.content }); });
     ms.push({ role:'user', content:q });
@@ -8390,4 +9177,4 @@ if _show_chat_widget:
 })();
 </script></body></html>"""
 
-    st.iframe(_cw_html, height=1)
+    st.components.v1.html(_cw_html, height=0, scrolling=False)
