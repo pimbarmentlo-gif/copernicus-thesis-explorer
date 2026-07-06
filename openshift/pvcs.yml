@@ -4,7 +4,7 @@ metadata:
   name: thesis-energyscience-pdfs
 spec:
   accessModes:
-    - ReadWriteOnce
+    - ReadWriteMany
   resources:
     requests:
       storage: 800Mi
@@ -17,7 +17,7 @@ metadata:
   name: thesis-susdev-pdfs
 spec:
   accessModes:
-    - ReadWriteOnce
+    - ReadWriteMany
   resources:
     requests:
       storage: 2Gi
@@ -30,7 +30,7 @@ metadata:
   name: thesis-watermgmt-pdfs
 spec:
   accessModes:
-    - ReadWriteOnce
+    - ReadWriteMany
   resources:
     requests:
       storage: 850Mi
@@ -43,7 +43,7 @@ metadata:
   name: thesis-sbi-pdfs
 spec:
   accessModes:
-    - ReadWriteOnce
+    - ReadWriteMany
   resources:
     requests:
       storage: 700Mi
@@ -56,7 +56,7 @@ metadata:
   name: thesis-innosci-pdfs
 spec:
   accessModes:
-    - ReadWriteOnce
+    - ReadWriteMany
   resources:
     requests:
       storage: 500Mi
