@@ -1,3 +1,33 @@
-pdfs/*
-.venv/*
-openshift/*
+# --- Version control -------------------------------------------------------
+# The .git directory is ~2-4 GB (mostly image history). With `ADD . .` it was
+# being baked into the container image, so every pod start (imagePullPolicy:
+# Always) pulled a multi-GB image before Streamlit could boot. Excluding it
+# shrinks the image dramatically and fixes the slow cold start.
+.git
+.gitignore
+.gitattributes
+
+# --- Local Python env / caches (rebuilt in-container by `uv sync`) ---------
+.venv
+**/__pycache__
+**/*.pyc
+**/*.pyo
+.cache
+
+# --- Thesis PDFs -----------------------------------------------------------
+# PDFs are large and are mounted at runtime via OpenShift PersistentVolumeClaims,
+# so they must never be copied into the image. The old `pdfs/*` rule did not
+# match the real nested paths under programs/<name>/pdfs/.
+programs/*/pdfs
+**/pdfs
+**/to_rename
+
+# --- Deployment manifests (applied to the cluster, not needed in the image) -
+openshift
+
+# --- Editor / OS cruft -----------------------------------------------------
+.DS_Store
+**/.DS_Store
+.claude
+.vscode
+.idea
