@@ -34,19 +34,19 @@ spec:
               mountPath: /cte/programs/energy_science/pdfs
       volumes:
         - name: pdfs-water-management
-          PersistentVolumeClaim:
+          persistentVolumeClaim:
             claimName: thesis-watermgmt-pdfs
         - name: pdfs-innosci
-          PersistentVolumeClaim:
+          persistentVolumeClaim:
             claimName: thesis-innosci-pdfs
         - name: pdfs-susdev
-          PersistentVolumeClaim:
+          persistentVolumeClaim:
             claimName: thesis-susdev-pdfs
         - name: pdfs-sbi
-          PersistentVolumeClaim:
+          persistentVolumeClaim:
             claimName: thesis-sbi-pdfs
         - name: pdfs-energy-sci
-          PersistentVolumeClaim:
+          persistentVolumeClaim:
             claimName: thesis-energyscience-pdfs
 ---
 apiVersion: v1
