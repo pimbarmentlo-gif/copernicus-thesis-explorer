@@ -4224,9 +4224,14 @@ if page == "Explorer":
 
     if selected_pdf:
         # Full-page PDF reading mode with download support.
-        pdf_path = os.path.join(pdf_folder, selected_pdf)
+        # Resolve against the thesis's OWN programme folder. In all-programmes
+        # mode (PROGRAM == "all") the module-level pdf_folder points at the SBI
+        # fallback, so a non-SBI thesis's PDF would not be found there and the
+        # viewer would wrongly report it missing.
+        matching_row = find_row_by_pdf_name(df, selected_pdf)
+        _reader_dir = _get_program_dir_for_row(matching_row) if matching_row is not None else PROGRAM_DIR
+        pdf_path = os.path.join(_reader_dir, "pdfs", selected_pdf)
         if os.path.exists(pdf_path):
-            matching_row = find_row_by_pdf_name(df, selected_pdf)
 
             st.markdown("### Thesis Viewer")
             _render_back_btn("back_btn_pdf_reader")
@@ -4292,7 +4297,10 @@ if page == "Explorer":
 
         if matching_row is not None:
             pdf_name = str(matching_row.get("Thesis_PDF", "n/a"))
-            pdf_path = os.path.join(PROGRAM_DIR, "pdfs", pdf_name)
+            # Resolve against the thesis's OWN programme folder. In all-programmes
+            # mode PROGRAM_DIR is the SBI fallback, so a non-SBI thesis's PDF would
+            # not be found there and would wrongly show "PDF not available".
+            pdf_path = os.path.join(_get_program_dir_for_row(matching_row), "pdfs", pdf_name)
             has_pdf = pdf_name not in ("n/a", "", "nan") and os.path.exists(pdf_path)
 
             if has_pdf:
