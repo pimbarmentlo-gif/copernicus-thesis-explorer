@@ -490,7 +490,10 @@ PROGRAM_DIR = os.path.abspath(
 st.set_page_config(page_title="Copernicus Thesis Explorer",
                    page_icon=os.path.join(os.path.dirname(__file__), "Utrecht_University_logo_round.svg"),
                    layout="wide",
-                   initial_sidebar_state="collapsed")
+                   # We control the sidebar ourselves (see the "Sidebar
+                   # visibility" block below) and drive show/hide via CSS, so
+                   # keep the native panel in normal-flow "expanded" state.
+                   initial_sidebar_state="expanded")
 
 # session state for details overlay
 if 'selected_details' not in st.session_state:
@@ -868,7 +871,7 @@ st.markdown(
     /* Hide Streamlit's built-in top chrome (deploy button, three-dot menu,
        running indicator) — this dashboard is end-user-facing.
        IMPORTANT: stHeader must NOT use display:none because the sidebar
-       expand toggle (collapsedControl) lives inside it. Instead we collapse
+       expand toggle (stExpandSidebarButton) lives inside it. Instead we collapse
        the header to zero height with overflow:visible so the toggle can still
        appear as a floating button when the sidebar is collapsed. */
     [data-testid="stHeader"] {
@@ -3802,60 +3805,69 @@ show_explorer_filters = (
     page == "Explorer"
 )
 
-if not show_explorer_filters:
-    # Hide sidebar entirely on non-Explorer pages, and also hide the
-    # floating expand toggle so it doesn't appear as an orphaned button.
-    st.markdown(
-        """
-        <style>
-        section[data-testid="stSidebar"] { display: none !important; }
-        button[data-testid="collapsedControl"] { display: none !important; }
-        </style>
-        """,
-        unsafe_allow_html=True,
-    )
-elif explorer_detail_mode:
-    # Detail view: let Streamlit's own collapsed state handle the sidebar.
-    # initial_sidebar_state="collapsed" means every rerun starts collapsed
-    # unless the user explicitly clicked the native toggle.
-    # Just ensure the expand toggle is always visible and reachable.
-    st.markdown(
-        """
-        <style>
-        button[data-testid="collapsedControl"] {
-            display: flex !important;
-            visibility: visible !important;
-            opacity: 1 !important;
-            z-index: 999999 !important;
-        }
-        </style>
-        """,
-        unsafe_allow_html=True,
+# ── Sidebar visibility (fully self-controlled) ──────────────────────────────
+# Streamlit's native sidebar collapse proved unreliable inside this heavily
+# customized app (custom top bar, zero-height header, version-specific control
+# testids that differ between the local 1.57 and deployed 1.58+ builds), so we
+# drive the panel entirely ourselves and depend on the native collapse in NO way:
+#   • initial_sidebar_state="expanded" keeps the native panel in normal flow.
+#   • We hide Streamlit's own collapse/expand controls (both testid spellings).
+#   • st.session_state.sidebar_open (default True) is the single source of truth.
+#   • A real st.button — which always renders and always works — toggles it,
+#     styled as a fixed pill so it is reachable in every state and on every
+#     device (desktop and mobile).
+#   • Hiding is just display:none, so the filter widgets stay mounted and keep
+#     their selected values while hidden.
+# The panel + toggle appear ONLY on the Explorer grid (not the detail / PDF
+# reader, not Supervisors / Insights).
+_show_sidebar_panel = show_explorer_filters and not explorer_detail_mode
+
+if _show_sidebar_panel:
+    if "sidebar_open" not in st.session_state:
+        st.session_state.sidebar_open = True
+    _open_now = st.session_state.sidebar_open
+    if st.button(("‹ Hide filters" if _open_now else "☰ Show filters"),
+                 key="sidebar_toggle"):
+        st.session_state.sidebar_open = not _open_now
+        st.rerun()
+
+_sidebar_open = _show_sidebar_panel and st.session_state.get("sidebar_open", True)
+
+# Always neutralise Streamlit's native collapse/expand controls; hide the panel
+# when it should be closed; and style our own toggle as a fixed pill button.
+_sidebar_css = (
+    '[data-testid="stSidebarCollapseButton"],'
+    '[data-testid="stExpandSidebarButton"]{display:none !important;}'
+)
+if _sidebar_open:
+    # Force the panel FULLY visible. In this customized app the native sidebar
+    # does not render on its own — the old build only ever showed it because it
+    # force-opened it with exactly this CSS (its bug was hiding the toggle so it
+    # could never close). We keep the force-open, but ONLY while our own toggle
+    # says "open"; closing is the display:none branch below. Width matches the
+    # layout the board already approved.
+    _sidebar_css += (
+        'section[data-testid="stSidebar"]{'
+        'display:flex !important;visibility:visible !important;opacity:1 !important;'
+        'transform:translateX(0) !important;margin-left:0 !important;left:0 !important;'
+        'min-width:18rem !important;width:18rem !important;max-width:18rem !important;}'
     )
 else:
-    # Explorer grid: force sidebar permanently open — no toggle needed.
-    # CSS override is the only approach that works on Streamlit Cloud
-    # (window.parent JS is blocked by Cloud's iframe CSP).
-    st.markdown(
-        """
-        <style>
-        section[data-testid="stSidebar"] {
-            transform: translateX(0) !important;
-            min-width: 18rem !important;
-            width: 18rem !important;
-            display: flex !important;
-            visibility: visible !important;
-            opacity: 1 !important;
-        }
-        button[data-testid="collapsedControl"],
-        section[data-testid="stSidebar"] button[aria-label="Close sidebar"],
-        section[data-testid="stSidebar"] > div:first-child > button:first-child {
-            display: none !important;
-        }
-        </style>
-        """,
-        unsafe_allow_html=True,
+    # Closed (or not the Explorer grid): remove the panel so the content is
+    # full-width. Our button re-opens it.
+    _sidebar_css += 'section[data-testid="stSidebar"]{display:none !important;}'
+if _show_sidebar_panel:
+    _sidebar_css += (
+        '.st-key-sidebar_toggle{position:fixed !important;bottom:20px;right:20px;'
+        'width:auto !important;margin:0 !important;z-index:1000002 !important;}'
+        '.st-key-sidebar_toggle button{background:#0e5080 !important;color:#fff !important;'
+        'border:1px solid rgba(255,255,255,0.25) !important;border-radius:999px !important;'
+        'padding:0.5rem 1.15rem !important;font-weight:600 !important;font-size:0.9rem !important;'
+        'box-shadow:0 6px 20px rgba(0,0,0,0.22) !important;white-space:nowrap !important;}'
+        '.st-key-sidebar_toggle button:hover{background:#0a3d5c !important;'
+        'border-color:rgba(255,255,255,0.45) !important;}'
     )
+st.markdown(f"<style>{_sidebar_css}</style>", unsafe_allow_html=True)
 
 
 def _is_valid_value(value) -> bool:
@@ -4212,9 +4224,14 @@ if page == "Explorer":
 
     if selected_pdf:
         # Full-page PDF reading mode with download support.
-        pdf_path = os.path.join(pdf_folder, selected_pdf)
+        # Resolve against the thesis's OWN programme folder. In all-programmes
+        # mode (PROGRAM == "all") the module-level pdf_folder points at the SBI
+        # fallback, so a non-SBI thesis's PDF would not be found there and the
+        # viewer would wrongly report it missing.
+        matching_row = find_row_by_pdf_name(df, selected_pdf)
+        _reader_dir = _get_program_dir_for_row(matching_row) if matching_row is not None else PROGRAM_DIR
+        pdf_path = os.path.join(_reader_dir, "pdfs", selected_pdf)
         if os.path.exists(pdf_path):
-            matching_row = find_row_by_pdf_name(df, selected_pdf)
 
             st.markdown("### Thesis Viewer")
             _render_back_btn("back_btn_pdf_reader")
@@ -4280,7 +4297,10 @@ if page == "Explorer":
 
         if matching_row is not None:
             pdf_name = str(matching_row.get("Thesis_PDF", "n/a"))
-            pdf_path = os.path.join(PROGRAM_DIR, "pdfs", pdf_name)
+            # Resolve against the thesis's OWN programme folder. In all-programmes
+            # mode PROGRAM_DIR is the SBI fallback, so a non-SBI thesis's PDF would
+            # not be found there and would wrongly show "PDF not available".
+            pdf_path = os.path.join(_get_program_dir_for_row(matching_row), "pdfs", pdf_name)
             has_pdf = pdf_name not in ("n/a", "", "nan") and os.path.exists(pdf_path)
 
             if has_pdf:
@@ -4469,10 +4489,17 @@ if page == "Explorer":
                                     data=_emap_df,
                                     get_position=["_plot_lon", "_plot_lat"],
                                     get_fill_color="_color",
-                                    get_radius=7,
-                                    radius_units="pixels",
-                                    radius_min_pixels=3,
-                                    radius_max_pixels=14,
+                                    # Radius in METERS (deck.gl's stable default) rather than
+                                    # pixels: pixel units were rendered inconsistently between
+                                    # the local streamlit 1.57 build and the deployed 1.58+
+                                    # build (dots looked much larger online). Meters render
+                                    # identically everywhere and let the dots scale with zoom,
+                                    # while the pixel clamps keep them from ever ballooning or
+                                    # disappearing at the extremes.
+                                    get_radius=40000,
+                                    radius_units="meters",
+                                    radius_min_pixels=2.5,
+                                    radius_max_pixels=9,
                                     opacity=0.9,
                                     pickable=True,
                                     auto_highlight=True,
@@ -6004,7 +6031,10 @@ elif page == "Insights":
             {"key": "keyword", "label": "Topic Keywords",
              "blurb": "Which specific topics are rising — and which are cooling?",
              "extract": lambda r: _multi(r.get("Keywords", "")),
-             "lbl": _sector_lbl, "col": None, "cap": 10, "other": True},
+             # No "Other" bucket: keywords are multi-label, so the overflow tail
+             # aggregates into one enormous band that overshadows the actual top
+             # topics. Drop the tail instead and show only the leading keywords.
+             "lbl": _sector_lbl, "col": None, "cap": 10, "other": False},
         ]
 
         out = {"dims": [{"key": d["key"], "label": d["label"], "blurb": d["blurb"]}
