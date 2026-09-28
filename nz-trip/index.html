@@ -1,0 +1,745 @@
+<title>Aotearoa met Sterre & Pim</title>
+<meta name="description" content="Reisplatform voor de maand Nieuw-Zeeland van Sterre en Pim, december 2026.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;800&family=Figtree:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap">
+<style>
+:root{
+  --bg:#EDF1EE; --surface:#FFFFFF; --surface-2:#E3EAE5; --ink:#15241C; --muted:#56685D; --line:#CAD6CE;
+  --fern:#1F4D38; --teal:#2A7A80; --accent:#C2362C; --accent-ink:#FFFFFF; --sun:#A8740A; --sun-bg:#FBF0D6;
+  --hero-bg:#1F4D38; --hero-ink:#F2F7F3; --hero-muted:#B5CFC0; --ridge:#2C6149;
+  --ok:#2E7D4F; --ok-bg:#DDF0E3;
+  --display:"Big Shoulders Display","Arial Narrow","Roboto Condensed",sans-serif;
+  --body:"Figtree",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,"SFMono-Regular",Menlo,monospace;
+  --r:10px;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    color-scheme:dark;
+    --bg:#0E1713; --surface:#15221B; --surface-2:#1C2C24; --ink:#E4EDE7; --muted:#9AB0A2; --line:#2B3E34;
+    --fern:#86C8A6; --teal:#6CC0C6; --accent:#EE6A5E; --accent-ink:#1B0B09; --sun:#E8B94A; --sun-bg:#2E2614;
+    --hero-bg:#112A1D; --hero-ink:#E8F1EB; --hero-muted:#8FB19E; --ridge:#1A3B2A;
+    --ok:#7ACB98; --ok-bg:#16301F;
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme:dark;
+  --bg:#0E1713; --surface:#15221B; --surface-2:#1C2C24; --ink:#E4EDE7; --muted:#9AB0A2; --line:#2B3E34;
+  --fern:#86C8A6; --teal:#6CC0C6; --accent:#EE6A5E; --accent-ink:#1B0B09; --sun:#E8B94A; --sun-bg:#2E2614;
+  --hero-bg:#112A1D; --hero-ink:#E8F1EB; --hero-muted:#8FB19E; --ridge:#1A3B2A;
+  --ok:#7ACB98; --ok-bg:#16301F;
+}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font:400 15px/1.55 var(--body);-webkit-font-smoothing:antialiased}
+h1,h2,h3{font-family:var(--display);text-wrap:balance;margin:0;line-height:1}
+h2{font-size:clamp(34px,5vw,48px);font-weight:800;text-transform:uppercase;letter-spacing:.01em}
+h3{font-size:22px;font-weight:800;text-transform:uppercase;letter-spacing:.02em}
+p{margin:0}
+a{color:var(--teal)}
+button,input,select,textarea{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--teal);outline-offset:2px}
+.wrap{max-width:1120px;margin:0 auto;padding-inline:20px}
+.eyebrow{font:600 12px/1 var(--body);text-transform:uppercase;letter-spacing:.12em;color:var(--muted)}
+.mono{font-family:var(--mono);font-size:13px;font-variant-numeric:tabular-nums}
+.num{font-variant-numeric:tabular-nums}
+
+/* Hero */
+.hero{position:relative;background:var(--hero-bg);color:var(--hero-ink);overflow:hidden}
+.hero canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
+.hero .wrap{position:relative;min-width:0;padding-block:44px 36px;display:grid;gap:28px}
+.hero-top{display:flex;flex-wrap:wrap;justify-content:space-between;gap:12px;align-items:center}
+.hero .eyebrow{color:var(--hero-muted)}
+.sync{display:inline-flex;align-items:center;gap:8px;font-size:13px;color:var(--hero-muted)}
+.sync i{width:8px;height:8px;border-radius:50%;background:var(--hero-muted)}
+.sync.live i{background:#7ED39B;box-shadow:0 0 0 3px rgba(126,211,155,.25)}
+.hero h1{font-size:clamp(56px,11vw,128px);font-weight:800;text-transform:uppercase;letter-spacing:-.005em;line-height:.86}
+.hero h1 span+span{margin-top:.15em}
+.hero h1 span{display:block;color:var(--hero-muted);font-weight:600;font-size:max(.3em,22px);letter-spacing:.04em;margin-top:.4em;line-height:1.05}
+.hero-bottom{display:flex;flex-wrap:wrap;gap:28px 48px;align-items:flex-end;justify-content:space-between}
+.count{display:flex;gap:18px;align-items:flex-end}
+.count b{font:800 clamp(52px,8vw,84px)/.85 var(--display);font-variant-numeric:tabular-nums;display:block}
+.count small{display:block;font-size:12px;text-transform:uppercase;letter-spacing:.12em;color:var(--hero-muted);margin-top:6px}
+.count-label{font-size:15px;color:var(--hero-muted);max-width:18ch;padding-bottom:6px}
+.facts{display:flex;flex-wrap:wrap;gap:10px 28px;font-size:14px}
+.facts div{display:grid;gap:2px}
+.facts dt{font-size:11px;text-transform:uppercase;letter-spacing:.12em;color:var(--hero-muted)}
+.facts dd{margin:0;font-weight:600}
+
+/* Nav */
+nav.jump{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:color-mix(in srgb,var(--bg) 88%,transparent);backdrop-filter:blur(8px);border-bottom:1px solid var(--line)}
+nav.jump .wrap{display:flex;gap:4px;overflow-x:auto;padding-block:8px;scrollbar-width:none}
+nav.jump a{flex:none;text-decoration:none;color:var(--muted);font-weight:600;font-size:14px;padding:7px 12px;border-radius:999px}
+nav.jump a:hover{color:var(--ink);background:var(--surface-2)}
+nav.jump a.on{color:var(--accent-ink);background:var(--accent)}
+nav.jump .who{margin-left:auto;flex:none;display:flex;align-items:center;gap:6px;font-size:13px;color:var(--muted);padding-left:12px}
+
+section{padding-block:56px 8px;scroll-margin-top:56px}
+.sec-head{display:flex;flex-wrap:wrap;gap:8px 24px;align-items:flex-end;justify-content:space-between;margin-bottom:24px}
+.sec-head p{color:var(--muted);max-width:52ch}
+
+/* Buttons & inputs */
+.btn{border:1px solid var(--line);background:var(--surface);border-radius:8px;padding:8px 14px;font-weight:600;font-size:14px;cursor:pointer}
+.btn:hover{border-color:var(--teal)}
+.btn.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.btn.small{padding:4px 10px;font-size:13px}
+.btn.ghost{background:transparent;border-color:transparent;color:var(--muted)}
+.btn.ghost:hover{color:var(--accent);border-color:transparent}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:999px;padding:2px;background:var(--surface)}
+.seg button{border:0;background:transparent;border-radius:999px;padding:4px 12px;font-size:13px;font-weight:600;color:var(--muted);cursor:pointer}
+.seg button[aria-pressed="true"]{background:var(--fern);color:var(--bg)}
+input[type=text],input[type=number],select,textarea{width:100%;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:9px 11px;font-size:15px}
+textarea{resize:vertical;min-height:84px}
+label.f{display:grid;gap:6px;font-size:13px;font-weight:600;color:var(--muted)}
+
+/* Calendar */
+.cal-layout{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);gap:20px;align-items:start}
+.cal{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:14px}
+.cal-legend{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:12px;color:var(--muted);margin-bottom:12px}
+.cal-legend span{display:inline-flex;align-items:center;gap:6px}
+.cal-legend i{width:10px;height:10px;border-radius:3px}
+.cal-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px}
+.cal-dow{font-size:11px;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);text-align:center;padding-bottom:4px}
+.day{position:relative;min-height:74px;border-radius:7px;border:1px solid transparent;background:var(--surface-2);padding:6px 6px 5px;text-align:left;cursor:pointer;display:flex;flex-direction:column;gap:3px;overflow:hidden;min-width:0}
+.day:hover{border-color:var(--teal)}
+.day.empty{background:transparent;cursor:default;border:0}
+.day.travel{background:color-mix(in srgb,var(--teal) 16%,var(--surface))}
+.day.road{background:color-mix(in srgb,var(--fern) 11%,var(--surface))}
+.day.sel{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
+.day .dn{font:800 20px/1 var(--display);font-variant-numeric:tabular-nums}
+.day .mo{font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-left:3px;font-family:var(--body);font-weight:600}
+.day .pl{font-size:11.5px;line-height:1.2;font-weight:600;color:var(--ink);overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow-wrap:break-word;hyphens:auto}
+.day .marks{display:flex;gap:3px;flex-wrap:wrap;margin-top:auto}
+.day .marks i{width:7px;height:7px;border-radius:50%}
+.day.today::after{content:"vandaag";position:absolute;top:6px;right:6px;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--accent)}
+.k-flight{background:var(--teal)} .k-car{background:var(--fern)} .k-holiday{background:var(--accent)} .k-act{background:var(--sun)} .k-transit{background:var(--muted)}
+
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:18px;display:grid;gap:14px;position:sticky;top:72px}
+.panel h3{font-size:28px}
+.evts{display:grid;gap:6px;margin:0;padding:0;list-style:none}
+.evts li{display:flex;gap:8px;align-items:baseline;font-size:14px}
+.evts i{flex:none;width:8px;height:8px;border-radius:50%;transform:translateY(-1px)}
+.panel .row{display:flex;gap:8px;align-items:center;justify-content:space-between;flex-wrap:wrap}
+.saved{font-size:12px;color:var(--muted)}
+
+.route{margin-top:18px;background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:16px 18px}
+.route ol{list-style:none;margin:12px 0 0;padding:0;display:flex;flex-wrap:wrap;gap:6px 0;align-items:center}
+.route li{display:flex;align-items:center;font-weight:600;font-size:14px}
+.route li+li::before{content:"";width:22px;height:2px;background:var(--line);margin:0 8px}
+.route li small{font-weight:500;color:var(--muted);margin-left:6px;font-size:12px}
+
+/* Flights */
+.legs{display:grid;gap:28px}
+.leg-title{display:flex;align-items:baseline;gap:12px;margin-bottom:12px;flex-wrap:wrap}
+.leg-title .mono{color:var(--muted)}
+.passes{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr));gap:14px}
+.pass{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);display:grid;grid-template-columns:1fr auto;overflow:hidden}
+.pass-main{padding:16px 18px;display:grid;gap:12px;min-width:0}
+.pass-route{display:flex;align-items:center;gap:10px}
+.pass-route b{font:800 30px/1 var(--display);letter-spacing:.02em}
+.pass-route small{display:block;font-size:12px;color:var(--muted);font-weight:500;margin-top:3px}
+.pass-route .plane{flex:1;height:1px;border-top:2px dashed var(--line);position:relative;min-width:24px}
+.pass-meta{display:flex;flex-wrap:wrap;gap:6px 18px;font-size:13px}
+.pass-meta dt{font-size:10.5px;text-transform:uppercase;letter-spacing:.1em;color:var(--muted)}
+.pass-meta dd{margin:0;font-weight:600}
+.pass-stub{border-left:2px dashed var(--line);padding:16px 14px;display:grid;align-content:space-between;gap:10px;background:var(--surface-2);min-width:118px}
+.pass-stub .t{font:800 30px/1 var(--display);font-variant-numeric:tabular-nums}
+.chip{display:inline-flex;align-items:center;gap:6px;border-radius:999px;padding:3px 10px;font-size:12px;font-weight:600;background:var(--surface-2);color:var(--muted);white-space:nowrap}
+.chip.warn{background:var(--sun-bg);color:var(--sun)}
+.chip.ok{background:var(--ok-bg);color:var(--ok)}
+.note{font-size:13px;color:var(--muted)}
+
+/* Camper */
+.camper{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:20px;align-items:stretch}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:20px}
+.camper-hero{background:var(--fern);color:var(--bg);border-color:var(--fern);display:grid;gap:18px;align-content:space-between}
+.camper-hero .eyebrow{color:color-mix(in srgb,var(--bg) 70%,var(--fern))}
+.camper-hero h3{font-size:clamp(40px,6vw,60px);line-height:.9}
+.camper-hero p{max-width:44ch}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:10px 18px;margin:0}
+.kv dt{font-size:12px;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);padding-top:2px}
+.kv dd{margin:0;font-weight:500}
+.stops{display:grid;gap:14px;margin-top:4px}
+.stop{display:grid;grid-template-columns:auto 1fr;gap:12px;align-items:start}
+.stop .pin{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;font:800 14px var(--display);background:var(--surface-2);color:var(--fern)}
+.stop b{display:block}
+.alert{display:flex;gap:12px;align-items:flex-start;background:var(--sun-bg);color:var(--ink);border-radius:8px;padding:12px 14px;font-size:14px}
+.alert b{color:var(--sun)}
+
+/* Activities */
+.act-tools{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;margin-bottom:14px}
+.add-row{display:flex;gap:8px;flex:1 1 320px;max-width:520px}
+.acts{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,300px),1fr));gap:12px}
+.act{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:14px 16px;display:grid;gap:10px}
+.act-top{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
+.act-title{font-weight:700;font-size:17px;line-height:1.25;word-break:break-word}
+.status{border:0;cursor:pointer}
+.st-idee{background:var(--surface-2);color:var(--muted)}
+.st-gepland{background:color-mix(in srgb,var(--teal) 18%,var(--surface));color:var(--teal)}
+.st-geboekt{background:var(--sun-bg);color:var(--sun)}
+.st-gedaan{background:var(--ok-bg);color:var(--ok)}
+.act-bottom{display:flex;gap:8px;align-items:center;justify-content:space-between;flex-wrap:wrap}
+.act-bottom select{width:auto;padding:5px 8px;font-size:13px}
+.keen{display:flex;gap:4px}
+.keen button{border:1px solid var(--line);background:transparent;border-radius:999px;padding:3px 9px;font-size:12px;font-weight:600;color:var(--muted);cursor:pointer}
+.keen button[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.act textarea{min-height:52px;font-size:14px;padding:7px 9px}
+
+/* Budget */
+.budget{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.35fr);gap:20px;align-items:start}
+.totals{display:grid;gap:18px}
+.big{font:800 clamp(44px,6vw,64px)/.9 var(--display);font-variant-numeric:tabular-nums}
+.sub{display:flex;flex-wrap:wrap;gap:6px 22px;font-size:14px;color:var(--muted)}
+.sub b{color:var(--ink);font-variant-numeric:tabular-nums}
+.bar{display:flex;height:14px;border-radius:999px;overflow:hidden;background:var(--surface-2);gap:2px}
+.bar span{display:block;height:100%;min-width:3px}
+.bar-legend{display:grid;gap:6px;font-size:13px}
+.bar-legend div{display:grid;grid-template-columns:12px 1fr auto;gap:8px;align-items:center}
+.bar-legend i{width:12px;height:12px;border-radius:3px}
+.tbl-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);font-weight:600;padding:8px 8px;border-bottom:1px solid var(--line)}
+td{padding:9px 8px;border-bottom:1px solid var(--line);vertical-align:middle}
+td.r,th.r{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.paid{cursor:pointer}
+.cost-form{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr) minmax(0,.8fr) auto;gap:8px;margin-top:14px;align-items:end}
+.cost-form .lbl{grid-column:1 / -1}
+
+.todo{display:grid;gap:10px;margin:0;padding:0;list-style:none}
+.todo li{display:grid;grid-template-columns:auto 1fr;gap:12px;align-items:start;background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:12px 14px;font-size:14px}
+.todo li b{display:block;font-size:15px}
+footer{padding-block:48px 40px;color:var(--muted);font-size:13px}
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:8px;font-size:14px;z-index:20;max-width:calc(100% - 32px)}
+
+@media (max-width:860px){
+  .cal-layout,.camper,.budget{grid-template-columns:1fr}
+  .panel{position:static}
+  .cost-form{grid-template-columns:1fr 1fr}
+}
+@media (max-width:520px){
+  .wrap{padding-inline:16px}
+  .day{min-height:58px;padding:4px}
+  .day .dn{font-size:16px}
+  .day .pl{font-size:10px;display:block;white-space:nowrap;text-overflow:ellipsis}
+  .day .mo{display:none}
+  .day.today::after{content:"•";font-size:16px;top:0;right:4px}
+  .pass{grid-template-columns:1fr}
+  .pass-stub{border-left:0;border-top:2px dashed var(--line);display:flex;justify-content:space-between;align-items:center}
+  nav.jump .who span{display:none}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;scroll-behavior:auto!important}}
+</style>
+
+<header class="hero">
+  <canvas id="ridges" aria-hidden="true"></canvas>
+  <div class="wrap">
+    <div class="hero-top">
+      <span class="eyebrow">Nieuw-Zeeland 2026 · Sterre Lucas & Pim Barmentlo</span>
+      <span class="sync" id="sync"><i></i><span>Alleen in deze browser</span></span>
+    </div>
+    <h1>Aotearoa<span>Auckland → Christchurch</span><span>1 t/m 31 december</span></h1>
+    <div class="hero-bottom">
+      <div class="count" id="count" aria-live="polite"></div>
+      <dl class="facts">
+        <div><dt>Camper</dt><dd>31 dagen RAV4 + daktent</dd></div>
+        <div><dt>Vluchten</dt><dd>5, via Guangzhou</dd></div>
+        <div><dt>Eilanden</dt><dd>Noord & Zuid</dd></div>
+      </dl>
+    </div>
+  </div>
+</header>
+
+<nav class="jump" aria-label="Secties">
+  <div class="wrap">
+    <a href="#tijdlijn">Tijdlijn</a>
+    <a href="#vluchten">Vluchten</a>
+    <a href="#camper">Camper</a>
+    <a href="#activiteiten">Activiteiten</a>
+    <a href="#budget">Budget</a>
+    <a href="#todo">Open punten</a>
+    <div class="who"><span>Ik ben</span>
+      <div class="seg" role="group" aria-label="Wie ben jij?">
+        <button type="button" data-me="sterre" aria-pressed="false">Sterre</button>
+        <button type="button" data-me="pim" aria-pressed="false">Pim</button>
+      </div>
+    </div>
+  </div>
+</nav>
+
+<main class="wrap" lang="nl">
+
+  <section id="tijdlijn">
+    <div class="sec-head">
+      <div><p class="eyebrow">De maand</p><h2>Tijdlijn & dagplanner</h2></div>
+      <p>Klik een dag aan en schrijf waar jullie slapen en wat jullie doen. De route hieronder bouwt zich vanzelf op.</p>
+    </div>
+    <div class="cal-layout">
+      <div class="cal">
+        <div class="cal-legend">
+          <span><i style="background:color-mix(in srgb,var(--teal) 30%,var(--surface))"></i>Onderweg</span>
+          <span><i style="background:color-mix(in srgb,var(--fern) 25%,var(--surface))"></i>Roadtrip</span>
+          <span><i class="k-flight" style="border-radius:50%"></i>Vlucht</span>
+          <span><i class="k-car" style="border-radius:50%"></i>Camper</span>
+          <span><i class="k-act" style="border-radius:50%"></i>Activiteit</span>
+          <span><i class="k-holiday" style="border-radius:50%"></i>Feestdag</span>
+        </div>
+        <div class="cal-grid" id="cal"></div>
+      </div>
+      <aside class="panel" id="panel" aria-live="polite"></aside>
+    </div>
+    <div class="route">
+      <p class="eyebrow">Route tot nu toe</p>
+      <ol id="route"></ol>
+    </div>
+  </section>
+
+  <section id="vluchten">
+    <div class="sec-head">
+      <div><p class="eyebrow">Tijden zijn lokaal</p><h2>Vluchten</h2></div>
+      <p>Alle vluchten met China Southern Airlines. Tik op een boekingsnummer om het te kopiëren.</p>
+    </div>
+    <div class="legs" id="legs"></div>
+  </section>
+
+  <section id="camper">
+    <div class="sec-head">
+      <div><p class="eyebrow">Mad Campers</p><h2>De camper</h2></div>
+    </div>
+    <div class="camper">
+      <div class="card camper-hero">
+        <div>
+          <p class="eyebrow">Mad Adventurer</p>
+          <h3>Toyota RAV4<br>met daktent</h3>
+        </div>
+        <p>Na veel twijfelen gekozen voor een 4x4 met een rooftent, voor een hele maand. Fucking cool!</p>
+        <dl class="kv" style="--muted:color-mix(in srgb,var(--bg) 70%,var(--fern))">
+          <dt>Kosten</dt><dd class="num">NZ$ 5.656,28 · € 2.814,65</dd>
+          <dt>Aanbetaald</dt><dd class="num">NZ$ 5.656,28</dd>
+          <dt>Via</dt><dd>Mad Campers</dd>
+        </dl>
+      </div>
+      <div class="card" style="display:grid;gap:18px;align-content:start">
+        <div class="stops">
+          <div class="stop"><span class="pin">A</span><div><b>Ophalen · di 1 december</b>Hill Street 19, Onehunga, Auckland<br><a href="https://www.google.com/maps/search/?api=1&query=19+Hill+Street+Onehunga+Auckland" target="_blank" rel="noopener">Open in Maps</a></div></div>
+          <div class="stop"><span class="pin">B</span><div><b>Inleveren · do 31 december</b>Belfast Road 46, Belfast, Christchurch<br><a href="https://www.google.com/maps/search/?api=1&query=46+Belfast+Road+Belfast+Christchurch" target="_blank" rel="noopener">Open in Maps</a></div></div>
+        </div>
+        <div class="alert"><div><b>Niet self-contained.</b> Vrij kamperen (freedom camping) mag in Nieuw-Zeeland alleen met een gecertificeerd self-contained voertuig. Plan dus campings of DOC-campsites voor de nachten.</div></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="activiteiten">
+    <div class="sec-head">
+      <div><p class="eyebrow">Brainstorm</p><h2>Activiteiten</h2></div>
+      <p>Geef aan wie iets wil doen, zet de status verder en koppel het aan een dag.</p>
+    </div>
+    <div class="act-tools">
+      <form class="add-row" id="addAct">
+        <input type="text" id="actNew" placeholder="Nieuw idee, bijv. Hobbiton of gletsjerwandeling" aria-label="Nieuw activiteitidee" maxlength="80">
+        <button class="btn primary" type="submit">Toevoegen</button>
+      </form>
+      <div class="seg" role="group" aria-label="Filter" id="actFilter"></div>
+    </div>
+    <div class="acts" id="acts"></div>
+  </section>
+
+  <section id="budget">
+    <div class="sec-head">
+      <div><p class="eyebrow">Kostenplaatje</p><h2>Budget</h2></div>
+      <p>Omrekening met de koers van jullie camperboeking: NZ$ 1 = € 0,4976.</p>
+    </div>
+    <div class="budget">
+      <div class="card totals" id="totals"></div>
+      <div class="card">
+        <div class="tbl-wrap"><table>
+          <thead><tr><th>Post</th><th>Categorie</th><th class="r">Bedrag</th><th class="r">€</th><th>Status</th><th><span class="sr" hidden>Verwijderen</span></th></tr></thead>
+          <tbody id="costRows"></tbody>
+        </table></div>
+        <form class="cost-form" id="addCost">
+          <label class="f lbl">Post<input type="text" id="costLabel" placeholder="bijv. Ferry Wellington → Picton" maxlength="60" required></label>
+          <label class="f">Categorie<select id="costCat"></select></label>
+          <label class="f">Bedrag<input type="number" id="costAmt" min="0" step="0.01" inputmode="decimal" required></label>
+          <label class="f">Munt<select id="costCur"><option>NZD</option><option>EUR</option></select></label>
+          <button class="btn primary" type="submit">Toevoegen</button>
+        </form>
+      </div>
+    </div>
+  </section>
+
+  <section id="todo">
+    <div class="sec-head">
+      <div><p class="eyebrow">Nog regelen</p><h2>Open punten</h2></div>
+      <p>Wat nog ontbreekt in het plan, automatisch bijgewerkt.</p>
+    </div>
+    <ul class="todo" id="todoList"></ul>
+  </section>
+</main>
+
+<footer class="wrap">Gebaseerd op het Google Doc "New Zealand 2026". Ideeën, dagplanning en budget worden gedeeld tussen Sterre en Pim.</footer>
+<div class="toast" id="toast" hidden></div>
+
+<script>
+(() => {
+  // ---------- Static facts from the document ----------
+  const FLIGHTS = {
+    heen: {ref:"MFTJPB", agency:"Trip.com", bag:"Doorgestuurd naar Auckland", legs:[
+      {from:"AMS",fromN:"Amsterdam",to:"CAN",toN:"Guangzhou",date:"2026-11-28",time:"21:40"},
+      {from:"CAN",fromN:"Guangzhou",to:"AKL",toN:"Auckland",date:"2026-11-30",time:"14:55"}]},
+    terug: {ref:"1156-544-075", agency:"Flightnetwork", bag:null, legs:[
+      {from:"CHC",fromN:"Christchurch",to:"CAN",toN:"Guangzhou",date:"2026-12-31",time:"22:30"},
+      {from:"CAN",fromN:"Guangzhou",to:"PEK",toN:"Beijing",date:"2027-01-01",time:"09:00"},
+      {from:"PEK",fromN:"Beijing",to:"AMS",toN:"Amsterdam",date:"2027-01-01",time:"14:40"}]}
+  };
+  const FIXED = {
+    "2026-11-28":[{k:"flight",t:"21:40 vlucht Amsterdam → Guangzhou"}],
+    "2026-11-29":[{k:"transit",t:"Overstap in Guangzhou (± 1 dag)"}],
+    "2026-11-30":[{k:"flight",t:"14:55 vlucht Guangzhou → Auckland"}],
+    "2026-12-01":[{k:"car",t:"Camper ophalen, Hill Street 19, Onehunga"}],
+    "2026-12-25":[{k:"holiday",t:"Kerstdag, feestdag: veel winkels dicht"}],
+    "2026-12-26":[{k:"holiday",t:"Boxing Day, feestdag"}],
+    "2026-12-31":[{k:"car",t:"Camper inleveren, Belfast Road 46, Christchurch"},{k:"flight",t:"22:30 vlucht Christchurch → Guangzhou"}],
+    "2027-01-01":[{k:"flight",t:"09:00 vlucht Guangzhou → Beijing"},{k:"flight",t:"14:40 vlucht Beijing → Amsterdam"}]
+  };
+  const DEFAULT_PLACE = {"2026-12-01":"Auckland","2026-12-31":"Christchurch"};
+  const NZD_EUR = 2814.65 / 5656.28;
+  const STATUSES = ["idee","gepland","geboekt","gedaan"];
+  const CATS = [["Vervoer","var(--fern)"],["Vluchten","var(--teal)"],["Activiteiten","var(--sun)"],["Overnachten","var(--accent)"],["Brandstof","color-mix(in srgb,var(--fern) 55%,var(--teal))"],["Eten","color-mix(in srgb,var(--accent) 55%,var(--sun))"],["Overig","var(--muted)"]];
+  const catColor = c => (CATS.find(x => x[0] === c) || CATS[CATS.length-1])[1];
+
+  // Used only when the shared store is unavailable (e.g. opened as a local file).
+  const LOCAL_SEED = {
+    ideas: {
+      scuba:{title:"Scuba dive",status:"idee",likes:{},date:"",note:"",order:1},
+      surfen:{title:"Surfen",status:"idee",likes:{},date:"",note:"",order:2},
+      enduro:{title:"Enduro mountainbike",status:"idee",likes:{},date:"",note:"",order:3},
+      vissen:{title:"Vissen",status:"idee",likes:{},date:"",note:"",order:4},
+      wijntour:{title:"Wijntour",status:"idee",likes:{},date:"",note:"",order:5},
+      offroad:{title:"Offroad cursus",status:"idee",likes:{},date:"",note:"",order:6}
+    },
+    costs: {
+      camper:{label:"Camper Mad Adventurer (RAV4)",cat:"Vervoer",amount:5656.28,cur:"NZD",paid:true,order:1}
+    },
+    days: {}
+  };
+
+  // ---------- Dates ----------
+  const DAYS = [];
+  for (let t = Date.UTC(2026,10,28); t <= Date.UTC(2027,0,1); t += 864e5) DAYS.push(new Date(t).toISOString().slice(0,10));
+  const dt = iso => new Date(iso + "T12:00:00Z");
+  const fmtLong = iso => dt(iso).toLocaleDateString("nl-NL",{weekday:"long",day:"numeric",month:"long",timeZone:"UTC"});
+  const fmtShort = iso => dt(iso).toLocaleDateString("nl-NL",{weekday:"short",day:"numeric",month:"short",timeZone:"UTC"});
+  const phase = iso => iso < "2026-12-01" ? "travel" : iso <= "2026-12-31" ? "road" : "travel";
+  const nzToday = () => { try { return new Intl.DateTimeFormat("en-CA",{timeZone:"Pacific/Auckland"}).format(new Date()); } catch { return ""; } };
+  const eur = n => n.toLocaleString("nl-NL",{style:"currency",currency:"EUR"});
+  const nzd = n => "NZ$ " + n.toLocaleString("nl-NL",{minimumFractionDigits:2,maximumFractionDigits:2});
+  const toEur = c => c.cur === "EUR" ? c.amount : c.amount * NZD_EUR;
+  const esc = s => String(s ?? "").replace(/[&<>"']/g, ch => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[ch]));
+  const $ = id => document.getElementById(id);
+
+  // ---------- Per-viewer prefs ----------
+  const pref = {
+    get(k){ try { return localStorage.getItem("nz26:" + k); } catch { return null; } },
+    set(k,v){ try { localStorage.setItem("nz26:" + k, v); } catch {} }
+  };
+  let me = pref.get("me") || "";
+  let selDay = pref.get("day") || "2026-12-01";
+  if (!DAYS.includes(selDay)) selDay = "2026-12-01";
+  let actFilter = "alles";
+
+  // ---------- Data store (shared db, or local fallback) ----------
+  const state = {ideas:{}, costs:{}, days:{}};
+  let db = null;
+  function loadLocal(){
+    let saved = null;
+    try { saved = JSON.parse(localStorage.getItem("nz26:data") || "null"); } catch {}
+    const src = saved || LOCAL_SEED;
+    for (const k of Object.keys(state)) state[k] = JSON.parse(JSON.stringify(src[k] || {}));
+  }
+  function saveLocal(){ if (!db) try { localStorage.setItem("nz26:data", JSON.stringify(state)); } catch {} }
+  async function put(coll, id, data){
+    state[coll][id] = data; renderAll();
+    if (!db) return saveLocal();
+    try { await db.collection(coll).doc(id).set(data); }
+    catch (e) { toast(e && e.code === "invalid_argument" ? "Je hebt alleen leesrechten op deze pagina." : e && e.code === "quota_exceeded" ? "Opslag is vol. Verwijder eerst iets." : "Opslaan lukte niet. Probeer het opnieuw."); }
+  }
+  async function del(coll, id){
+    delete state[coll][id]; renderAll();
+    if (!db) return saveLocal();
+    try { await db.collection(coll).doc(id).delete(); } catch { toast("Verwijderen lukte niet. Probeer het opnieuw."); }
+  }
+  const newId = p => p + "_" + Date.now().toString(36) + Math.random().toString(36).slice(2,6);
+
+  // ---------- Hero ----------
+  function renderCount(){
+    const dep = Date.UTC(2026,10,28,20,40), home = Date.UTC(2027,0,1,23,0), now = Date.now();
+    const el = $("count");
+    if (now < dep) {
+      const ms = dep - now, d = Math.floor(ms/864e5), h = Math.floor(ms%864e5/36e5), m = Math.floor(ms%36e5/6e4);
+      el.innerHTML = `<div><b>${d}</b><small>dagen</small></div><div><b>${String(h).padStart(2,"0")}</b><small>uur</small></div><div><b>${String(m).padStart(2,"0")}</b><small>min</small></div><p class="count-label">tot het vliegtuig op Schiphol vertrekt</p>`;
+    } else if (now < home) {
+      const n = Math.floor((now - Date.UTC(2026,10,28))/864e5) + 1;
+      el.innerHTML = `<div><b>${n}</b><small>van 35</small></div><p class="count-label">dagen onderweg. Geniet ervan!</p>`;
+    } else {
+      el.innerHTML = `<div><b>35</b><small>dagen</small></div><p class="count-label">Weer thuis. Wat een reis.</p>`;
+    }
+  }
+
+  function drawRidges(){
+    const c = $("ridges"), r = c.getBoundingClientRect(), dpr = Math.min(devicePixelRatio || 1, 2);
+    c.width = r.width * dpr; c.height = r.height * dpr;
+    const x = c.getContext("2d"); x.scale(dpr, dpr);
+    const col = getComputedStyle(document.documentElement).getPropertyValue("--ridge").trim() || "#2C6149";
+    let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+    const layers = 4;
+    for (let L = 0; L < layers; L++) {
+      const base = r.height * (0.52 + L * 0.13), amp = r.height * (0.26 - L * 0.045);
+      x.beginPath(); x.moveTo(0, r.height);
+      let y = base - rnd() * amp;
+      const step = 26 + L * 8;
+      for (let px = 0; px <= r.width + step; px += step) {
+        y += (rnd() - 0.5) * amp * 0.55;
+        y = Math.max(base - amp, Math.min(base, y));
+        x.lineTo(px, y);
+      }
+      x.lineTo(r.width, r.height); x.closePath();
+      x.globalAlpha = 0.35 + L * 0.16; x.fillStyle = col; x.fill();
+    }
+    x.globalAlpha = 1;
+  }
+
+  // ---------- Calendar ----------
+  function actsOn(iso){ return Object.values(state.ideas).filter(a => a.date === iso); }
+  function placeOf(iso){ return (state.days[iso] && state.days[iso].place) || DEFAULT_PLACE[iso] || ""; }
+  function renderCal(){
+    const today = nzToday();
+    const lead = (dt(DAYS[0]).getUTCDay() + 6) % 7; // Monday-first
+    let h = ["ma","di","wo","do","vr","za","zo"].map(d => `<div class="cal-dow">${d}</div>`).join("");
+    for (let i = 0; i < lead; i++) h += `<div class="day empty" aria-hidden="true"></div>`;
+    for (const iso of DAYS) {
+      const d = dt(iso), marks = (FIXED[iso] || []).map(e => e.k);
+      actsOn(iso).forEach(() => marks.push("act"));
+      const first = iso === DAYS[0] || d.getUTCDate() === 1;
+      const pl = placeOf(iso);
+      h += `<button type="button" class="day ${phase(iso)}${iso === selDay ? " sel" : ""}${iso === today ? " today" : ""}" data-day="${iso}" aria-pressed="${iso === selDay}" aria-label="${esc(fmtLong(iso))}${pl ? ", " + esc(pl) : ""}">
+        <span class="dn">${d.getUTCDate()}${first ? `<span class="mo">${d.toLocaleDateString("nl-NL",{month:"short",timeZone:"UTC"})}</span>` : ""}</span>
+        ${pl ? `<span class="pl">${esc(pl)}</span>` : ""}
+        <span class="marks">${marks.map(k => `<i class="k-${k}"></i>`).join("")}</span></button>`;
+    }
+    $("cal").innerHTML = h;
+  }
+  function renderPanel(){
+    const iso = selDay, d = state.days[iso] || {};
+    const evts = (FIXED[iso] || []).concat(actsOn(iso).map(a => ({k:"act", t:a.title})));
+    const idx = DAYS.indexOf(iso);
+    const road = phase(iso) === "road" ? `Roadtripdag ${idx - 2} van 31` : iso < "2026-12-01" ? "Heenreis" : "Terugreis";
+    $("panel").innerHTML = `
+      <div class="row"><span class="eyebrow">${road}</span>
+        <span><button class="btn small ghost" data-nav="-1" ${idx === 0 ? "disabled" : ""} aria-label="Vorige dag">←</button><button class="btn small ghost" data-nav="1" ${idx === DAYS.length-1 ? "disabled" : ""} aria-label="Volgende dag">→</button></span></div>
+      <h3>${esc(fmtLong(iso))}</h3>
+      ${evts.length ? `<ul class="evts">${evts.map(e => `<li><i class="k-${e.k}"></i>${esc(e.t)}</li>`).join("")}</ul>` : `<p class="note">Nog niets gepland voor deze dag.</p>`}
+      <label class="f">Plaats / overnachting<input type="text" id="dPlace" maxlength="60" value="${esc(d.place || "")}" placeholder="${esc(DEFAULT_PLACE[iso] || "bijv. Coromandel, Hot Water Beach")}"></label>
+      <label class="f">Plannen & notities<textarea id="dNote" maxlength="2000" placeholder="Wat gaan we doen, waar slapen we, wat moet er geboekt?">${esc(d.note || "")}</textarea></label>
+      <div class="row"><span class="saved" id="dSaved">${d.place || d.note ? "Opgeslagen" : ""}</span><button class="btn primary" id="dSave" type="button">Dag opslaan</button></div>`;
+  }
+  function renderRoute(){
+    const stops = [];
+    for (const iso of DAYS) {
+      if (phase(iso) !== "road") continue;
+      const p = placeOf(iso).trim(); if (!p) continue;
+      const last = stops[stops.length-1];
+      if (last && last.p.toLowerCase() === p.toLowerCase()) last.n++; else stops.push({p, n:1, iso});
+    }
+    const planned = DAYS.filter(i => phase(i) === "road" && placeOf(i)).length;
+    $("route").innerHTML = stops.map(s => `<li>${esc(s.p)}<small>${s.n > 1 ? s.n + " nachten" : fmtShort(s.iso)}</small></li>`).join("")
+      + (planned < 31 ? `<li style="color:var(--muted);font-weight:500">${31 - planned} dagen nog open</li>` : "");
+  }
+
+  // ---------- Flights ----------
+  function renderFlights(){
+    const leg = (name, f) => `<div>
+      <div class="leg-title"><h3>${name}</h3><span class="mono">${esc(f.agency)}</span>
+        <button class="chip" data-copy="${esc(f.ref)}" title="Kopieer boekingsnummer" style="border:0;cursor:pointer"><span class="mono">${esc(f.ref)}</span> kopieer</button>
+        ${f.bag ? `<span class="chip ok">Bagage: ${esc(f.bag)}</span>` : `<span class="chip warn">Bagage: nog uitzoeken</span>`}</div>
+      <div class="passes">${f.legs.map(l => `
+        <article class="pass">
+          <div class="pass-main">
+            <div class="pass-route"><div><b>${l.from}</b><small>${l.fromN}</small></div><span class="plane"></span><div style="text-align:right"><b>${l.to}</b><small>${l.toN}</small></div></div>
+            <dl class="pass-meta"><div><dt>Datum</dt><dd>${esc(fmtShort(l.date))}</dd></div><div><dt>Airline</dt><dd>China Southern</dd></div></dl>
+          </div>
+          <div class="pass-stub"><span class="eyebrow">Vertrek</span><span class="t">${l.time}</span></div>
+        </article>`).join("")}</div></div>`;
+    $("legs").innerHTML = leg("Heen", FLIGHTS.heen) + leg("Terug", FLIGHTS.terug)
+      + `<p class="note">Terugvlucht vertrekt op oudejaarsavond om 22:30. De jaarwisseling vieren jullie in de lucht.</p>`;
+  }
+
+  // ---------- Activities ----------
+  function renderActs(){
+    const all = Object.entries(state.ideas).sort((a,b) => (a[1].order||0) - (b[1].order||0));
+    const counts = Object.fromEntries(STATUSES.map(s => [s, all.filter(([,a]) => a.status === s).length]));
+    $("actFilter").innerHTML = ["alles", ...STATUSES].map(s => `<button type="button" data-filter="${s}" aria-pressed="${actFilter === s}">${s[0].toUpperCase() + s.slice(1)} ${s === "alles" ? all.length : counts[s]}</button>`).join("");
+    const list = all.filter(([,a]) => actFilter === "alles" || a.status === actFilter);
+    const opts = iso => `<option value="">Geen dag</option>` + DAYS.filter(d => phase(d) === "road").map(d => `<option value="${d}"${d === iso ? " selected" : ""}>${esc(fmtShort(d))}</option>`).join("");
+    $("acts").innerHTML = list.length ? list.map(([id, a]) => `
+      <article class="act" data-id="${id}">
+        <div class="act-top"><span class="act-title">${esc(a.title)}</span>
+          <button type="button" class="chip status st-${a.status}" data-act="status" title="Status wijzigen">${a.status}</button></div>
+        <textarea data-act="note" maxlength="500" placeholder="Notitie, link of prijs" aria-label="Notitie bij ${esc(a.title)}">${esc(a.note || "")}</textarea>
+        <div class="act-bottom">
+          <div class="keen" aria-label="Wie wil dit?">
+            <button type="button" data-act="like" data-who="sterre" aria-pressed="${!!(a.likes||{}).sterre}">Sterre ♥</button>
+            <button type="button" data-act="like" data-who="pim" aria-pressed="${!!(a.likes||{}).pim}">Pim ♥</button>
+          </div>
+          <select data-act="date" aria-label="Dag voor ${esc(a.title)}">${opts(a.date)}</select>
+          <button type="button" class="btn small ghost" data-act="del" aria-label="Verwijder ${esc(a.title)}">Verwijder</button>
+        </div>
+      </article>`).join("") : `<p class="note">Geen activiteiten met deze status.</p>`;
+  }
+
+  // ---------- Budget ----------
+  function renderBudget(){
+    const rows = Object.entries(state.costs).sort((a,b) => (a[1].order||0) - (b[1].order||0));
+    const total = rows.reduce((s,[,c]) => s + toEur(c), 0);
+    const paid = rows.filter(([,c]) => c.paid).reduce((s,[,c]) => s + toEur(c), 0);
+    const byCat = CATS.map(([name,color]) => ({name, color, v: rows.filter(([,c]) => (c.cat||"Overig") === name).reduce((s,[,c]) => s + toEur(c), 0)})).filter(x => x.v > 0);
+    $("totals").innerHTML = `
+      <div><p class="eyebrow">Totaal tot nu toe</p><p class="big">${eur(total)}</p></div>
+      <div class="sub"><span>Per persoon <b>${eur(total/2)}</b></span><span>In NZD <b>${nzd(total / NZD_EUR)}</b></span></div>
+      <div class="sub"><span>Betaald <b>${eur(paid)}</b></span><span>Nog te betalen <b>${eur(total - paid)}</b></span></div>
+      ${total > 0 ? `<div class="bar" role="img" aria-label="Verdeling per categorie">${byCat.map(x => `<span style="width:${x.v/total*100}%;background:${x.color}" title="${x.name}"></span>`).join("")}</div>
+      <div class="bar-legend">${byCat.map(x => `<div><i style="background:${x.color}"></i><span>${x.name}</span><b class="num">${eur(x.v)} · ${Math.round(x.v/total*100)}%</b></div>`).join("")}</div>` : ""}`;
+    $("costRows").innerHTML = rows.map(([id,c]) => `<tr data-id="${id}">
+      <td>${esc(c.label)}</td><td><span class="chip"><i style="width:8px;height:8px;border-radius:50%;background:${catColor(c.cat)}"></i>${esc(c.cat || "Overig")}</span></td>
+      <td class="r">${c.cur === "EUR" ? eur(c.amount) : nzd(c.amount)}</td><td class="r">${eur(toEur(c))}</td>
+      <td><button type="button" class="chip paid ${c.paid ? "ok" : "warn"}" data-cost="paid" style="border:0">${c.paid ? "Betaald" : "Open"}</button></td>
+      <td><button type="button" class="btn small ghost" data-cost="del" aria-label="Verwijder ${esc(c.label)}">×</button></td></tr>`).join("")
+      || `<tr><td colspan="6" class="note">Nog geen kosten ingevoerd.</td></tr>`;
+  }
+
+  // ---------- Open items ----------
+  function renderTodo(){
+    const items = [];
+    const open = DAYS.filter(i => phase(i) === "road" && !placeOf(i)).length;
+    if (open) items.push(["Route plannen", `${open} van de 31 camperdagen hebben nog geen plaats.`]);
+    const txt = (JSON.stringify(state.costs) + JSON.stringify(state.days)).toLowerCase();
+    if (!/ferry|interislander|bluebridge|veerboot|pont/.test(txt)) items.push(["Ferry boeken", "Van Auckland naar Christchurch rij je over de Cook Strait: Wellington → Picton met Interislander of Bluebridge. In december vol, dus op tijd boeken."]);
+    items.push(["Bagage terugvlucht", "In het document staat een vraagteken bij de bagage van de terugvluchten via Flightnetwork (1156-544-075)."]);
+    const unplanned = Object.values(state.ideas).filter(a => a.status === "idee").length;
+    if (unplanned) items.push(["Activiteiten kiezen", `${unplanned} ideeën staan nog op status "idee".`]);
+    if (!Object.values(state.costs).some(c => c.cat === "Vluchten")) items.push(["Vluchtkosten invullen", "De prijzen van de vluchten staan nog niet in het budget."]);
+    if (!Object.values(state.days).some(d => /kerst|christmas/i.test(d.note || "")) && !placeOf("2026-12-25")) items.push(["Kerst regelen", "25 en 26 december zijn feestdagen. Zorg voor een camping en boodschappen in huis."]);
+    $("todoList").innerHTML = items.map(([t,d],i) => `<li><span class="chip warn">${i+1}</span><div><b>${esc(t)}</b>${esc(d)}</div></li>`).join("");
+  }
+
+  function renderMe(){ document.querySelectorAll("[data-me]").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.me === me))); }
+  function renderAll(){ renderCal(); renderRoute(); renderActs(); renderBudget(); renderTodo(); }
+
+  let toastT;
+  function toast(msg){ const t = $("toast"); t.textContent = msg; t.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => t.hidden = true, 2800); }
+
+  // ---------- Events ----------
+  function selectDay(iso){ selDay = iso; pref.set("day", iso); renderCal(); renderPanel(); }
+  $("cal").addEventListener("click", e => { const b = e.target.closest("[data-day]"); if (b) selectDay(b.dataset.day); });
+  $("panel").addEventListener("click", e => {
+    const nav = e.target.closest("[data-nav]");
+    if (nav) { const i = DAYS.indexOf(selDay) + Number(nav.dataset.nav); if (DAYS[i]) selectDay(DAYS[i]); return; }
+    if (e.target.id === "dSave") {
+      const place = $("dPlace").value.trim(), note = $("dNote").value.trim();
+      const prev = state.days[selDay] || {};
+      if ((prev.place || "") === place && (prev.note || "") === note) { $("dSaved").textContent = "Geen wijzigingen"; return; }
+      if (!place && !note) del("days", selDay); else put("days", selDay, {place, note});
+      renderPanel(); $("dSaved").textContent = "Opgeslagen"; toast("Dag opgeslagen");
+    }
+  });
+  $("legs").addEventListener("click", async e => {
+    const b = e.target.closest("[data-copy]"); if (!b) return;
+    try { await navigator.clipboard.writeText(b.dataset.copy); toast("Gekopieerd: " + b.dataset.copy); }
+    catch { const r = document.createRange(); r.selectNodeContents(b.querySelector(".mono")); const s = getSelection(); s.removeAllRanges(); s.addRange(r); toast("Geselecteerd. Kopieer met Ctrl/Cmd + C"); }
+  });
+  document.querySelectorAll("[data-me]").forEach(b => b.addEventListener("click", () => { me = b.dataset.me; pref.set("me", me); renderMe(); }));
+
+  $("addAct").addEventListener("submit", e => {
+    e.preventDefault(); const v = $("actNew").value.trim(); if (!v) return;
+    const max = Math.max(0, ...Object.values(state.ideas).map(a => a.order || 0));
+    const likes = me ? {[me]: true} : {};
+    put("ideas", newId("i"), {title:v, status:"idee", likes, date:"", note:"", order:max+1});
+    $("actNew").value = ""; actFilter = "alles"; toast("Idee toegevoegd");
+  });
+  $("actFilter").addEventListener("click", e => { const b = e.target.closest("[data-filter]"); if (b) { actFilter = b.dataset.filter; renderActs(); } });
+  const clone = o => JSON.parse(JSON.stringify(o));
+  $("acts").addEventListener("click", e => {
+    const b = e.target.closest("[data-act]"), card = e.target.closest("[data-id]"); if (!b || !card) return;
+    const id = card.dataset.id, a = clone(state.ideas[id]);
+    if (b.dataset.act === "status") { a.status = STATUSES[(STATUSES.indexOf(a.status) + 1) % STATUSES.length]; put("ideas", id, a); }
+    else if (b.dataset.act === "like") { a.likes = a.likes || {}; a.likes[b.dataset.who] = !a.likes[b.dataset.who]; put("ideas", id, a); }
+    else if (b.dataset.act === "del") {
+      if (b.dataset.confirm) { del("ideas", id); toast("Verwijderd"); }
+      else { b.dataset.confirm = "1"; b.textContent = "Zeker?"; b.style.color = "var(--accent)"; setTimeout(() => { if (b.isConnected) { delete b.dataset.confirm; b.textContent = "Verwijder"; b.style.color = ""; } }, 3000); }
+    }
+  });
+  $("acts").addEventListener("change", e => {
+    const el = e.target, card = el.closest("[data-id]"); if (!card) return;
+    const id = card.dataset.id, a = clone(state.ideas[id]);
+    if (el.dataset.act === "date") { a.date = el.value; if (el.value && a.status === "idee") a.status = "gepland"; put("ideas", id, a); renderPanel(); }
+    if (el.dataset.act === "note" && el.value.trim() !== (a.note || "")) { a.note = el.value.trim(); put("ideas", id, a); toast("Notitie opgeslagen"); }
+  });
+
+  $("costCat").innerHTML = CATS.map(([c]) => `<option>${c}</option>`).join("");
+  $("addCost").addEventListener("submit", e => {
+    e.preventDefault();
+    const amount = Number($("costAmt").value), label = $("costLabel").value.trim();
+    if (!label || !(amount >= 0)) return;
+    const max = Math.max(0, ...Object.values(state.costs).map(c => c.order || 0));
+    put("costs", newId("c"), {label, cat:$("costCat").value, amount:Math.round(amount*100)/100, cur:$("costCur").value, paid:false, order:max+1});
+    $("costLabel").value = ""; $("costAmt").value = ""; toast("Kostenpost toegevoegd");
+  });
+  $("costRows").addEventListener("click", e => {
+    const b = e.target.closest("[data-cost]"), row = e.target.closest("[data-id]"); if (!b || !row) return;
+    const id = row.dataset.id;
+    if (b.dataset.cost === "paid") { const c = clone(state.costs[id]); c.paid = !c.paid; put("costs", id, c); }
+    if (b.dataset.cost === "del") {
+      if (b.dataset.confirm) { del("costs", id); toast("Verwijderd"); }
+      else { b.dataset.confirm = "1"; b.textContent = "Zeker?"; setTimeout(() => { if (b.isConnected) { delete b.dataset.confirm; b.textContent = "×"; } }, 3000); }
+    }
+  });
+
+  // Nav highlight
+  const secs = [...document.querySelectorAll("main section")];
+  const links = [...document.querySelectorAll("nav.jump a")];
+  const onScroll = () => {
+    let cur = secs[0].id;
+    for (const s of secs) if (s.getBoundingClientRect().top < 120) cur = s.id;
+    links.forEach(a => a.classList.toggle("on", a.getAttribute("href") === "#" + cur));
+  };
+  addEventListener("scroll", onScroll, {passive:true});
+
+  // ---------- Boot ----------
+  loadLocal(); renderMe(); renderFlights(); renderAll(); renderPanel(); renderCount(); drawRidges(); onScroll();
+  setInterval(renderCount, 30000);
+  let rT; addEventListener("resize", () => { clearTimeout(rT); rT = setTimeout(drawRidges, 150); });
+  matchMedia("(prefers-color-scheme: dark)").addEventListener?.("change", drawRidges);
+  new MutationObserver(drawRidges).observe(document.documentElement, {attributes:true, attributeFilter:["data-theme"]});
+
+  (async () => {
+    if (!window.claude || typeof window.claude.use !== "function") return;
+    let shared = null;
+    try { shared = await window.claude.use("db"); } catch {}
+    if (!shared) return;
+    db = shared;
+    const sync = $("sync"); sync.classList.add("live"); sync.querySelector("span").textContent = "Live gedeeld";
+    for (const coll of Object.keys(state)) {
+      state[coll] = {};
+      db.collection(coll).onSnapshot(snap => {
+        const next = {};
+        snap.docs.forEach(d => { if (d.exists) next[d.id] = clone(d.data()); });
+        state[coll] = next;
+        renderAll();
+        if (coll === "days" || coll === "ideas") {
+          const typing = document.activeElement && document.activeElement.closest && document.activeElement.closest("#panel");
+          if (!typing) renderPanel();
+        }
+      }, () => { sync.classList.remove("live"); sync.querySelector("span").textContent = "Verbinding verbroken, herlaad de pagina"; });
+    }
+    renderAll(); renderPanel();
+  })();
+})();
+</script>
