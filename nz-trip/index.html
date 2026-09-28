@@ -4,11 +4,649 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;800&family=Figtree:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap">
 <style>
+/* Leaflet 1.9.4 core styles (BSD-2-Clause) */
+
+.leaflet-pane,
+.leaflet-tile,
+.leaflet-marker-icon,
+.leaflet-marker-shadow,
+.leaflet-tile-container,
+.leaflet-pane > svg,
+.leaflet-pane > canvas,
+.leaflet-zoom-box,
+.leaflet-image-layer,
+.leaflet-layer {
+	position: absolute;
+	left: 0;
+	top: 0;
+	}
+.leaflet-container {
+	overflow: hidden;
+	}
+.leaflet-tile,
+.leaflet-marker-icon,
+.leaflet-marker-shadow {
+	-webkit-user-select: none;
+	   -moz-user-select: none;
+	        user-select: none;
+	  -webkit-user-drag: none;
+	}
+.leaflet-tile::selection {
+	background: transparent;
+}
+.leaflet-safari .leaflet-tile {
+	image-rendering: -webkit-optimize-contrast;
+	}
+.leaflet-safari .leaflet-tile-container {
+	width: 1600px;
+	height: 1600px;
+	-webkit-transform-origin: 0 0;
+	}
+.leaflet-marker-icon,
+.leaflet-marker-shadow {
+	display: block;
+	}
+.leaflet-container .leaflet-overlay-pane svg {
+	max-width: none !important;
+	max-height: none !important;
+	}
+.leaflet-container .leaflet-marker-pane img,
+.leaflet-container .leaflet-shadow-pane img,
+.leaflet-container .leaflet-tile-pane img,
+.leaflet-container img.leaflet-image-layer,
+.leaflet-container .leaflet-tile {
+	max-width: none !important;
+	max-height: none !important;
+	width: auto;
+	padding: 0;
+	}
+
+.leaflet-container img.leaflet-tile {
+	/* See: https://bugs.chromium.org/p/chromium/issues/detail?id=600120 */
+	mix-blend-mode: plus-lighter;
+}
+
+.leaflet-container.leaflet-touch-zoom {
+	-ms-touch-action: pan-x pan-y;
+	touch-action: pan-x pan-y;
+	}
+.leaflet-container.leaflet-touch-drag {
+	-ms-touch-action: pinch-zoom;
+	/* Fallback for FF which doesn't support pinch-zoom */
+	touch-action: none;
+	touch-action: pinch-zoom;
+}
+.leaflet-container.leaflet-touch-drag.leaflet-touch-zoom {
+	-ms-touch-action: none;
+	touch-action: none;
+}
+.leaflet-container {
+	-webkit-tap-highlight-color: transparent;
+}
+.leaflet-container a {
+	-webkit-tap-highlight-color: rgba(51, 181, 229, 0.4);
+}
+.leaflet-tile {
+	filter: inherit;
+	visibility: hidden;
+	}
+.leaflet-tile-loaded {
+	visibility: inherit;
+	}
+.leaflet-zoom-box {
+	width: 0;
+	height: 0;
+	-moz-box-sizing: border-box;
+	     box-sizing: border-box;
+	z-index: 800;
+	}
+.leaflet-overlay-pane svg {
+	-moz-user-select: none;
+	}
+
+.leaflet-pane         { z-index: 400; }
+
+.leaflet-tile-pane    { z-index: 200; }
+.leaflet-overlay-pane { z-index: 400; }
+.leaflet-shadow-pane  { z-index: 500; }
+.leaflet-marker-pane  { z-index: 600; }
+.leaflet-tooltip-pane   { z-index: 650; }
+.leaflet-popup-pane   { z-index: 700; }
+
+.leaflet-map-pane canvas { z-index: 100; }
+.leaflet-map-pane svg    { z-index: 200; }
+
+.leaflet-vml-shape {
+	width: 1px;
+	height: 1px;
+	}
+.lvml {
+	display: inline-block;
+	position: absolute;
+	}
+
+
+
+.leaflet-control {
+	position: relative;
+	z-index: 800;
+	pointer-events: visiblePainted; /* IE 9-10 doesn't have auto */
+	pointer-events: auto;
+	}
+.leaflet-top,
+.leaflet-bottom {
+	position: absolute;
+	z-index: 1000;
+	pointer-events: none;
+	}
+.leaflet-top {
+	top: 0;
+	}
+.leaflet-right {
+	right: 0;
+	}
+.leaflet-bottom {
+	bottom: 0;
+	}
+.leaflet-left {
+	left: 0;
+	}
+.leaflet-control {
+	float: left;
+	clear: both;
+	}
+.leaflet-right .leaflet-control {
+	float: right;
+	}
+.leaflet-top .leaflet-control {
+	margin-top: 10px;
+	}
+.leaflet-bottom .leaflet-control {
+	margin-bottom: 10px;
+	}
+.leaflet-left .leaflet-control {
+	margin-left: 10px;
+	}
+.leaflet-right .leaflet-control {
+	margin-right: 10px;
+	}
+
+
+
+.leaflet-fade-anim .leaflet-popup {
+	opacity: 0;
+	-webkit-transition: opacity 0.2s linear;
+	   -moz-transition: opacity 0.2s linear;
+	        transition: opacity 0.2s linear;
+	}
+.leaflet-fade-anim .leaflet-map-pane .leaflet-popup {
+	opacity: 1;
+	}
+.leaflet-zoom-animated {
+	-webkit-transform-origin: 0 0;
+	    -ms-transform-origin: 0 0;
+	        transform-origin: 0 0;
+	}
+svg.leaflet-zoom-animated {
+	will-change: transform;
+}
+
+.leaflet-zoom-anim .leaflet-zoom-animated {
+	-webkit-transition: -webkit-transform 0.25s cubic-bezier(0,0,0.25,1);
+	   -moz-transition:    -moz-transform 0.25s cubic-bezier(0,0,0.25,1);
+	        transition:         transform 0.25s cubic-bezier(0,0,0.25,1);
+	}
+.leaflet-zoom-anim .leaflet-tile,
+.leaflet-pan-anim .leaflet-tile {
+	-webkit-transition: none;
+	   -moz-transition: none;
+	        transition: none;
+	}
+
+.leaflet-zoom-anim .leaflet-zoom-hide {
+	visibility: hidden;
+	}
+
+
+
+.leaflet-interactive {
+	cursor: pointer;
+	}
+.leaflet-grab {
+	cursor: -webkit-grab;
+	cursor:    -moz-grab;
+	cursor:         grab;
+	}
+.leaflet-crosshair,
+.leaflet-crosshair .leaflet-interactive {
+	cursor: crosshair;
+	}
+.leaflet-popup-pane,
+.leaflet-control {
+	cursor: auto;
+	}
+.leaflet-dragging .leaflet-grab,
+.leaflet-dragging .leaflet-grab .leaflet-interactive,
+.leaflet-dragging .leaflet-marker-draggable {
+	cursor: move;
+	cursor: -webkit-grabbing;
+	cursor:    -moz-grabbing;
+	cursor:         grabbing;
+	}
+
+.leaflet-marker-icon,
+.leaflet-marker-shadow,
+.leaflet-image-layer,
+.leaflet-pane > svg path,
+.leaflet-tile-container {
+	pointer-events: none;
+	}
+
+.leaflet-marker-icon.leaflet-interactive,
+.leaflet-image-layer.leaflet-interactive,
+.leaflet-pane > svg path.leaflet-interactive,
+svg.leaflet-image-layer.leaflet-interactive path {
+	pointer-events: visiblePainted; /* IE 9-10 doesn't have auto */
+	pointer-events: auto;
+	}
+
+
+.leaflet-container {
+	background: #ddd;
+	outline-offset: 1px;
+	}
+.leaflet-container a {
+	color: #0078A8;
+	}
+.leaflet-zoom-box {
+	border: 2px dotted #38f;
+	background: rgba(255,255,255,0.5);
+	}
+
+
+.leaflet-container {
+	font-family: "Helvetica Neue", Arial, Helvetica, sans-serif;
+	font-size: 12px;
+	font-size: 0.75rem;
+	line-height: 1.5;
+	}
+
+
+
+.leaflet-bar {
+	box-shadow: 0 1px 5px rgba(0,0,0,0.65);
+	border-radius: 4px;
+	}
+.leaflet-bar a {
+	background-color: #fff;
+	border-bottom: 1px solid #ccc;
+	width: 26px;
+	height: 26px;
+	line-height: 26px;
+	display: block;
+	text-align: center;
+	text-decoration: none;
+	color: black;
+	}
+.leaflet-bar a,
+.leaflet-control-layers-toggle {
+	background-position: 50% 50%;
+	background-repeat: no-repeat;
+	display: block;
+	}
+.leaflet-bar a:hover,
+.leaflet-bar a:focus {
+	background-color: #f4f4f4;
+	}
+.leaflet-bar a:first-child {
+	border-top-left-radius: 4px;
+	border-top-right-radius: 4px;
+	}
+.leaflet-bar a:last-child {
+	border-bottom-left-radius: 4px;
+	border-bottom-right-radius: 4px;
+	border-bottom: none;
+	}
+.leaflet-bar a.leaflet-disabled {
+	cursor: default;
+	background-color: #f4f4f4;
+	color: #bbb;
+	}
+
+.leaflet-touch .leaflet-bar a {
+	width: 30px;
+	height: 30px;
+	line-height: 30px;
+	}
+.leaflet-touch .leaflet-bar a:first-child {
+	border-top-left-radius: 2px;
+	border-top-right-radius: 2px;
+	}
+.leaflet-touch .leaflet-bar a:last-child {
+	border-bottom-left-radius: 2px;
+	border-bottom-right-radius: 2px;
+	}
+
+
+.leaflet-control-zoom-in,
+.leaflet-control-zoom-out {
+	font: bold 18px 'Lucida Console', Monaco, monospace;
+	text-indent: 1px;
+	}
+
+.leaflet-touch .leaflet-control-zoom-in, .leaflet-touch .leaflet-control-zoom-out  {
+	font-size: 22px;
+	}
+
+
+
+.leaflet-control-layers {
+	box-shadow: 0 1px 5px rgba(0,0,0,0.4);
+	background: #fff;
+	border-radius: 5px;
+	}
+.leaflet-control-layers-toggle {
+	width: 36px;
+	height: 36px;
+	}
+.leaflet-retina .leaflet-control-layers-toggle {
+	background-size: 26px 26px;
+	}
+.leaflet-touch .leaflet-control-layers-toggle {
+	width: 44px;
+	height: 44px;
+	}
+.leaflet-control-layers .leaflet-control-layers-list,
+.leaflet-control-layers-expanded .leaflet-control-layers-toggle {
+	display: none;
+	}
+.leaflet-control-layers-expanded .leaflet-control-layers-list {
+	display: block;
+	position: relative;
+	}
+.leaflet-control-layers-expanded {
+	padding: 6px 10px 6px 6px;
+	color: #333;
+	background: #fff;
+	}
+.leaflet-control-layers-scrollbar {
+	overflow-y: scroll;
+	overflow-x: hidden;
+	padding-right: 5px;
+	}
+.leaflet-control-layers-selector {
+	margin-top: 2px;
+	position: relative;
+	top: 1px;
+	}
+.leaflet-control-layers label {
+	display: block;
+	font-size: 13px;
+	font-size: 1.08333em;
+	}
+.leaflet-control-layers-separator {
+	height: 0;
+	border-top: 1px solid #ddd;
+	margin: 5px -10px 5px -6px;
+	}
+
+.leaflet-default-icon-path { /* used only in path-guessing heuristic, see L.Icon.Default */
+	}
+
+
+
+.leaflet-container .leaflet-control-attribution {
+	background: #fff;
+	background: rgba(255, 255, 255, 0.8);
+	margin: 0;
+	}
+.leaflet-control-attribution,
+.leaflet-control-scale-line {
+	padding: 0 5px;
+	color: #333;
+	line-height: 1.4;
+	}
+.leaflet-control-attribution a {
+	text-decoration: none;
+	}
+.leaflet-control-attribution a:hover,
+.leaflet-control-attribution a:focus {
+	text-decoration: underline;
+	}
+.leaflet-attribution-flag {
+	display: inline !important;
+	vertical-align: baseline !important;
+	width: 1em;
+	height: 0.6669em;
+	}
+.leaflet-left .leaflet-control-scale {
+	margin-left: 5px;
+	}
+.leaflet-bottom .leaflet-control-scale {
+	margin-bottom: 5px;
+	}
+.leaflet-control-scale-line {
+	border: 2px solid #777;
+	border-top: none;
+	line-height: 1.1;
+	padding: 2px 5px 1px;
+	white-space: nowrap;
+	-moz-box-sizing: border-box;
+	     box-sizing: border-box;
+	background: rgba(255, 255, 255, 0.8);
+	text-shadow: 1px 1px #fff;
+	}
+.leaflet-control-scale-line:not(:first-child) {
+	border-top: 2px solid #777;
+	border-bottom: none;
+	margin-top: -2px;
+	}
+.leaflet-control-scale-line:not(:first-child):not(:last-child) {
+	border-bottom: 2px solid #777;
+	}
+
+.leaflet-touch .leaflet-control-attribution,
+.leaflet-touch .leaflet-control-layers,
+.leaflet-touch .leaflet-bar {
+	box-shadow: none;
+	}
+.leaflet-touch .leaflet-control-layers,
+.leaflet-touch .leaflet-bar {
+	border: 2px solid rgba(0,0,0,0.2);
+	background-clip: padding-box;
+	}
+
+
+
+.leaflet-popup {
+	position: absolute;
+	text-align: center;
+	margin-bottom: 20px;
+	}
+.leaflet-popup-content-wrapper {
+	padding: 1px;
+	text-align: left;
+	border-radius: 12px;
+	}
+.leaflet-popup-content {
+	margin: 13px 24px 13px 20px;
+	line-height: 1.3;
+	font-size: 13px;
+	font-size: 1.08333em;
+	min-height: 1px;
+	}
+.leaflet-popup-content p {
+	margin: 17px 0;
+	margin: 1.3em 0;
+	}
+.leaflet-popup-tip-container {
+	width: 40px;
+	height: 20px;
+	position: absolute;
+	left: 50%;
+	margin-top: -1px;
+	margin-left: -20px;
+	overflow: hidden;
+	pointer-events: none;
+	}
+.leaflet-popup-tip {
+	width: 17px;
+	height: 17px;
+	padding: 1px;
+
+	margin: -10px auto 0;
+	pointer-events: auto;
+
+	-webkit-transform: rotate(45deg);
+	   -moz-transform: rotate(45deg);
+	    -ms-transform: rotate(45deg);
+	        transform: rotate(45deg);
+	}
+.leaflet-popup-content-wrapper,
+.leaflet-popup-tip {
+	background: white;
+	color: #333;
+	box-shadow: 0 3px 14px rgba(0,0,0,0.4);
+	}
+.leaflet-container a.leaflet-popup-close-button {
+	position: absolute;
+	top: 0;
+	right: 0;
+	border: none;
+	text-align: center;
+	width: 24px;
+	height: 24px;
+	font: 16px/24px Tahoma, Verdana, sans-serif;
+	color: #757575;
+	text-decoration: none;
+	background: transparent;
+	}
+.leaflet-container a.leaflet-popup-close-button:hover,
+.leaflet-container a.leaflet-popup-close-button:focus {
+	color: #585858;
+	}
+.leaflet-popup-scrolled {
+	overflow: auto;
+	}
+
+.leaflet-oldie .leaflet-popup-content-wrapper {
+	-ms-zoom: 1;
+	}
+.leaflet-oldie .leaflet-popup-tip {
+	width: 24px;
+	margin: 0 auto;
+
+	-ms-filter: "progid:DXImageTransform.Microsoft.Matrix(M11=0.70710678, M12=0.70710678, M21=-0.70710678, M22=0.70710678)";
+	filter: progid:DXImageTransform.Microsoft.Matrix(M11=0.70710678, M12=0.70710678, M21=-0.70710678, M22=0.70710678);
+	}
+
+.leaflet-oldie .leaflet-control-zoom,
+.leaflet-oldie .leaflet-control-layers,
+.leaflet-oldie .leaflet-popup-content-wrapper,
+.leaflet-oldie .leaflet-popup-tip {
+	border: 1px solid #999;
+	}
+
+
+
+.leaflet-div-icon {
+	background: #fff;
+	border: 1px solid #666;
+	}
+
+
+.leaflet-tooltip {
+	position: absolute;
+	padding: 6px;
+	background-color: #fff;
+	border: 1px solid #fff;
+	border-radius: 3px;
+	color: #222;
+	white-space: nowrap;
+	-webkit-user-select: none;
+	-moz-user-select: none;
+	-ms-user-select: none;
+	user-select: none;
+	pointer-events: none;
+	box-shadow: 0 1px 3px rgba(0,0,0,0.4);
+	}
+.leaflet-tooltip.leaflet-interactive {
+	cursor: pointer;
+	pointer-events: auto;
+	}
+.leaflet-tooltip-top:before,
+.leaflet-tooltip-bottom:before,
+.leaflet-tooltip-left:before,
+.leaflet-tooltip-right:before {
+	position: absolute;
+	pointer-events: none;
+	border: 6px solid transparent;
+	background: transparent;
+	content: "";
+	}
+
+
+.leaflet-tooltip-bottom {
+	margin-top: 6px;
+}
+.leaflet-tooltip-top {
+	margin-top: -6px;
+}
+.leaflet-tooltip-bottom:before,
+.leaflet-tooltip-top:before {
+	left: 50%;
+	margin-left: -6px;
+	}
+.leaflet-tooltip-top:before {
+	bottom: 0;
+	margin-bottom: -12px;
+	border-top-color: #fff;
+	}
+.leaflet-tooltip-bottom:before {
+	top: 0;
+	margin-top: -12px;
+	margin-left: -6px;
+	border-bottom-color: #fff;
+	}
+.leaflet-tooltip-left {
+	margin-left: -6px;
+}
+.leaflet-tooltip-right {
+	margin-left: 6px;
+}
+.leaflet-tooltip-left:before,
+.leaflet-tooltip-right:before {
+	top: 50%;
+	margin-top: -6px;
+	}
+.leaflet-tooltip-left:before {
+	right: 0;
+	margin-right: -12px;
+	border-left-color: #fff;
+	}
+.leaflet-tooltip-right:before {
+	left: 0;
+	margin-left: -12px;
+	border-right-color: #fff;
+	}
+
+
+@media print {
+	/* Prevent printers from removing background-images of controls. */
+	.leaflet-control {
+		-webkit-print-color-adjust: exact;
+		print-color-adjust: exact;
+		}
+	}
+
 :root{
   --bg:#EDF1EE; --surface:#FFFFFF; --surface-2:#E3EAE5; --ink:#15241C; --muted:#56685D; --line:#CAD6CE;
   --fern:#1F4D38; --teal:#2A7A80; --accent:#C2362C; --accent-ink:#FFFFFF; --sun:#A8740A; --sun-bg:#FBF0D6;
   --hero-bg:#1F4D38; --hero-ink:#F2F7F3; --hero-muted:#B5CFC0; --ridge:#2C6149;
   --ok:#2E7D4F; --ok-bg:#DDF0E3;
+  --sea:#CFE0E6; --land:#F7F9F4; --coast:#9DB3A8; --lbl:#3C4E44;
+  --cat-hike:#C2362C; --cat-water:#1F7F99; --cat-adv:#B87400; --cat-nature:#2E7D4F; --cat-food:#8A4FA8; --cat-culture:#3D62B3; --cat-other:#6B7A71;
+  --cat-x1:#A0522D; --cat-x2:#00897B; --cat-x3:#AD1457; --camp:#1F4D38; --camp-serviced:#2A7A80;
   --display:"Big Shoulders Display","Arial Narrow","Roboto Condensed",sans-serif;
   --body:"Figtree",system-ui,-apple-system,"Segoe UI",sans-serif;
   --mono:"JetBrains Mono",ui-monospace,"SFMono-Regular",Menlo,monospace;
@@ -21,6 +659,9 @@
     --fern:#86C8A6; --teal:#6CC0C6; --accent:#EE6A5E; --accent-ink:#1B0B09; --sun:#E8B94A; --sun-bg:#2E2614;
     --hero-bg:#112A1D; --hero-ink:#E8F1EB; --hero-muted:#8FB19E; --ridge:#1A3B2A;
     --ok:#7ACB98; --ok-bg:#16301F;
+    --sea:#0A1A21; --land:#1B2B23; --coast:#3A5446; --lbl:#B9CCC0;
+    --cat-hike:#EE6A5E; --cat-water:#5FC2DB; --cat-adv:#E8B94A; --cat-nature:#7ACB98; --cat-food:#C69BE0; --cat-culture:#8FA9F0; --cat-other:#9AB0A2;
+    --cat-x1:#E09A6E; --cat-x2:#4DD0C0; --cat-x3:#F48FB1; --camp:#86C8A6; --camp-serviced:#6CC0C6;
   }
 }
 :root[data-theme="dark"]{
@@ -29,6 +670,9 @@
   --fern:#86C8A6; --teal:#6CC0C6; --accent:#EE6A5E; --accent-ink:#1B0B09; --sun:#E8B94A; --sun-bg:#2E2614;
   --hero-bg:#112A1D; --hero-ink:#E8F1EB; --hero-muted:#8FB19E; --ridge:#1A3B2A;
   --ok:#7ACB98; --ok-bg:#16301F;
+  --sea:#0A1A21; --land:#1B2B23; --coast:#3A5446; --lbl:#B9CCC0;
+  --cat-hike:#EE6A5E; --cat-water:#5FC2DB; --cat-adv:#E8B94A; --cat-nature:#7ACB98; --cat-food:#C69BE0; --cat-culture:#8FA9F0; --cat-other:#9AB0A2;
+  --cat-x1:#E09A6E; --cat-x2:#4DD0C0; --cat-x3:#F48FB1; --camp:#86C8A6; --camp-serviced:#6CC0C6;
 }
 *{box-sizing:border-box}
 body{background:var(--bg);color:var(--ink);font:400 15px/1.55 var(--body);-webkit-font-smoothing:antialiased}
@@ -167,23 +811,95 @@ label.f{display:grid;gap:6px;font-size:13px;font-weight:600;color:var(--muted)}
 .alert b{color:var(--sun)}
 
 /* Activities */
-.act-tools{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;margin-bottom:14px}
-.add-row{display:flex;gap:8px;flex:1 1 320px;max-width:520px}
-.acts{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,300px),1fr));gap:12px}
-.act{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:14px 16px;display:grid;gap:10px}
-.act-top{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
-.act-title{font-weight:700;font-size:17px;line-height:1.25;word-break:break-word}
+.act-tools{display:grid;gap:12px;margin-bottom:16px}
+.add-row{display:flex;flex-wrap:wrap;gap:8px}
+.add-row input{flex:1 1 240px}
+.add-row select{flex:0 1 190px;width:auto}
+.filters{display:flex;flex-wrap:wrap;gap:10px 16px;align-items:center;justify-content:space-between}
+.catbar{display:flex;flex-wrap:wrap;gap:6px}
+.catbtn{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:4px 11px;font-size:13px;font-weight:600;color:var(--muted);cursor:pointer}
+.catbtn i{width:9px;height:9px;border-radius:50%}
+.catbtn[aria-pressed="true"]{border-color:var(--ink);color:var(--ink);box-shadow:inset 0 0 0 1px var(--ink)}
+.catbtn small{font-weight:500;font-variant-numeric:tabular-nums}
+.sortnote{font-size:13px;color:var(--muted)}
+.acts{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,320px),1fr));gap:12px}
+.act{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:14px 16px;display:grid;gap:10px;align-content:start;scroll-margin-top:80px}
+.act.flash{box-shadow:0 0 0 3px var(--accent)}
+.act-top{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:start}
+.act-title{font-weight:700;font-size:17px;line-height:1.25;overflow-wrap:anywhere}
+.act-info{display:block;font-size:12.5px;color:var(--muted);font-weight:500;margin-top:2px}
+.score{min-width:52px;text-align:center;border-radius:8px;padding:4px 8px;background:var(--surface-2);font:800 22px/1 var(--display);font-variant-numeric:tabular-nums}
+.score small{display:block;font:600 10px/1.3 var(--body);text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
+.score.top{background:var(--accent);color:var(--accent-ink)}
+.score.top small{color:inherit;opacity:.8}
+.act-tags{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.catsel{appearance:none;-webkit-appearance:none;width:auto;border-radius:999px;padding:3px 12px 3px 10px;font-size:12px;font-weight:700;border:0;cursor:pointer;background:color-mix(in srgb,var(--c) 16%,var(--surface));color:var(--c)}
+.catnew{width:150px;padding:3px 10px;font-size:13px;border-radius:999px}
 .status{border:0;cursor:pointer}
 .st-idee{background:var(--surface-2);color:var(--muted)}
 .st-gepland{background:color-mix(in srgb,var(--teal) 18%,var(--surface));color:var(--teal)}
 .st-geboekt{background:var(--sun-bg);color:var(--sun)}
 .st-gedaan{background:var(--ok-bg);color:var(--ok)}
+.rates{display:grid;gap:4px}
+.rate{display:grid;grid-template-columns:56px 1fr;align-items:center;gap:6px;font-size:13px;font-weight:600;color:var(--muted)}
+.stars{display:flex;gap:2px;align-items:center}
+.stars button{border:0;background:transparent;padding:0 2px;font-size:20px;line-height:1;cursor:pointer;color:var(--line)}
+.stars button.on{color:var(--sun)}
+.stars button.zero{font-size:11px;font-weight:700;width:22px;height:22px;border-radius:50%;border:1px solid var(--line);color:var(--muted);margin-right:4px}
+.stars button.zero.on{background:var(--muted);border-color:var(--muted);color:var(--surface)}
+.stars .unset{font-size:11px;color:var(--muted);margin-left:6px;font-weight:500}
 .act-bottom{display:flex;gap:8px;align-items:center;justify-content:space-between;flex-wrap:wrap}
 .act-bottom select{width:auto;padding:5px 8px;font-size:13px}
-.keen{display:flex;gap:4px}
-.keen button{border:1px solid var(--line);background:transparent;border-radius:999px;padding:3px 9px;font-size:12px;font-weight:600;color:var(--muted);cursor:pointer}
-.keen button[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
-.act textarea{min-height:52px;font-size:14px;padding:7px 9px}
+.act textarea{min-height:44px;font-size:14px;padding:7px 9px}
+.acts-cost{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--muted)}
+.acts-cost input{width:80px;padding:5px 8px;font-size:13px}
+
+/* Map */
+.map-tools{display:flex;flex-wrap:wrap;gap:10px 16px;align-items:center;justify-content:space-between;margin-bottom:10px}
+.layers{display:flex;flex-wrap:wrap;gap:6px}
+.layers button{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:5px 12px;font-size:13px;font-weight:600;color:var(--muted);cursor:pointer}
+.layers button[aria-pressed="true"]{background:var(--ink);border-color:var(--ink);color:var(--bg)}
+.layers button i{width:10px;height:10px;border-radius:50%}
+.map-wrap{position:relative;border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
+#map{height:min(72vh,680px);min-height:420px;background:var(--sea);font:inherit}
+.map-banner{position:absolute;z-index:500;left:50%;top:12px;transform:translateX(-50%);background:var(--ink);color:var(--bg);border-radius:8px;padding:8px 12px;font-size:14px;display:flex;gap:10px;align-items:center;max-width:calc(100% - 24px)}
+.map-banner button{border:0;background:transparent;color:inherit;text-decoration:underline;cursor:pointer;font-weight:600}
+.map-fallback{position:absolute;inset:0;display:grid;place-items:center;text-align:center;padding:24px;color:var(--muted);background:var(--sea)}
+.map-below{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px;margin-top:14px}
+.map-below .card{padding:14px 16px}
+.chiplist{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.chiplist button{border:1px dashed var(--line);background:transparent;border-radius:999px;padding:3px 10px;font-size:13px;cursor:pointer;color:var(--ink)}
+.chiplist button:hover{border-color:var(--teal);color:var(--teal)}
+.legend{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:12.5px;color:var(--muted);margin-top:8px}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.map-note{font-size:12.5px;color:var(--muted);margin-top:10px}
+/* Leaflet theming */
+.leaflet-container{background:var(--sea);font-family:var(--body)}
+.leaflet-container a.leaflet-popup-close-button{color:var(--muted)}
+.leaflet-popup-content-wrapper,.leaflet-popup-tip{background:var(--surface);color:var(--ink);box-shadow:0 4px 18px rgba(0,0,0,.25)}
+.leaflet-popup-content{margin:12px 14px;font-size:14px;line-height:1.45;min-width:200px}
+.leaflet-popup-content b.t{display:block;font-size:15px}
+.leaflet-popup-content .m{color:var(--muted);font-size:12.5px}
+.leaflet-popup-content .acts-row{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.leaflet-popup-content .btn{font-size:12.5px;padding:4px 9px}
+.leaflet-popup-content form{display:grid;gap:8px}
+.leaflet-popup-content input,.leaflet-popup-content select{font-size:14px;padding:6px 8px}
+.leaflet-bar a,.leaflet-bar a:hover{background:var(--surface);color:var(--ink);border-bottom-color:var(--line)}
+.leaflet-control-attribution{background:color-mix(in srgb,var(--surface) 80%,transparent)!important;color:var(--muted)!important;font-size:10.5px}
+.leaflet-control-attribution a{color:var(--teal)}
+.lbl{white-space:nowrap;font-size:11.5px;font-weight:600;color:var(--lbl);text-shadow:0 0 3px var(--land),0 0 3px var(--land),0 0 2px var(--land);pointer-events:none;transform:translate(6px,-50%)}
+.lbl.major{font-size:12.5px;font-weight:700}
+.lbl::before{content:"";position:absolute;left:-6px;top:50%;width:4px;height:4px;margin-top:-2px;border-radius:50%;background:var(--lbl)}
+.lbl.park{font-style:italic;color:var(--camp);font-weight:600;transform:translate(-50%,-50%);letter-spacing:.02em}
+.lbl.park::before{display:none}
+.zoom-lo .lbl.minor,.zoom-lo .lbl.park{display:none}
+.zoom-mid .lbl.minor{display:none}
+.camp-ico{display:block;width:14px;height:13px;background:var(--camp);clip-path:polygon(50% 0,100% 100%,0 100%);filter:drop-shadow(0 0 1px var(--land))}
+.camp-ico.Serviced{background:var(--camp-serviced)}
+.camp-ico.Basic{opacity:.85}
+.prac-ico{display:grid;place-items:center;width:22px;height:22px;border-radius:6px;background:var(--ink);color:var(--bg);font:800 12px/1 var(--body);border:2px solid var(--surface)}
+.route-no{display:grid;place-items:center;width:20px;height:20px;border-radius:50%;background:var(--accent);color:var(--accent-ink);font:800 11px/1 var(--body);border:2px solid var(--surface)}
+.pick-mode .leaflet-container{cursor:crosshair}
 
 /* Budget */
 .totals{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr) minmax(0,1fr);gap:24px 32px;margin-bottom:20px}
@@ -245,6 +961,8 @@ footer{padding-block:48px 40px;color:var(--muted);font-size:13px}
   .cost-form .w2,.cost-form .w3{grid-column:span 1}
 }
 @media (max-width:700px){
+  .map-below{grid-template-columns:1fr}
+  #map{height:62vh;min-height:360px}
   .totals{grid-template-columns:1fr}
   table.costs thead{display:none}
   table.costs, table.costs tbody, table.costs tr, table.costs td{display:block}
@@ -292,6 +1010,7 @@ footer{padding-block:48px 40px;color:var(--muted);font-size:13px}
 <nav class="jump" aria-label="Secties">
   <div class="wrap">
     <a href="#tijdlijn">Tijdlijn</a>
+    <a href="#kaart">Kaart</a>
     <a href="#vluchten">Vluchten</a>
     <a href="#camper">Camper</a>
     <a href="#activiteiten">Activiteiten</a>
@@ -333,6 +1052,27 @@ footer{padding-block:48px 40px;color:var(--muted);font-size:13px}
     </div>
   </section>
 
+  <section id="kaart">
+    <div class="sec-head">
+      <div><p class="eyebrow">Aotearoa in kaart</p><h2>Kaart</h2></div>
+      <p>Activiteiten, DOC-campings, jullie route uit de dagplanner en de vaste punten van de reis. Klik op een punt voor details.</p>
+    </div>
+    <div class="map-tools">
+      <div class="layers" id="layerBtns"></div>
+      <button class="btn primary" type="button" id="addPointBtn">+ Punt op de kaart</button>
+    </div>
+    <div class="map-wrap" id="mapWrap">
+      <div id="map" role="region" aria-label="Kaart van Nieuw-Zeeland"></div>
+      <div class="map-banner" id="mapBanner" hidden><span id="mapBannerText"></span><button type="button" id="mapBannerCancel">Annuleren</button></div>
+    </div>
+    <div class="map-below">
+      <div class="card"><p class="eyebrow">Nog niet op de kaart</p><div class="chiplist" id="unplaced"></div></div>
+      <div class="card"><p class="eyebrow">Route uit de dagplanner</p><div id="routeInfo" class="note" style="margin-top:8px"></div>
+        <div class="legend" id="mapLegend"></div></div>
+    </div>
+    <p class="map-note">Kustlijn en meren: © OpenStreetMap-bijdragers (ODbL), ongeveer 1 km nauwkeurig. De DOC-campings zijn een selectie met locaties bij benadering. Controleer openingstijden, prijzen en boekingen altijd in de DOC-app of op doc.govt.nz.</p>
+  </section>
+
   <section id="vluchten">
     <div class="sec-head">
       <div><p class="eyebrow">Tijden zijn lokaal</p><h2>Vluchten</h2></div>
@@ -370,15 +1110,21 @@ footer{padding-block:48px 40px;color:var(--muted);font-size:13px}
 
   <section id="activiteiten">
     <div class="sec-head">
-      <div><p class="eyebrow">Brainstorm</p><h2>Activiteiten</h2></div>
-      <p>Geef aan wie iets wil doen, zet de status verder, koppel het aan een dag en vul de prijs voor jullie twee in. Het budget telt gekozen activiteiten mee.</p>
+      <div><p class="eyebrow">Wat gaan we doen</p><h2>Activiteiten</h2></div>
+      <p>Geef allebei een cijfer van 0 tot 5. De best beoordeelde activiteiten staan bovenaan. Koppel een activiteit aan een dag en zet hem op de kaart.</p>
     </div>
     <div class="act-tools">
       <form class="add-row" id="addAct">
-        <input type="text" id="actNew" placeholder="Nieuw idee, bijv. Hobbiton of gletsjerwandeling" aria-label="Nieuw activiteitidee" maxlength="80">
+        <input type="text" id="actNew" placeholder="Nieuwe activiteit, bijv. Hobbiton of Lake Tekapo kajakken" aria-label="Nieuwe activiteit" maxlength="80">
+        <select id="actNewCat" aria-label="Categorie"></select>
+        <input type="text" id="actNewCatName" class="catnew" placeholder="Naam categorie" maxlength="24" hidden aria-label="Naam nieuwe categorie">
         <button class="btn primary" type="submit">Toevoegen</button>
       </form>
-      <div class="seg" role="group" aria-label="Filter" id="actFilter"></div>
+      <div class="catbar" id="catFilter" role="group" aria-label="Filter op categorie"></div>
+      <div class="filters">
+        <div class="seg" role="group" aria-label="Filter op status" id="actFilter"></div>
+        <span class="sortnote" id="sortNote"></span>
+      </div>
     </div>
     <div class="acts" id="acts"></div>
   </section>
@@ -430,6 +1176,7 @@ footer{padding-block:48px 40px;color:var(--muted);font-size:13px}
 <footer class="wrap">Gebaseerd op het Google Doc "New Zealand 2026". Ideeën, dagplanning en budget worden gedeeld tussen Sterre en Pim.</footer>
 <div class="toast" id="toast" hidden></div>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script>
 (() => {
   // ---------- Static facts from the document ----------
@@ -460,20 +1207,8 @@ footer{padding-block:48px 40px;color:var(--muted);font-size:13px}
   const WHO = {shared:"Gedeeld", pim:"Pim", sterre:"Sterre"};
   const DEFAULT_SETTINGS = {rate:0.5, buffer:10};
 
-  // Used only when the shared store is unavailable (e.g. opened as a local file).
-  const LOCAL_SEED = {
-    ideas: {
-      scuba:{title:"Scuba dive",status:"idee",likes:{},date:"",note:"",order:1},
-      surfen:{title:"Surfen",status:"idee",likes:{},date:"",note:"",order:2},
-      enduro:{title:"Enduro mountainbike",status:"idee",likes:{},date:"",note:"",order:3},
-      vissen:{title:"Vissen",status:"idee",likes:{},date:"",note:"",order:4},
-      wijntour:{title:"Wijntour",status:"idee",likes:{},date:"",note:"",order:5},
-      offroad:{title:"Offroad cursus",status:"idee",likes:{},date:"",note:"",order:6}
-    },
-    costs: {"flight_out": {"label": "Flight Amsterdam → Auckland (2 people, incl. baggage)", "cat": "Flights & transit", "qty": 1, "unit": "total", "price": 1494.7, "cur": "EUR", "paidBy": "shared", "when": "paid", "fixed": true, "note": "Your figure", "order": 1}, "flight_back": {"label": "Flight Christchurch → Amsterdam (2 people)", "cat": "Flights & transit", "qty": 1, "unit": "total", "price": 789.98, "cur": "EUR", "paidBy": "shared", "when": "paid", "fixed": true, "note": "Your figure", "order": 2}, "hotel_can": {"label": "Hotel Guangzhou (24 h layover)", "cat": "Flights & transit", "qty": 1, "unit": "night", "price": 26.0, "cur": "EUR", "paidBy": "shared", "when": "paid", "fixed": true, "note": "Booked; amount is your guess, check the confirmation", "order": 3}, "food_can": {"label": "Food during Guangzhou layover", "cat": "Flights & transit", "qty": 1, "unit": "total", "price": 40.0, "cur": "EUR", "paidBy": "shared", "when": "during", "fixed": false, "note": "Estimate", "order": 4}, "camper": {"label": "Mad Campers MAD ADVENTURER, Auckland → Christchurch", "cat": "Car & driving", "qty": 1, "unit": "total", "price": 2814.65, "cur": "EUR", "paidBy": "shared", "when": "before", "fixed": true, "note": "Your figure. Toyota RAV4 with rooftent, petrol (so no road user charges). Pay in full within 30 days.", "order": 5}, "excess": {"label": "Rental excess insurance (Allianz, external)", "cat": "Car & driving", "qty": 1, "unit": "total", "price": 250.0, "cur": "EUR", "paidBy": "shared", "when": "before", "fixed": false, "note": "Your estimate, confirm the quote", "order": 6}, "petrol": {"label": "Petrol", "cat": "Car & driving", "qty": 480, "unit": "litres", "price": 3.19, "cur": "NZD", "paidBy": "shared", "when": "during", "fixed": false, "note": "Distance × consumption × price (see Assumptions)", "order": 7}, "ferry": {"label": "Ferry Wellington → Picton: car (≤5.5 m), peak fare", "cat": "Car & driving", "qty": 1, "unit": "car", "price": 389.0, "cur": "NZD", "paidBy": "shared", "when": "before", "fixed": false, "note": "Bluebridge: NZD 185 before 15 Dec, 195 from 15 Dec (ferrynewzealand.com). Car is 2.1 m high with the tent, so confirm it fits the car class. Not booked yet.", "order": 8}, "tolls": {"label": "Tolls & parking (Milford, Hot Water Beach, cities)", "cat": "Car & driving", "qty": 1, "unit": "total", "price": 80.0, "cur": "NZD", "paidBy": "shared", "when": "during", "fixed": false, "note": "Estimate. Milford parking NZD 10/h, Hot Water Beach NZD 6/h, a few toll roads in the North Island", "order": 9}, "doc_pass": {"label": "DOC Campsite Pass (1 year, per adult)", "cat": "Sleeping", "qty": 2, "unit": "passes", "price": 295.0, "cur": "NZD", "paidBy": "shared", "when": "before", "fixed": true, "note": "doc.govt.nz. Buy up to a month before first use. Covers most DOC campsites; not serviced or Great Walk sites. Book bookable sites ahead.", "order": 10}, "family": {"label": "Nights with family in Te Awamutu", "cat": "Sleeping", "qty": 3, "unit": "nights", "price": 0, "cur": "EUR", "paidBy": "shared", "when": "during", "fixed": true, "note": "Free; add a thank-you gift here if you like", "order": 11}, "xmas_airbnb": {"label": "Christmas Airbnb", "cat": "Sleeping", "qty": 2, "unit": "nights", "price": 100.0, "cur": "EUR", "paidBy": "shared", "when": "before", "fixed": false, "note": "Estimate (see Assumptions)", "order": 12}, "campgrounds": {"label": "Paid campgrounds where there's no DOC site", "cat": "Sleeping", "qty": 3, "unit": "nights", "price": 60.0, "cur": "NZD", "paidBy": "shared", "when": "during", "fixed": false, "note": "Estimate (see Assumptions)", "order": 13}, "laundry": {"label": "Laundry & hot showers", "cat": "Sleeping", "qty": 1, "unit": "total", "price": 30.0, "cur": "NZD", "paidBy": "shared", "when": "during", "fixed": false, "note": "Estimate: many DOC sites have cold or no showers", "order": 14}, "groceries": {"label": "Groceries", "cat": "Food & drink", "qty": 31, "unit": "days", "price": 20.0, "cur": "EUR", "paidBy": "shared", "when": "during", "fixed": false, "note": "€10 per person per day (your figure)", "order": 15}, "coffee": {"label": "Coffees, snacks & beers", "cat": "Food & drink", "qty": 4.428571428571429, "unit": "weeks", "price": 25.0, "cur": "EUR", "paidBy": "shared", "when": "during", "fixed": false, "note": "Estimate (see Assumptions)", "order": 16}, "eating_out": {"label": "Eating out", "cat": "Food & drink", "qty": 4, "unit": "meals", "price": 50.0, "cur": "NZD", "paidBy": "shared", "when": "during", "fixed": false, "note": "Max 3 times (your figure) × 2 people", "order": 17}, "activities": {"label": "Selected activities (see Activities tab)", "cat": "Activities", "qty": 1, "unit": "total", "price": 1298.0, "cur": "NZD", "paidBy": "shared", "when": "during", "fixed": false, "note": "Toggle activities on the Activities tab", "order": 18}, "nzeta": {"label": "NZeTA (app) + International Visitor Levy", "cat": "Admin & other", "qty": 2, "unit": "people", "price": 117.0, "cur": "NZD", "paidBy": "shared", "when": "before", "fixed": true, "note": "NZD 17 via the app (23 online) + NZD 100 IVL, per person. immigration.govt.nz", "order": 19}, "idp": {"label": "International driving permit", "cat": "Admin & other", "qty": 2, "unit": "permit", "price": 18.95, "cur": "EUR", "paidBy": "shared", "when": "before", "fixed": true, "note": "ANWB, 1-year model, same day in an ANWB store (not online). Sterre needs one too if she'll drive.", "order": 20}, "phone_pim": {"label": "Phone plan 20 GB (Pim)", "cat": "Admin & other", "qty": 1, "unit": "plan", "price": 15.0, "cur": "EUR", "paidBy": "pim", "when": "before", "fixed": false, "note": "Estimate", "order": 21}, "ins_pim": {"label": "Travel insurance (Pim)", "cat": "Admin & other", "qty": 1, "unit": "total", "price": 0, "cur": "EUR", "paidBy": "pim", "when": "paid", "fixed": true, "note": "Already covered", "order": 22}, "ins_sterre": {"label": "Travel insurance (Sterre)", "cat": "Admin & other", "qty": 1, "unit": "total", "price": 0, "cur": "EUR", "paidBy": "sterre", "when": "before", "fixed": false, "note": "Already covered", "order": 23}},
-    settings: {"budget": {"rate": 0.5, "buffer": 10}},
-    days: {}
-  };
+  const BASE_CATS = [["Hike","--cat-hike"],["Water","--cat-water"],["Avontuur","--cat-adv"],["Natuur","--cat-nature"],["Eten & drinken","--cat-food"],["Cultuur","--cat-culture"],["Overig","--cat-other"]];
+  const EXTRA_CAT_VARS = ["--cat-x1","--cat-x2","--cat-x3"];
 
   // ---------- Dates ----------
   const DAYS = [];
@@ -502,18 +1237,19 @@ footer{padding-block:48px 40px;color:var(--muted);font-size:13px}
   let me = pref.get("me") || "";
   let selDay = pref.get("day") || "2026-12-01";
   if (!DAYS.includes(selDay)) selDay = "2026-12-01";
-  let actFilter = "alles", whenFilter = "all", whoFilter = "all";
+  let actFilter = "alles", catFilter = "", whenFilter = "all", whoFilter = "all";
 
   // ---------- Data store (shared db, or local fallback) ----------
-  const state = {ideas:{}, costs:{}, days:{}, settings:{}};
+  const state = {ideas:{}, costs:{}, days:{}, settings:{}, places:{}};
   let db = null;
-  function loadLocal(){
-    let saved = null;
-    try { saved = JSON.parse(localStorage.getItem("nz26:data2") || "null"); } catch {}
-    const src = saved || LOCAL_SEED;
+  // Used only when the shared store is unavailable (e.g. opened as a local file).
+  async function loadLocal(){
+    let src = null;
+    try { src = JSON.parse(localStorage.getItem("nz26:data3") || "null"); } catch {}
+    if (!src) { try { src = await (await fetch("data/seed.json")).json(); } catch { src = {}; } }
     for (const k of Object.keys(state)) state[k] = JSON.parse(JSON.stringify(src[k] || {}));
   }
-  function saveLocal(){ if (!db) try { localStorage.setItem("nz26:data2", JSON.stringify(state)); } catch {} }
+  function saveLocal(){ if (!db) try { localStorage.setItem("nz26:data3", JSON.stringify(state)); } catch {} }
   async function put(coll, id, data){
     state[coll][id] = data; renderAll();
     if (!db) return saveLocal();
@@ -632,27 +1368,280 @@ footer{padding-block:48px 40px;color:var(--muted);font-size:13px}
   }
 
   // ---------- Activities ----------
+  const WHO_ORDER = [["sterre","Sterre"],["pim","Pim"]];
+  const ratingsOf = a => WHO_ORDER.map(([w]) => (a.ratings || {})[w]).filter(v => typeof v === "number");
+  const scoreOf = a => { const r = ratingsOf(a); return r.length ? r.reduce((t,v) => t + v, 0) / r.length : null; };
+  const fmt1 = n => n.toLocaleString("nl-NL",{minimumFractionDigits:1, maximumFractionDigits:1});
+  const catOf = a => a.cat || "Overig";
+  function allCats(){
+    const used = [...new Set(Object.values(state.ideas).map(catOf))];
+    const base = BASE_CATS.map(c => c[0]);
+    return base.concat(used.filter(c => !base.includes(c)).sort((a,b) => a.localeCompare(b, "nl")));
+  }
+  function catVar(name){
+    const b = BASE_CATS.find(c => c[0] === name); if (b) return b[1];
+    let h = 0; for (const ch of name) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+    return EXTRA_CAT_VARS[h % EXTRA_CAT_VARS.length];
+  }
+  const catOptions = sel => allCats().map(c => `<option${c === sel ? " selected" : ""}>${esc(c)}</option>`).join("") + `<option value="__new">+ Nieuwe categorie…</option>`;
+  const byScore = ([,a],[,b]) => (scoreOf(b) ?? -1) - (scoreOf(a) ?? -1) || ratingsOf(b).length - ratingsOf(a).length || (a.order||0) - (b.order||0);
+
+  function rateRow(w, label, a){
+    const v = (a.ratings || {})[w];
+    const has = typeof v === "number";
+    return `<div class="rate"><span>${label}${w === me ? " (jij)" : ""}</span><div class="stars" role="group" aria-label="Cijfer van ${label}">
+      <button type="button" class="zero${v === 0 ? " on" : ""}" data-act="rate" data-who="${w}" data-v="0" aria-pressed="${v === 0}" aria-label="0 van 5">0</button>
+      ${[1,2,3,4,5].map(n => `<button type="button" class="${has && v >= n ? "on" : ""}" data-act="rate" data-who="${w}" data-v="${n}" aria-pressed="${v === n}" aria-label="${n} van 5">★</button>`).join("")}
+      ${has ? "" : `<span class="unset">nog geen cijfer</span>`}</div></div>`;
+  }
+
   function renderActs(){
-    const all = Object.entries(state.ideas).sort((a,b) => (a[1].order||0) - (b[1].order||0));
-    const counts = Object.fromEntries(STATUSES.map(s => [s, all.filter(([,a]) => a.status === s).length]));
-    $("actFilter").innerHTML = ["alles", ...STATUSES].map(s => `<button type="button" data-filter="${s}" aria-pressed="${actFilter === s}">${s[0].toUpperCase() + s.slice(1)} ${s === "alles" ? all.length : counts[s]}</button>`).join("");
-    const list = all.filter(([,a]) => actFilter === "alles" || a.status === actFilter);
-    const opts = iso => `<option value="">Geen dag</option>` + DAYS.filter(d => phase(d) === "road").map(d => `<option value="${d}"${d === iso ? " selected" : ""}>${esc(fmtShort(d))}</option>`).join("");
-    $("acts").innerHTML = list.length ? list.map(([id, a]) => `
-      <article class="act" data-id="${id}">
-        <div class="act-top"><span class="act-title">${esc(a.title)}</span>
-          <button type="button" class="chip status st-${a.status}" data-act="status" title="Status wijzigen">${a.status}</button></div>
+    const all = Object.entries(state.ideas);
+    const cats = allCats();
+    const counts = {}; all.forEach(([,a]) => { counts[catOf(a)] = (counts[catOf(a)] || 0) + 1; });
+    if (catFilter && !counts[catFilter]) catFilter = "";
+    $("catFilter").innerHTML = `<button type="button" class="catbtn" data-cat="" aria-pressed="${!catFilter}">Alle <small>${all.length}</small></button>`
+      + cats.filter(c => counts[c]).map(c => `<button type="button" class="catbtn" data-cat="${esc(c)}" aria-pressed="${catFilter === c}"><i style="background:var(${catVar(c)})"></i>${esc(c)} <small>${counts[c]}</small></button>`).join("");
+    const inCat = all.filter(([,a]) => !catFilter || catOf(a) === catFilter);
+    const sc = Object.fromEntries(STATUSES.map(s => [s, inCat.filter(([,a]) => a.status === s).length]));
+    $("actFilter").innerHTML = ["alles", ...STATUSES].map(s => `<button type="button" data-filter="${s}" aria-pressed="${actFilter === s}">${s[0].toUpperCase() + s.slice(1)} ${s === "alles" ? inCat.length : sc[s]}</button>`).join("");
+    const list = inCat.filter(([,a]) => actFilter === "alles" || a.status === actFilter).sort(byScore);
+    $("sortNote").textContent = `Hoogste gemiddelde cijfer bovenaan · ${list.length} ${list.length === 1 ? "activiteit" : "activiteiten"}`;
+    const newSel = $("actNewCat"), keep = newSel.value;
+    newSel.innerHTML = catOptions(keep && keep !== "__new" ? keep : (catFilter || "Hike"));
+    if (keep === "__new") newSel.value = "__new";
+    const dayOpts = iso => `<option value="">Geen dag</option>` + DAYS.filter(d => phase(d) === "road").map(d => `<option value="${d}"${d === iso ? " selected" : ""}>${esc(fmtShort(d))}</option>`).join("");
+    $("acts").innerHTML = list.length ? list.map(([id, a]) => {
+      const s = scoreOf(a), n = ratingsOf(a).length, placed = typeof a.lat === "number";
+      return `
+      <article class="act" id="act-${id}" data-id="${id}">
+        <div class="act-top">
+          <div><span class="act-title">${esc(a.title)}</span>${a.info ? `<span class="act-info">${esc(a.info)}</span>` : ""}</div>
+          <div class="score${s !== null && s >= 4 ? " top" : ""}" title="Gemiddeld cijfer">${s === null ? "–" : fmt1(s)}<small>${n ? n + "/2 cijfers" : "geen cijfer"}</small></div>
+        </div>
+        <div class="act-tags">
+          <select class="catsel" data-act="cat" style="--c:var(${catVar(catOf(a))})" aria-label="Categorie van ${esc(a.title)}">${catOptions(catOf(a))}</select>
+          <input type="text" class="catnew" data-act="catnew" placeholder="Nieuwe categorie" maxlength="24" hidden aria-label="Naam nieuwe categorie">
+          <button type="button" class="chip status st-${a.status}" data-act="status" title="Status wijzigen">${a.status}</button>
+          ${a.date ? `<span class="chip">${esc(fmtShort(a.date))}</span>` : ""}
+        </div>
+        <div class="rates">${WHO_ORDER.map(([w,l]) => rateRow(w, l, a)).join("")}</div>
         <textarea data-act="note" maxlength="500" placeholder="Notitie, link of prijs" aria-label="Notitie bij ${esc(a.title)}">${esc(a.note || "")}</textarea>
         <div class="act-bottom">
-          <div class="keen" aria-label="Wie wil dit?">
-            <button type="button" data-act="like" data-who="sterre" aria-pressed="${!!(a.likes||{}).sterre}">Sterre ♥</button>
-            <button type="button" data-act="like" data-who="pim" aria-pressed="${!!(a.likes||{}).pim}">Pim ♥</button>
-          </div>
-          <select data-act="date" aria-label="Dag voor ${esc(a.title)}">${opts(a.date)}</select>
+          <select data-act="date" aria-label="Dag voor ${esc(a.title)}">${dayOpts(a.date)}</select>
           <label class="acts-cost">NZ$<input type="number" min="0" step="1" data-act="price" value="${a.price ?? ""}" placeholder="prijs" aria-label="Prijs voor jullie twee, ${esc(a.title)}"></label>
+          <button type="button" class="btn small" data-act="map">${placed ? "Toon op kaart" : "Plaats op kaart"}</button>
           <button type="button" class="btn small ghost" data-act="del" aria-label="Verwijder ${esc(a.title)}">Verwijder</button>
         </div>
-      </article>`).join("") : `<p class="note">Geen activiteiten met deze status.</p>`;
+      </article>`;
+    }).join("") : `<p class="note">Geen activiteiten voor dit filter.</p>`;
+  }
+
+  // ---------- Map ----------
+  let map = null, landLayer = null, REF = null, mapMode = null;
+  const groups = {}, actMarkers = {};
+  const LAYERS = [["acts","Activiteiten","--cat-hike"],["camps","DOC-campings","--camp"],["route","Route","--accent"],["prac","Praktisch","--ink"],["own","Eigen punten","--muted"]];
+  let layerOn = {acts:true, camps:true, route:true, prac:true, own:true};
+  try { Object.assign(layerOn, JSON.parse(pref.get("layers") || "{}")); } catch {}
+  const cv = t => getComputedStyle(document.documentElement).getPropertyValue(t).trim();
+  const landStyle = () => ({color: cv("--coast"), weight: 1, fillColor: cv("--land"), fillOpacity: 1, fillRule: "evenodd"});
+  const PRAC = {car:"C", flight:"V", ferry:"F", home:"H"};
+  const CAMP_INFO = {
+    Serviced: "Serviced: warme douches, keuken en vaak stroom. Volgens jullie budgetnotitie niet gedekt door de DOC-pass.",
+    Standard: "Standard: toiletten en water, eenvoudige voorzieningen.",
+    Basic: "Basic: gratis of bijna gratis, minimale voorzieningen.",
+    Scenic: "Scenic: bijzondere ligging, basisvoorzieningen."
+  };
+  const normTxt = t => String(t || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, " ").trim();
+
+  function renderLayerBtns(){
+    $("layerBtns").innerHTML = LAYERS.map(([k,l,c]) => `<button type="button" data-layer="${k}" aria-pressed="${!!layerOn[k]}"><i style="background:var(${c})"></i>${l}</button>`).join("");
+  }
+  async function initMap(){
+    renderLayerBtns();
+    if (!window.L) { $("mapWrap").insertAdjacentHTML("beforeend", `<div class="map-fallback">De kaart kon niet laden. Herlaad de pagina om het opnieuw te proberen.</div>`); return; }
+    let land;
+    try {
+      [land, REF] = await Promise.all([fetch("data/nz-land.json").then(r => r.json()), fetch("data/nz-reference.json").then(r => r.json())]);
+    } catch {
+      $("mapWrap").insertAdjacentHTML("beforeend", `<div class="map-fallback">De kaartgegevens konden niet laden. Herlaad de pagina om het opnieuw te proberen.</div>`); return;
+    }
+    map = L.map("map", {zoomSnap:0.5, minZoom:4.5, maxZoom:14, preferCanvas:true, maxBounds:[[-50,160],[-31,184]], maxBoundsViscosity:0.8});
+    map.fitBounds([[-47.3,166.4],[-34.4,178.6]]);
+    map.attributionControl.setPrefix(false);
+    map.attributionControl.addAttribution("© OpenStreetMap-bijdragers");
+    landLayer = L.geoJSON(land, {interactive:false, style:landStyle}).addTo(map);
+    const labels = L.layerGroup().addTo(map);
+    for (const t of REF.towns) L.marker([t.lat, t.lng], {interactive:false, keyboard:false, icon: L.divIcon({className:"", html:`<span class="lbl ${t.major ? "major" : "minor"}" style="position:absolute">${esc(t.name)}</span>`, iconSize:[0,0]})}).addTo(labels);
+    for (const p of REF.parks) L.marker([p.lat, p.lng], {interactive:false, keyboard:false, icon: L.divIcon({className:"", html:`<span class="lbl park" style="position:absolute">${esc(p.name)}</span>`, iconSize:[0,0]})}).addTo(labels);
+    for (const [k] of LAYERS) { groups[k] = L.layerGroup(); if (layerOn[k]) groups[k].addTo(map); }
+    const zoomClass = () => { const z = map.getZoom(), c = map.getContainer(); c.classList.toggle("zoom-lo", z < 6.5); c.classList.toggle("zoom-mid", z >= 6.5 && z < 8); };
+    map.on("zoomend", zoomClass); zoomClass();
+    map.on("click", onMapClick);
+    map.getContainer().addEventListener("click", onPopupClick);
+    map.getContainer().addEventListener("submit", onPopupSubmit);
+    renderMap();
+  }
+
+  function placeIndex(){
+    const idx = [];
+    const add = (name, lat, lng) => { const k = normTxt(name); if (k.length >= 3) idx.push({k, name, lat, lng}); };
+    if (REF) {
+      REF.campsites.forEach(c => add(c.name, c.lat, c.lng));
+      REF.towns.forEach(t => add(t.name, t.lat, t.lng));
+      for (const [alias, town] of Object.entries(REF.aliases)) { const t = REF.towns.find(x => x.name === town); if (t) add(alias, t.lat, t.lng); }
+    }
+    Object.values(state.places).forEach(p => add(p.name, p.lat, p.lng));
+    Object.values(state.ideas).forEach(a => { if (typeof a.lat === "number") add(a.title, a.lat, a.lng); });
+    return idx;
+  }
+  function lookup(text, idx){
+    const t = normTxt(text); if (!t) return null;
+    let best = null;
+    for (const e of idx) {
+      if (e.k === t) return e;
+      const hit = (` ${t} `).includes(` ${e.k} `) ? e.k.length : (t.length >= 4 && e.k.includes(t) ? t.length : 0);
+      if (hit && (!best || hit > best.hit)) best = {...e, hit};
+    }
+    return best;
+  }
+  function routeStops(){
+    const idx = placeIndex(), stops = [], missing = [];
+    for (const iso of DAYS) {
+      if (phase(iso) !== "road") continue;
+      const p = placeOf(iso).trim(); if (!p) continue;
+      const hit = lookup(p, idx);
+      if (!hit) { missing.push({iso, p}); continue; }
+      const last = stops[stops.length - 1];
+      if (last && last.lat === hit.lat && last.lng === hit.lng) last.n++;
+      else stops.push({iso, label:p, lat:hit.lat, lng:hit.lng, n:1});
+    }
+    return {stops, missing};
+  }
+
+  function actPopup(id){
+    const a = state.ideas[id]; if (!a) return "";
+    const s = scoreOf(a);
+    return `<b class="t">${esc(a.title)}</b><span class="m">${esc(catOf(a))} · ${esc(a.status)}${a.date ? " · " + esc(fmtShort(a.date)) : ""}</span>
+      <div>${s === null ? "Nog geen cijfer" : "★ " + fmt1(s) + " gemiddeld"}</div>${a.info ? `<div class="m">${esc(a.info)}</div>` : ""}
+      <div class="acts-row"><button type="button" class="btn primary" data-pop="goto" data-id="${id}">Naar activiteit</button><button type="button" class="btn" data-pop="move" data-id="${id}">Verplaats</button></div>`;
+  }
+  const gmaps = (lat, lng) => `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`;
+  const nightBtn = name => `<button type="button" class="btn primary" data-pop="night" data-name="${esc(name)}">Overnachting op ${esc(fmtShort(selDay))}</button>`;
+
+  function renderMap(){
+    if (!map || !REF) return;
+    Object.values(groups).forEach(g => g.clearLayers());
+    for (const k in actMarkers) delete actMarkers[k];
+    const surface = cv("--surface");
+    for (const [id, a] of Object.entries(state.ideas)) {
+      if (typeof a.lat !== "number") continue;
+      const s = scoreOf(a) || 0;
+      const m = L.circleMarker([a.lat, a.lng], {radius: 6 + s * 0.9, color: surface, weight: 2, fillColor: cv(catVar(catOf(a))), fillOpacity: 1})
+        .bindTooltip(esc(a.title), {direction:"top", offset:[0,-6]}).bindPopup(() => actPopup(id));
+      m.addTo(groups.acts); actMarkers[id] = m;
+    }
+    REF.campsites.forEach(c => {
+      L.marker([c.lat, c.lng], {icon: L.divIcon({className:"", html:`<span class="camp-ico ${esc(c.type)}"></span>`, iconSize:[14,13], iconAnchor:[7,11]}), title: c.name})
+        .bindTooltip(esc(c.name), {direction:"top", offset:[0,-10]})
+        .bindPopup(() => `<b class="t">${esc(c.name)}</b><span class="m">DOC ${esc(c.type)} · ${esc(c.region)} · locatie bij benadering</span><div>${esc(c.note)}</div><div class="m">${esc(CAMP_INFO[c.type] || "")}</div>
+          <div class="acts-row">${nightBtn(c.name)}<a class="btn" href="${gmaps(c.lat, c.lng)}" target="_blank" rel="noopener">Google Maps</a></div>`)
+        .addTo(groups.camps);
+    });
+    REF.practical.forEach(p => {
+      L.marker([p.lat, p.lng], {icon: L.divIcon({className:"", html:`<span class="prac-ico">${PRAC[p.kind] || "•"}</span>`, iconSize:[22,22], iconAnchor:[11,11]}), title: p.name})
+        .bindTooltip(esc(p.name), {direction:"top", offset:[0,-10]})
+        .bindPopup(`<b class="t">${esc(p.name)}</b><div class="m">${esc(p.note)}</div><div class="acts-row"><a class="btn" href="${gmaps(p.lat, p.lng)}" target="_blank" rel="noopener">Google Maps</a></div>`)
+        .addTo(groups.prac);
+    });
+    for (const [id, p] of Object.entries(state.places)) {
+      L.circleMarker([p.lat, p.lng], {radius: 7, color: cv("--ink"), weight: 2.5, fillColor: surface, fillOpacity: 1})
+        .bindTooltip(esc(p.name), {direction:"top", offset:[0,-6]})
+        .bindPopup(() => `<b class="t">${esc(p.name)}</b><span class="m">${p.kind === "camp" ? "Camping / overnachting" : "Eigen punt"}</span>
+          <div class="acts-row">${p.kind === "camp" ? nightBtn(p.name) : ""}<button type="button" class="btn" data-pop="delplace" data-id="${id}">Verwijder</button></div>`)
+        .addTo(groups.own);
+    }
+    const {stops, missing} = routeStops();
+    if (stops.length > 1) L.polyline(stops.map(s => [s.lat, s.lng]), {color: cv("--accent"), weight: 3, opacity: .85, dashArray: "6 7", interactive: false}).addTo(groups.route);
+    stops.forEach((s, i) => L.marker([s.lat, s.lng], {icon: L.divIcon({className:"", html:`<span class="route-no">${i + 1}</span>`, iconSize:[20,20], iconAnchor:[10,10]}), zIndexOffset: 500})
+      .bindTooltip(`${esc(fmtShort(s.iso))} · ${esc(s.label)}${s.n > 1 ? ` (${s.n} nachten)` : ""}`, {direction:"top", offset:[0,-10]}).addTo(groups.route));
+    const planned = DAYS.filter(i => phase(i) === "road" && placeOf(i)).length;
+    $("routeInfo").innerHTML = `${stops.length} ${stops.length === 1 ? "stop" : "stops"} op de kaart, ${31 - planned} van de 31 dagen nog zonder plaats.`
+      + (missing.length ? `<br>Niet gevonden op de kaart: ${missing.map(m => `${esc(m.p)} (${esc(fmtShort(m.iso))})`).join(", ")}. Gebruik een plaatsnaam, de naam van een camping of zet de plek als eigen punt op de kaart.` : "");
+    const unplaced = Object.entries(state.ideas).filter(([,a]) => typeof a.lat !== "number").sort(byScore);
+    $("unplaced").innerHTML = unplaced.length ? unplaced.map(([id,a]) => `<button type="button" data-place="${id}">${esc(a.title)}</button>`).join("") : `<span class="note">Alle activiteiten staan op de kaart.</span>`;
+    const usedCats = allCats().filter(c => Object.values(state.ideas).some(a => catOf(a) === c && typeof a.lat === "number"));
+    $("mapLegend").innerHTML = usedCats.map(c => `<span><i style="width:10px;height:10px;border-radius:50%;background:var(${catVar(c)})"></i>${esc(c)}</span>`).join("")
+      + `<span><span class="camp-ico" style="display:inline-block"></span>DOC-camping</span><span><span class="camp-ico Serviced" style="display:inline-block"></span>Serviced</span>`
+      + `<span>C camper · V vliegveld · F ferry · H familie</span><span>Grotere stip = hoger cijfer</span>`;
+  }
+
+  function setMode(m, text){
+    mapMode = m;
+    $("mapBanner").hidden = !m; $("mapBannerText").textContent = text || "";
+    $("mapWrap").classList.toggle("pick-mode", !!m);
+    if (m) $("kaart").scrollIntoView({behavior:"smooth", block:"start"});
+  }
+  function startPlace(id){ const a = state.ideas[id]; if (a && map) setMode({type:"place", id}, `Klik op de kaart om "${a.title}" te plaatsen`); }
+  function showOnMap(id){
+    const a = state.ideas[id]; if (!a || !map) return;
+    if (!layerOn.acts) toggleLayer("acts");
+    $("kaart").scrollIntoView({behavior:"smooth", block:"start"});
+    map.flyTo([a.lat, a.lng], Math.max(map.getZoom(), 9), {duration: .8});
+    setTimeout(() => actMarkers[id] && actMarkers[id].openPopup(), 900);
+  }
+  function toggleLayer(k){
+    layerOn[k] = !layerOn[k]; pref.set("layers", JSON.stringify(layerOn));
+    if (map && groups[k]) { if (layerOn[k]) groups[k].addTo(map); else map.removeLayer(groups[k]); }
+    renderLayerBtns();
+  }
+  function onMapClick(e){
+    if (!mapMode) return;
+    const lat = Math.round(e.latlng.lat * 1e4) / 1e4, lng = Math.round(e.latlng.lng * 1e4) / 1e4;
+    if (mapMode.type === "place") {
+      const id = mapMode.id, a = state.ideas[id] ? clone(state.ideas[id]) : null; setMode(null);
+      if (!a) return;
+      a.lat = lat; a.lng = lng; put("ideas", id, a);
+      toast("Op de kaart gezet"); return;
+    }
+    if (mapMode.type === "add") {
+      setMode(null);
+      L.popup().setLatLng([lat, lng]).setContent(`<form data-form="add" data-lat="${lat}" data-lng="${lng}"><b class="t">Nieuw punt</b>
+        <input type="text" name="name" placeholder="Naam" maxlength="80" required aria-label="Naam">
+        <select name="kind" aria-label="Soort"><option value="act">Activiteit</option><option value="camp">Camping / overnachting</option><option value="other">Overig</option></select>
+        <select name="cat" aria-label="Categorie">${allCats().map(c => `<option>${esc(c)}</option>`).join("")}</select>
+        <div class="acts-row"><button class="btn primary" type="submit">Opslaan</button></div></form>`).openOn(map);
+      setTimeout(() => { const i = map.getContainer().querySelector('form[data-form="add"] input'); if (i) i.focus(); }, 50);
+    }
+  }
+  function onPopupSubmit(e){
+    const f = e.target.closest('form[data-form="add"]'); if (!f) return;
+    e.preventDefault();
+    const name = f.name.value.trim(); if (!name) return;
+    const lat = Number(f.dataset.lat), lng = Number(f.dataset.lng), kind = f.kind.value;
+    if (kind === "act") {
+      const max = Math.max(0, ...Object.values(state.ideas).map(a => a.order || 0));
+      put("ideas", newId("i"), {title:name, cat:f.cat.value, status:"idee", ratings:{}, date:"", note:"", info:"", price:null, lat, lng, order:max+1});
+    } else put("places", newId("p"), {name, kind: kind === "camp" ? "camp" : "other", lat, lng, note:""});
+    map.closePopup(); toast("Punt toegevoegd");
+  }
+  function onPopupClick(e){
+    const b = e.target.closest("[data-pop]"); if (!b) return;
+    const act = b.dataset.pop, id = b.dataset.id;
+    if (act === "goto") {
+      map.closePopup(); catFilter = ""; actFilter = "alles"; renderActs();
+      const el = $("act-" + id); if (el) { el.scrollIntoView({behavior:"smooth", block:"center"}); el.classList.add("flash"); setTimeout(() => el.classList.remove("flash"), 1600); }
+    }
+    if (act === "move") { map.closePopup(); startPlace(id); }
+    if (act === "night") {
+      const prev = state.days[selDay] || {};
+      put("days", selDay, {place: b.dataset.name, note: prev.note || ""}); renderPanel();
+      toast(`Overnachting op ${fmtShort(selDay)}: ${b.dataset.name}`);
+    }
+    if (act === "delplace") {
+      if (b.dataset.confirm) { map.closePopup(); del("places", id); toast("Punt verwijderd"); }
+      else { b.dataset.confirm = "1"; b.textContent = "Zeker?"; }
+    }
   }
 
   // ---------- Budget ----------
@@ -741,7 +1730,15 @@ footer{padding-block:48px 40px;color:var(--muted);font-size:13px}
   }
 
   function renderMe(){ document.querySelectorAll("[data-me]").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.me === me))); }
-  function renderAll(){ renderCal(); renderRoute(); renderActs(); renderBudget(); renderTodo(); renderFlights(); }
+  function renderAll(){ renderCal(); renderRoute(); renderActs(); renderBudget(); renderTodo(); renderFlights(); renderMap(); }
+  // Don't re-render under someone's cursor; catch up when they leave the field.
+  let deferred = false;
+  function safeRender(){
+    const ae = document.activeElement;
+    if (ae && ae.closest && /^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName) && ae.closest("#acts, #panel, #totals, #addCost, .leaflet-popup")) { deferred = true; return; }
+    renderAll();
+  }
+  document.addEventListener("focusout", () => setTimeout(() => { if (deferred) { deferred = false; safeRender(); } }, 0));
 
   let toastT;
   function toast(msg){ const t = $("toast"); t.textContent = msg; t.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => t.hidden = true, 2800); }
@@ -767,20 +1764,30 @@ footer{padding-block:48px 40px;color:var(--muted);font-size:13px}
   });
   document.querySelectorAll("[data-me]").forEach(b => b.addEventListener("click", () => { me = b.dataset.me; pref.set("me", me); renderMe(); }));
 
+  const clone = o => JSON.parse(JSON.stringify(o));
+  $("actNewCat").addEventListener("change", () => { const n = $("actNewCat").value === "__new"; $("actNewCatName").hidden = !n; if (n) $("actNewCatName").focus(); });
   $("addAct").addEventListener("submit", e => {
     e.preventDefault(); const v = $("actNew").value.trim(); if (!v) return;
+    let cat = $("actNewCat").value;
+    if (cat === "__new") { cat = $("actNewCatName").value.trim(); if (!cat) { $("actNewCatName").focus(); return; } }
     const max = Math.max(0, ...Object.values(state.ideas).map(a => a.order || 0));
-    const likes = me ? {[me]: true} : {};
-    put("ideas", newId("i"), {title:v, status:"idee", likes, date:"", note:"", order:max+1});
-    $("actNew").value = ""; actFilter = "alles"; toast("Idee toegevoegd");
+    put("ideas", newId("i"), {title:v, cat, status:"idee", ratings:{}, date:"", note:"", info:"", price:null, order:max+1});
+    $("actNew").value = ""; $("actNewCatName").value = ""; $("actNewCatName").hidden = true; $("actNewCat").value = cat;
+    actFilter = "alles"; if (catFilter && catFilter !== cat) catFilter = ""; renderActs(); toast("Activiteit toegevoegd");
   });
   $("actFilter").addEventListener("click", e => { const b = e.target.closest("[data-filter]"); if (b) { actFilter = b.dataset.filter; renderActs(); } });
-  const clone = o => JSON.parse(JSON.stringify(o));
+  $("catFilter").addEventListener("click", e => { const b = e.target.closest("[data-cat]"); if (b) { catFilter = b.dataset.cat; renderActs(); } });
   $("acts").addEventListener("click", e => {
-    const b = e.target.closest("[data-act]"), card = e.target.closest("[data-id]"); if (!b || !card) return;
+    const b = e.target.closest("[data-act]"), card = e.target.closest("[data-id]"); if (!b || !card || b.tagName === "SELECT" || b.tagName === "INPUT" || b.tagName === "TEXTAREA") return;
     const id = card.dataset.id, a = clone(state.ideas[id]);
     if (b.dataset.act === "status") { a.status = STATUSES[(STATUSES.indexOf(a.status) + 1) % STATUSES.length]; put("ideas", id, a); }
-    else if (b.dataset.act === "like") { a.likes = a.likes || {}; a.likes[b.dataset.who] = !a.likes[b.dataset.who]; put("ideas", id, a); }
+    else if (b.dataset.act === "rate") {
+      const w = b.dataset.who, v = Number(b.dataset.v);
+      a.ratings = Object.assign({}, a.ratings);
+      if (a.ratings[w] === v) delete a.ratings[w]; else a.ratings[w] = v;
+      delete a.likes; put("ideas", id, a);
+    }
+    else if (b.dataset.act === "map") { if (typeof a.lat === "number") showOnMap(id); else startPlace(id); }
     else if (b.dataset.act === "del") {
       if (b.dataset.confirm) { del("ideas", id); toast("Verwijderd"); }
       else { b.dataset.confirm = "1"; b.textContent = "Zeker?"; b.style.color = "var(--accent)"; setTimeout(() => { if (b.isConnected) { delete b.dataset.confirm; b.textContent = "Verwijder"; b.style.color = ""; } }, 3000); }
@@ -789,10 +1796,20 @@ footer{padding-block:48px 40px;color:var(--muted);font-size:13px}
   $("acts").addEventListener("change", e => {
     const el = e.target, card = el.closest("[data-id]"); if (!card) return;
     const id = card.dataset.id, a = clone(state.ideas[id]);
+    if (el.dataset.act === "cat") {
+      if (el.value === "__new") { const n = card.querySelector('[data-act="catnew"]'); n.hidden = false; n.focus(); return; }
+      a.cat = el.value; put("ideas", id, a);
+    }
+    if (el.dataset.act === "catnew") { const v = el.value.trim(); if (v) { a.cat = v; put("ideas", id, a); toast(`Categorie "${v}" toegevoegd`); } else renderActs(); }
     if (el.dataset.act === "date") { a.date = el.value; if (el.value && a.status === "idee") a.status = "gepland"; put("ideas", id, a); renderPanel(); }
     if (el.dataset.act === "price") { const v = el.value === "" ? null : Math.max(0, Number(el.value)); if (v !== (a.price ?? null)) { a.price = v; put("ideas", id, a); toast("Prijs opgeslagen"); } }
     if (el.dataset.act === "note" && el.value.trim() !== (a.note || "")) { a.note = el.value.trim(); put("ideas", id, a); toast("Notitie opgeslagen"); }
   });
+  $("acts").addEventListener("keydown", e => { if (e.key === "Enter" && e.target.dataset.act === "catnew") { e.preventDefault(); e.target.blur(); } });
+  $("layerBtns").addEventListener("click", e => { const b = e.target.closest("[data-layer]"); if (b) toggleLayer(b.dataset.layer); });
+  $("addPointBtn").addEventListener("click", () => { if (map) setMode({type:"add"}, "Klik op de kaart waar het nieuwe punt moet komen"); });
+  $("mapBannerCancel").addEventListener("click", () => setMode(null));
+  $("unplaced").addEventListener("click", e => { const b = e.target.closest("[data-place]"); if (b) startPlace(b.dataset.place); });
 
   $("costCat").innerHTML = CATS.map(([c]) => `<option>${c}</option>`).join("");
   const F = {label:"costLabel", cat:"costCat", qty:"costQty", unit:"costUnit", price:"costAmt", cur:"costCur", paidBy:"costWho", when:"costWhen", note:"costNote"};
@@ -851,33 +1868,31 @@ footer{padding-block:48px 40px;color:var(--muted);font-size:13px}
   addEventListener("scroll", onScroll, {passive:true});
 
   // ---------- Boot ----------
-  loadLocal(); renderMe(); renderAll(); renderPanel(); renderCount(); drawRidges(); onScroll();
+  renderMe(); renderAll(); renderPanel(); renderCount(); drawRidges(); onScroll(); initMap();
   setInterval(renderCount, 30000);
   let rT; addEventListener("resize", () => { clearTimeout(rT); rT = setTimeout(drawRidges, 150); });
-  matchMedia("(prefers-color-scheme: dark)").addEventListener?.("change", drawRidges);
-  new MutationObserver(drawRidges).observe(document.documentElement, {attributes:true, attributeFilter:["data-theme"]});
+  const onTheme = () => { drawRidges(); if (landLayer) landLayer.setStyle(landStyle()); renderMap(); };
+  matchMedia("(prefers-color-scheme: dark)").addEventListener?.("change", onTheme);
+  new MutationObserver(onTheme).observe(document.documentElement, {attributes:true, attributeFilter:["data-theme"]});
 
   (async () => {
-    if (!window.claude || typeof window.claude.use !== "function") return;
     let shared = null;
-    try { shared = await window.claude.use("db"); } catch {}
-    if (!shared) return;
+    if (window.claude && typeof window.claude.use === "function") { try { shared = await window.claude.use("db"); } catch {} }
+    if (!shared) { await loadLocal(); renderAll(); renderPanel(); return; }
     db = shared;
     const sync = $("sync"); sync.classList.add("live"); sync.querySelector("span").textContent = "Live gedeeld";
     for (const coll of Object.keys(state)) {
-      state[coll] = {};
       db.collection(coll).onSnapshot(snap => {
         const next = {};
         snap.docs.forEach(d => { if (d.exists) next[d.id] = clone(d.data()); });
         state[coll] = next;
-        renderAll();
+        safeRender();
         if (coll === "days" || coll === "ideas") {
           const typing = document.activeElement && document.activeElement.closest && document.activeElement.closest("#panel");
           if (!typing) renderPanel();
         }
       }, () => { sync.classList.remove("live"); sync.querySelector("span").textContent = "Verbinding verbroken, herlaad de pagina"; });
     }
-    renderAll(); renderPanel();
   })();
 })();
 </script>
