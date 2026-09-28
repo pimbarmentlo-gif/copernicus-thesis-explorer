@@ -186,8 +186,36 @@ label.f{display:grid;gap:6px;font-size:13px;font-weight:600;color:var(--muted)}
 .act textarea{min-height:52px;font-size:14px;padding:7px 9px}
 
 /* Budget */
-.budget{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.35fr);gap:20px;align-items:start}
-.totals{display:grid;gap:18px}
+.totals{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr) minmax(0,1fr);gap:24px 32px;margin-bottom:20px}
+.totals > div{display:grid;gap:12px;align-content:start}
+.people{display:grid;gap:6px;font-size:14px}
+.people div{display:flex;justify-content:space-between;gap:12px;border-bottom:1px dashed var(--line);padding-bottom:6px}
+.people b{font-variant-numeric:tabular-nums}
+.settings{display:flex;flex-wrap:wrap;gap:10px 16px;align-items:center;font-size:13px;color:var(--muted)}
+.settings label{display:inline-flex;align-items:center;gap:6px}
+.settings input{width:78px;padding:5px 8px;font-size:14px}
+.b-tools{display:flex;flex-wrap:wrap;gap:10px 16px;align-items:center;justify-content:space-between;margin-bottom:12px}
+.b-tools > div{display:flex;flex-wrap:wrap;gap:8px}
+tr.cat-row td{background:var(--surface-2);font-weight:700;font-size:13px;text-transform:uppercase;letter-spacing:.06em;border-bottom:0}
+tr.cat-row td.r{color:var(--muted)}
+td .note{display:block;font-size:12.5px;line-height:1.4;margin-top:2px;max-width:60ch}
+td.lbl-cell{font-weight:600}
+td.calc{color:var(--muted);font-size:13px;white-space:nowrap;font-variant-numeric:tabular-nums}
+.chipbtn{border:0;cursor:pointer}
+.acts-cost{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--muted)}
+.acts-cost input{width:90px;padding:5px 8px;font-size:13px}
+details.add{margin-top:16px;border-top:1px solid var(--line);padding-top:14px}
+details.add summary{cursor:pointer;font-weight:700;color:var(--teal);list-style:none}
+details.add summary::-webkit-details-marker{display:none}
+.cost-form{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:10px;margin-top:14px;align-items:end}
+.cost-form .w2{grid-column:span 2}.cost-form .w3{grid-column:span 3}.cost-form .w6{grid-column:1 / -1}
+.cost-form .chk{display:flex;align-items:center;gap:8px;font-size:14px;font-weight:600;color:var(--ink)}
+.form-actions{grid-column:1 / -1;display:flex;gap:8px;justify-content:flex-end}
+.todo-group{display:grid;gap:10px}
+.todo-group + .todo-group{margin-top:26px}
+.todo li .amt{font-variant-numeric:tabular-nums;font-weight:700;white-space:nowrap}
+.todo li.has-amt{grid-template-columns:auto 1fr auto}
+.todo li .note{display:block;margin-top:2px}
 .big{font:800 clamp(44px,6vw,64px)/.9 var(--display);font-variant-numeric:tabular-nums}
 .sub{display:flex;flex-wrap:wrap;gap:6px 22px;font-size:14px;color:var(--muted)}
 .sub b{color:var(--ink);font-variant-numeric:tabular-nums}
@@ -201,9 +229,6 @@ table{width:100%;border-collapse:collapse;font-size:14px}
 th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);font-weight:600;padding:8px 8px;border-bottom:1px solid var(--line)}
 td{padding:9px 8px;border-bottom:1px solid var(--line);vertical-align:middle}
 td.r,th.r{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
-.paid{cursor:pointer}
-.cost-form{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr) minmax(0,.8fr) auto;gap:8px;margin-top:14px;align-items:end}
-.cost-form .lbl{grid-column:1 / -1}
 
 .todo{display:grid;gap:10px;margin:0;padding:0;list-style:none}
 .todo li{display:grid;grid-template-columns:auto 1fr;gap:12px;align-items:start;background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:12px 14px;font-size:14px}
@@ -212,9 +237,24 @@ footer{padding-block:48px 40px;color:var(--muted);font-size:13px}
 .toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:8px;font-size:14px;z-index:20;max-width:calc(100% - 32px)}
 
 @media (max-width:860px){
-  .cal-layout,.camper,.budget{grid-template-columns:1fr}
+  .cal-layout,.camper{grid-template-columns:1fr}
+  .totals{grid-template-columns:1fr 1fr}
+  .totals > div:first-child{grid-column:1 / -1}
   .panel{position:static}
   .cost-form{grid-template-columns:1fr 1fr}
+  .cost-form .w2,.cost-form .w3{grid-column:span 1}
+}
+@media (max-width:700px){
+  .totals{grid-template-columns:1fr}
+  table.costs thead{display:none}
+  table.costs, table.costs tbody, table.costs tr, table.costs td{display:block}
+  table.costs tr{display:grid;grid-template-columns:1fr auto;gap:4px 12px;padding:12px 0;border-bottom:1px solid var(--line)}
+  table.costs tr.cat-row{padding:8px 10px;background:var(--surface-2);border-radius:6px;margin-top:10px;border:0}
+  table.costs tr.cat-row td{padding:0;background:transparent}
+  table.costs td{border:0;padding:0}
+  table.costs td.lbl-cell{grid-column:1 / -1}
+  table.costs td.r{text-align:right}
+  table.costs td.tags{grid-column:1 / -1;display:flex;flex-wrap:wrap;gap:6px}
 }
 @media (max-width:520px){
   .wrap{padding-inline:16px}
@@ -314,7 +354,7 @@ footer{padding-block:48px 40px;color:var(--muted);font-size:13px}
         <p>Na veel twijfelen gekozen voor een 4x4 met een rooftent, voor een hele maand. Fucking cool!</p>
         <dl class="kv" style="--muted:color-mix(in srgb,var(--bg) 70%,var(--fern))">
           <dt>Kosten</dt><dd class="num">NZ$ 5.656,28 · € 2.814,65</dd>
-          <dt>Aanbetaald</dt><dd class="num">NZ$ 5.656,28</dd>
+          <dt>Betaling</dt><dd id="camperPay">Volgens budget</dd>
           <dt>Via</dt><dd>Mad Campers</dd>
         </dl>
       </div>
@@ -331,7 +371,7 @@ footer{padding-block:48px 40px;color:var(--muted);font-size:13px}
   <section id="activiteiten">
     <div class="sec-head">
       <div><p class="eyebrow">Brainstorm</p><h2>Activiteiten</h2></div>
-      <p>Geef aan wie iets wil doen, zet de status verder en koppel het aan een dag.</p>
+      <p>Geef aan wie iets wil doen, zet de status verder, koppel het aan een dag en vul de prijs voor jullie twee in. Het budget telt gekozen activiteiten mee.</p>
     </div>
     <div class="act-tools">
       <form class="add-row" id="addAct">
@@ -346,32 +386,44 @@ footer{padding-block:48px 40px;color:var(--muted);font-size:13px}
   <section id="budget">
     <div class="sec-head">
       <div><p class="eyebrow">Kostenplaatje</p><h2>Budget</h2></div>
-      <p>Omrekening met de koers van jullie camperboeking: NZ$ 1 = € 0,4976.</p>
+      <p>Alle posten uit jullie begroting. Klik op een status om hem te wijzigen, of bewerk een post.</p>
     </div>
-    <div class="budget">
-      <div class="card totals" id="totals"></div>
-      <div class="card">
-        <div class="tbl-wrap"><table>
-          <thead><tr><th>Post</th><th>Categorie</th><th class="r">Bedrag</th><th class="r">€</th><th>Status</th><th><span class="sr" hidden>Verwijderen</span></th></tr></thead>
-          <tbody id="costRows"></tbody>
-        </table></div>
-        <form class="cost-form" id="addCost">
-          <label class="f lbl">Post<input type="text" id="costLabel" placeholder="bijv. Ferry Wellington → Picton" maxlength="60" required></label>
-          <label class="f">Categorie<select id="costCat"></select></label>
-          <label class="f">Bedrag<input type="number" id="costAmt" min="0" step="0.01" inputmode="decimal" required></label>
-          <label class="f">Munt<select id="costCur"><option>NZD</option><option>EUR</option></select></label>
-          <button class="btn primary" type="submit">Toevoegen</button>
-        </form>
+    <div class="card totals" id="totals"></div>
+    <div class="card">
+      <div class="b-tools">
+        <div class="seg" role="group" aria-label="Filter op moment" id="whenFilter"></div>
+        <div class="seg" role="group" aria-label="Filter op wie betaalt" id="whoFilter"></div>
       </div>
+      <div class="tbl-wrap"><table class="costs">
+        <thead><tr><th>Post</th><th>Berekening</th><th class="r">Totaal</th><th>Wie · wanneer · prijs</th><th><span hidden>Acties</span></th></tr></thead>
+        <tbody id="costRows"></tbody>
+      </table></div>
+      <details class="add" id="costDetails">
+        <summary id="costSummary">+ Kostenpost toevoegen</summary>
+        <form class="cost-form" id="addCost">
+          <input type="hidden" id="costId">
+          <label class="f w3">Post<input type="text" id="costLabel" maxlength="90" required placeholder="bijv. Hobbiton tour"></label>
+          <label class="f w3">Categorie<select id="costCat"></select></label>
+          <label class="f">Aantal<input type="number" id="costQty" min="0" step="any" value="1" required></label>
+          <label class="f">Eenheid<input type="text" id="costUnit" maxlength="20" value="total"></label>
+          <label class="f">Prijs per stuk<input type="number" id="costAmt" min="0" step="0.01" inputmode="decimal" required></label>
+          <label class="f">Munt<select id="costCur"><option>EUR</option><option>NZD</option></select></label>
+          <label class="f">Wie betaalt<select id="costWho"><option value="shared">Gedeeld</option><option value="pim">Pim</option><option value="sterre">Sterre</option></select></label>
+          <label class="f">Wanneer<select id="costWhen"><option value="paid">Betaald</option><option value="before" selected>Voor vertrek</option><option value="during">Tijdens reis</option></select></label>
+          <label class="f w6">Notitie / bron<input type="text" id="costNote" maxlength="300"></label>
+          <label class="chk w3"><input type="checkbox" id="costFixed"> Prijs staat vast</label>
+          <div class="form-actions"><button class="btn" type="button" id="costCancel">Annuleren</button><button class="btn primary" type="submit" id="costSubmit">Toevoegen</button></div>
+        </form>
+      </details>
     </div>
   </section>
 
   <section id="todo">
     <div class="sec-head">
       <div><p class="eyebrow">Nog regelen</p><h2>Open punten</h2></div>
-      <p>Wat nog ontbreekt in het plan, automatisch bijgewerkt.</p>
+      <p>Automatisch bijgewerkt uit de dagplanner en het budget. Wat betaald is, verdwijnt van de lijst.</p>
     </div>
-    <ul class="todo" id="todoList"></ul>
+    <div id="todoList"></div>
   </section>
 </main>
 
@@ -382,17 +434,17 @@ footer{padding-block:48px 40px;color:var(--muted);font-size:13px}
 (() => {
   // ---------- Static facts from the document ----------
   const FLIGHTS = {
-    heen: {ref:"MFTJPB", agency:"Trip.com", bag:"Doorgestuurd naar Auckland", legs:[
+    heen: {ref:"MFTJPB", agency:"Trip.com", cost:"flight_out", bag:"Doorgestuurd naar Auckland", legs:[
       {from:"AMS",fromN:"Amsterdam",to:"CAN",toN:"Guangzhou",date:"2026-11-28",time:"21:40"},
       {from:"CAN",fromN:"Guangzhou",to:"AKL",toN:"Auckland",date:"2026-11-30",time:"14:55"}]},
-    terug: {ref:"1156-544-075", agency:"Flightnetwork", bag:null, legs:[
+    terug: {ref:"1156-544-075", agency:"Flightnetwork", cost:"flight_back", bag:null, legs:[
       {from:"CHC",fromN:"Christchurch",to:"CAN",toN:"Guangzhou",date:"2026-12-31",time:"22:30"},
       {from:"CAN",fromN:"Guangzhou",to:"PEK",toN:"Beijing",date:"2027-01-01",time:"09:00"},
       {from:"PEK",fromN:"Beijing",to:"AMS",toN:"Amsterdam",date:"2027-01-01",time:"14:40"}]}
   };
   const FIXED = {
     "2026-11-28":[{k:"flight",t:"21:40 vlucht Amsterdam → Guangzhou"}],
-    "2026-11-29":[{k:"transit",t:"Overstap in Guangzhou (± 1 dag)"}],
+    "2026-11-29":[{k:"transit",t:"Overstap in Guangzhou, hotel voor 24 uur geboekt"}],
     "2026-11-30":[{k:"flight",t:"14:55 vlucht Guangzhou → Auckland"}],
     "2026-12-01":[{k:"car",t:"Camper ophalen, Hill Street 19, Onehunga"}],
     "2026-12-25":[{k:"holiday",t:"Kerstdag, feestdag: veel winkels dicht"}],
@@ -401,10 +453,12 @@ footer{padding-block:48px 40px;color:var(--muted);font-size:13px}
     "2027-01-01":[{k:"flight",t:"09:00 vlucht Guangzhou → Beijing"},{k:"flight",t:"14:40 vlucht Beijing → Amsterdam"}]
   };
   const DEFAULT_PLACE = {"2026-12-01":"Auckland","2026-12-31":"Christchurch"};
-  const NZD_EUR = 2814.65 / 5656.28;
   const STATUSES = ["idee","gepland","geboekt","gedaan"];
-  const CATS = [["Vervoer","var(--fern)"],["Vluchten","var(--teal)"],["Activiteiten","var(--sun)"],["Overnachten","var(--accent)"],["Brandstof","color-mix(in srgb,var(--fern) 55%,var(--teal))"],["Eten","color-mix(in srgb,var(--accent) 55%,var(--sun))"],["Overig","var(--muted)"]];
+  const CATS = [["Flights & transit","var(--teal)"],["Car & driving","var(--fern)"],["Sleeping","var(--accent)"],["Food & drink","var(--sun)"],["Activities","color-mix(in srgb,var(--teal) 50%,var(--sun))"],["Admin & other","var(--muted)"]];
   const catColor = c => (CATS.find(x => x[0] === c) || CATS[CATS.length-1])[1];
+  const WHEN = {paid:["Betaald","ok"], before:["Voor vertrek","warn"], during:["Tijdens reis",""]};
+  const WHO = {shared:"Gedeeld", pim:"Pim", sterre:"Sterre"};
+  const DEFAULT_SETTINGS = {rate:0.5, buffer:10};
 
   // Used only when the shared store is unavailable (e.g. opened as a local file).
   const LOCAL_SEED = {
@@ -416,9 +470,8 @@ footer{padding-block:48px 40px;color:var(--muted);font-size:13px}
       wijntour:{title:"Wijntour",status:"idee",likes:{},date:"",note:"",order:5},
       offroad:{title:"Offroad cursus",status:"idee",likes:{},date:"",note:"",order:6}
     },
-    costs: {
-      camper:{label:"Camper Mad Adventurer (RAV4)",cat:"Vervoer",amount:5656.28,cur:"NZD",paid:true,order:1}
-    },
+    costs: {"flight_out": {"label": "Flight Amsterdam → Auckland (2 people, incl. baggage)", "cat": "Flights & transit", "qty": 1, "unit": "total", "price": 1494.7, "cur": "EUR", "paidBy": "shared", "when": "paid", "fixed": true, "note": "Your figure", "order": 1}, "flight_back": {"label": "Flight Christchurch → Amsterdam (2 people)", "cat": "Flights & transit", "qty": 1, "unit": "total", "price": 789.98, "cur": "EUR", "paidBy": "shared", "when": "paid", "fixed": true, "note": "Your figure", "order": 2}, "hotel_can": {"label": "Hotel Guangzhou (24 h layover)", "cat": "Flights & transit", "qty": 1, "unit": "night", "price": 26.0, "cur": "EUR", "paidBy": "shared", "when": "paid", "fixed": true, "note": "Booked; amount is your guess, check the confirmation", "order": 3}, "food_can": {"label": "Food during Guangzhou layover", "cat": "Flights & transit", "qty": 1, "unit": "total", "price": 40.0, "cur": "EUR", "paidBy": "shared", "when": "during", "fixed": false, "note": "Estimate", "order": 4}, "camper": {"label": "Mad Campers MAD ADVENTURER, Auckland → Christchurch", "cat": "Car & driving", "qty": 1, "unit": "total", "price": 2814.65, "cur": "EUR", "paidBy": "shared", "when": "before", "fixed": true, "note": "Your figure. Toyota RAV4 with rooftent, petrol (so no road user charges). Pay in full within 30 days.", "order": 5}, "excess": {"label": "Rental excess insurance (Allianz, external)", "cat": "Car & driving", "qty": 1, "unit": "total", "price": 250.0, "cur": "EUR", "paidBy": "shared", "when": "before", "fixed": false, "note": "Your estimate, confirm the quote", "order": 6}, "petrol": {"label": "Petrol", "cat": "Car & driving", "qty": 480, "unit": "litres", "price": 3.19, "cur": "NZD", "paidBy": "shared", "when": "during", "fixed": false, "note": "Distance × consumption × price (see Assumptions)", "order": 7}, "ferry": {"label": "Ferry Wellington → Picton: car (≤5.5 m), peak fare", "cat": "Car & driving", "qty": 1, "unit": "car", "price": 389.0, "cur": "NZD", "paidBy": "shared", "when": "before", "fixed": false, "note": "Bluebridge: NZD 185 before 15 Dec, 195 from 15 Dec (ferrynewzealand.com). Car is 2.1 m high with the tent, so confirm it fits the car class. Not booked yet.", "order": 8}, "tolls": {"label": "Tolls & parking (Milford, Hot Water Beach, cities)", "cat": "Car & driving", "qty": 1, "unit": "total", "price": 80.0, "cur": "NZD", "paidBy": "shared", "when": "during", "fixed": false, "note": "Estimate. Milford parking NZD 10/h, Hot Water Beach NZD 6/h, a few toll roads in the North Island", "order": 9}, "doc_pass": {"label": "DOC Campsite Pass (1 year, per adult)", "cat": "Sleeping", "qty": 2, "unit": "passes", "price": 295.0, "cur": "NZD", "paidBy": "shared", "when": "before", "fixed": true, "note": "doc.govt.nz. Buy up to a month before first use. Covers most DOC campsites; not serviced or Great Walk sites. Book bookable sites ahead.", "order": 10}, "family": {"label": "Nights with family in Te Awamutu", "cat": "Sleeping", "qty": 3, "unit": "nights", "price": 0, "cur": "EUR", "paidBy": "shared", "when": "during", "fixed": true, "note": "Free; add a thank-you gift here if you like", "order": 11}, "xmas_airbnb": {"label": "Christmas Airbnb", "cat": "Sleeping", "qty": 2, "unit": "nights", "price": 100.0, "cur": "EUR", "paidBy": "shared", "when": "before", "fixed": false, "note": "Estimate (see Assumptions)", "order": 12}, "campgrounds": {"label": "Paid campgrounds where there's no DOC site", "cat": "Sleeping", "qty": 3, "unit": "nights", "price": 60.0, "cur": "NZD", "paidBy": "shared", "when": "during", "fixed": false, "note": "Estimate (see Assumptions)", "order": 13}, "laundry": {"label": "Laundry & hot showers", "cat": "Sleeping", "qty": 1, "unit": "total", "price": 30.0, "cur": "NZD", "paidBy": "shared", "when": "during", "fixed": false, "note": "Estimate: many DOC sites have cold or no showers", "order": 14}, "groceries": {"label": "Groceries", "cat": "Food & drink", "qty": 31, "unit": "days", "price": 20.0, "cur": "EUR", "paidBy": "shared", "when": "during", "fixed": false, "note": "€10 per person per day (your figure)", "order": 15}, "coffee": {"label": "Coffees, snacks & beers", "cat": "Food & drink", "qty": 4.428571428571429, "unit": "weeks", "price": 25.0, "cur": "EUR", "paidBy": "shared", "when": "during", "fixed": false, "note": "Estimate (see Assumptions)", "order": 16}, "eating_out": {"label": "Eating out", "cat": "Food & drink", "qty": 4, "unit": "meals", "price": 50.0, "cur": "NZD", "paidBy": "shared", "when": "during", "fixed": false, "note": "Max 3 times (your figure) × 2 people", "order": 17}, "activities": {"label": "Selected activities (see Activities tab)", "cat": "Activities", "qty": 1, "unit": "total", "price": 1298.0, "cur": "NZD", "paidBy": "shared", "when": "during", "fixed": false, "note": "Toggle activities on the Activities tab", "order": 18}, "nzeta": {"label": "NZeTA (app) + International Visitor Levy", "cat": "Admin & other", "qty": 2, "unit": "people", "price": 117.0, "cur": "NZD", "paidBy": "shared", "when": "before", "fixed": true, "note": "NZD 17 via the app (23 online) + NZD 100 IVL, per person. immigration.govt.nz", "order": 19}, "idp": {"label": "International driving permit", "cat": "Admin & other", "qty": 2, "unit": "permit", "price": 18.95, "cur": "EUR", "paidBy": "shared", "when": "before", "fixed": true, "note": "ANWB, 1-year model, same day in an ANWB store (not online). Sterre needs one too if she'll drive.", "order": 20}, "phone_pim": {"label": "Phone plan 20 GB (Pim)", "cat": "Admin & other", "qty": 1, "unit": "plan", "price": 15.0, "cur": "EUR", "paidBy": "pim", "when": "before", "fixed": false, "note": "Estimate", "order": 21}, "ins_pim": {"label": "Travel insurance (Pim)", "cat": "Admin & other", "qty": 1, "unit": "total", "price": 0, "cur": "EUR", "paidBy": "pim", "when": "paid", "fixed": true, "note": "Already covered", "order": 22}, "ins_sterre": {"label": "Travel insurance (Sterre)", "cat": "Admin & other", "qty": 1, "unit": "total", "price": 0, "cur": "EUR", "paidBy": "sterre", "when": "before", "fixed": false, "note": "Already covered", "order": 23}},
+    settings: {"budget": {"rate": 0.5, "buffer": 10}},
     days: {}
   };
 
@@ -432,7 +485,12 @@ footer{padding-block:48px 40px;color:var(--muted);font-size:13px}
   const nzToday = () => { try { return new Intl.DateTimeFormat("en-CA",{timeZone:"Pacific/Auckland"}).format(new Date()); } catch { return ""; } };
   const eur = n => n.toLocaleString("nl-NL",{style:"currency",currency:"EUR"});
   const nzd = n => "NZ$ " + n.toLocaleString("nl-NL",{minimumFractionDigits:2,maximumFractionDigits:2});
-  const toEur = c => c.cur === "EUR" ? c.amount : c.amount * NZD_EUR;
+  const settings = () => Object.assign({}, DEFAULT_SETTINGS, state.settings.budget || {});
+  // Older rows used {amount, paid}; read them as qty 1.
+  const norm = c => c.qty === undefined ? Object.assign({qty:1, unit:"total", price:c.amount || 0, paidBy:"shared", when:c.paid ? "paid" : "before", fixed:false, note:""}, c) : c;
+  const toEur = c => { c = norm(c); const v = (Number(c.qty) || 0) * (Number(c.price) || 0); return c.cur === "NZD" ? v * settings().rate : v; };
+  const num = n => Number(n).toLocaleString("nl-NL",{maximumFractionDigits:2});
+  const money = (n, cur) => cur === "NZD" ? nzd(n) : eur(n);
   const esc = s => String(s ?? "").replace(/[&<>"']/g, ch => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[ch]));
   const $ = id => document.getElementById(id);
 
@@ -444,18 +502,18 @@ footer{padding-block:48px 40px;color:var(--muted);font-size:13px}
   let me = pref.get("me") || "";
   let selDay = pref.get("day") || "2026-12-01";
   if (!DAYS.includes(selDay)) selDay = "2026-12-01";
-  let actFilter = "alles";
+  let actFilter = "alles", whenFilter = "all", whoFilter = "all";
 
   // ---------- Data store (shared db, or local fallback) ----------
-  const state = {ideas:{}, costs:{}, days:{}};
+  const state = {ideas:{}, costs:{}, days:{}, settings:{}};
   let db = null;
   function loadLocal(){
     let saved = null;
-    try { saved = JSON.parse(localStorage.getItem("nz26:data") || "null"); } catch {}
+    try { saved = JSON.parse(localStorage.getItem("nz26:data2") || "null"); } catch {}
     const src = saved || LOCAL_SEED;
     for (const k of Object.keys(state)) state[k] = JSON.parse(JSON.stringify(src[k] || {}));
   }
-  function saveLocal(){ if (!db) try { localStorage.setItem("nz26:data", JSON.stringify(state)); } catch {} }
+  function saveLocal(){ if (!db) try { localStorage.setItem("nz26:data2", JSON.stringify(state)); } catch {} }
   async function put(coll, id, data){
     state[coll][id] = data; renderAll();
     if (!db) return saveLocal();
@@ -556,10 +614,11 @@ footer{padding-block:48px 40px;color:var(--muted);font-size:13px}
 
   // ---------- Flights ----------
   function renderFlights(){
+    const price = id => { const c = state.costs[id]; return c ? `<span class="chip ${WHEN[norm(c).when] ? WHEN[norm(c).when][1] : ""}">${eur(toEur(c))} · ${WHEN[norm(c).when] ? WHEN[norm(c).when][0].toLowerCase() : ""}</span>` : ""; };
     const leg = (name, f) => `<div>
       <div class="leg-title"><h3>${name}</h3><span class="mono">${esc(f.agency)}</span>
         <button class="chip" data-copy="${esc(f.ref)}" title="Kopieer boekingsnummer" style="border:0;cursor:pointer"><span class="mono">${esc(f.ref)}</span> kopieer</button>
-        ${f.bag ? `<span class="chip ok">Bagage: ${esc(f.bag)}</span>` : `<span class="chip warn">Bagage: nog uitzoeken</span>`}</div>
+        ${f.bag ? `<span class="chip ok">Bagage: ${esc(f.bag)}</span>` : `<span class="chip warn">Bagage: nog uitzoeken</span>`}${price(f.cost)}</div>
       <div class="passes">${f.legs.map(l => `
         <article class="pass">
           <div class="pass-main">
@@ -569,7 +628,7 @@ footer{padding-block:48px 40px;color:var(--muted);font-size:13px}
           <div class="pass-stub"><span class="eyebrow">Vertrek</span><span class="t">${l.time}</span></div>
         </article>`).join("")}</div></div>`;
     $("legs").innerHTML = leg("Heen", FLIGHTS.heen) + leg("Terug", FLIGHTS.terug)
-      + `<p class="note">Terugvlucht vertrekt op oudejaarsavond om 22:30. De jaarwisseling vieren jullie in de lucht.</p>`;
+      + `<p class="note">Overstap heen: hotel in Guangzhou voor 24 uur. De terugvlucht vertrekt op oudejaarsavond om 22:30, dus de jaarwisseling vieren jullie in de lucht.</p>`;
   }
 
   // ---------- Activities ----------
@@ -590,48 +649,99 @@ footer{padding-block:48px 40px;color:var(--muted);font-size:13px}
             <button type="button" data-act="like" data-who="pim" aria-pressed="${!!(a.likes||{}).pim}">Pim ♥</button>
           </div>
           <select data-act="date" aria-label="Dag voor ${esc(a.title)}">${opts(a.date)}</select>
+          <label class="acts-cost">NZ$<input type="number" min="0" step="1" data-act="price" value="${a.price ?? ""}" placeholder="prijs" aria-label="Prijs voor jullie twee, ${esc(a.title)}"></label>
           <button type="button" class="btn small ghost" data-act="del" aria-label="Verwijder ${esc(a.title)}">Verwijder</button>
         </div>
       </article>`).join("") : `<p class="note">Geen activiteiten met deze status.</p>`;
   }
 
   // ---------- Budget ----------
+  const catOrder = c => { const i = CATS.findIndex(x => x[0] === c); return i < 0 ? 99 : i; };
+  const sortedCosts = () => Object.entries(state.costs).map(([id,c]) => [id, norm(c)])
+    .sort((a,b) => catOrder(a[1].cat) - catOrder(b[1].cat) || (a[1].order||0) - (b[1].order||0));
+  const sum = rows => rows.reduce((t,[,c]) => t + toEur(c), 0);
+  const bar = (parts, total, label) => total > 0 ? `<div class="bar" role="img" aria-label="${label}">${parts.filter(x => x.v > 0).map(x => `<span style="width:${x.v/total*100}%;background:${x.color}" title="${esc(x.name)}"></span>`).join("")}</div>
+      <div class="bar-legend">${parts.filter(x => x.v > 0).map(x => `<div><i style="background:${x.color}"></i><span>${esc(x.name)}</span><b class="num">${eur(x.v)} · ${Math.round(x.v/total*100)}%</b></div>`).join("")}</div>` : "";
   function renderBudget(){
-    const rows = Object.entries(state.costs).sort((a,b) => (a[1].order||0) - (b[1].order||0));
-    const total = rows.reduce((s,[,c]) => s + toEur(c), 0);
-    const paid = rows.filter(([,c]) => c.paid).reduce((s,[,c]) => s + toEur(c), 0);
-    const byCat = CATS.map(([name,color]) => ({name, color, v: rows.filter(([,c]) => (c.cat||"Overig") === name).reduce((s,[,c]) => s + toEur(c), 0)})).filter(x => x.v > 0);
+    const st = settings(), rows = sortedCosts(), total = sum(rows), withBuf = total * (1 + (Number(st.buffer)||0)/100);
+    const shared = sum(rows.filter(([,c]) => c.paidBy === "shared"));
+    const person = w => shared/2 + sum(rows.filter(([,c]) => c.paidBy === w));
+    const whenParts = [["paid","Betaald","var(--ok)"],["before","Voor vertrek","var(--sun)"],["during","Tijdens reis","var(--teal)"]].map(([k,name,color]) => ({name, color, v: sum(rows.filter(([,c]) => c.when === k))}));
+    const cats = [...new Set(CATS.map(c => c[0]).concat(rows.map(([,c]) => c.cat)))];
+    const catParts = cats.map(name => ({name, color: catColor(name), v: sum(rows.filter(([,c]) => c.cat === name))}));
+    const picked = Object.values(state.ideas).filter(a => a.status !== "idee" && a.price > 0);
+    const pickedNzd = picked.reduce((t,a) => t + Number(a.price), 0);
+    const actLine = state.costs.activities ? norm(state.costs.activities) : null;
     $("totals").innerHTML = `
-      <div><p class="eyebrow">Totaal tot nu toe</p><p class="big">${eur(total)}</p></div>
-      <div class="sub"><span>Per persoon <b>${eur(total/2)}</b></span><span>In NZD <b>${nzd(total / NZD_EUR)}</b></span></div>
-      <div class="sub"><span>Betaald <b>${eur(paid)}</b></span><span>Nog te betalen <b>${eur(total - paid)}</b></span></div>
-      ${total > 0 ? `<div class="bar" role="img" aria-label="Verdeling per categorie">${byCat.map(x => `<span style="width:${x.v/total*100}%;background:${x.color}" title="${x.name}"></span>`).join("")}</div>
-      <div class="bar-legend">${byCat.map(x => `<div><i style="background:${x.color}"></i><span>${x.name}</span><b class="num">${eur(x.v)} · ${Math.round(x.v/total*100)}%</b></div>`).join("")}</div>` : ""}`;
-    $("costRows").innerHTML = rows.map(([id,c]) => `<tr data-id="${id}">
-      <td>${esc(c.label)}</td><td><span class="chip"><i style="width:8px;height:8px;border-radius:50%;background:${catColor(c.cat)}"></i>${esc(c.cat || "Overig")}</span></td>
-      <td class="r">${c.cur === "EUR" ? eur(c.amount) : nzd(c.amount)}</td><td class="r">${eur(toEur(c))}</td>
-      <td><button type="button" class="chip paid ${c.paid ? "ok" : "warn"}" data-cost="paid" style="border:0">${c.paid ? "Betaald" : "Open"}</button></td>
-      <td><button type="button" class="btn small ghost" data-cost="del" aria-label="Verwijder ${esc(c.label)}">×</button></td></tr>`).join("")
-      || `<tr><td colspan="6" class="note">Nog geen kosten ingevoerd.</td></tr>`;
+      <div>
+        <p class="eyebrow">Totaal incl. ${num(st.buffer)}% buffer</p>
+        <p class="big">${eur(withBuf)}</p>
+        <div class="sub"><span>Zonder buffer <b>${eur(total)}</b></span><span>In NZD <b>${nzd(withBuf / st.rate)}</b></span></div>
+        <div class="settings">
+          <label for="setRate">NZ$ 1 = €<input type="number" id="setRate" min="0.01" step="0.01" value="${st.rate}"></label>
+          <label for="setBuf">Buffer<input type="number" id="setBuf" min="0" max="100" step="1" value="${st.buffer}">%</label>
+        </div>
+      </div>
+      <div>
+        <p class="eyebrow">Per persoon, zonder buffer</p>
+        <div class="people">
+          <div><span>Pim</span><b>${eur(person("pim"))}</b></div>
+          <div><span>Sterre</span><b>${eur(person("sterre"))}</b></div>
+          <div><span>Gedeelde kosten</span><b>${eur(shared)}</b></div>
+        </div>
+        ${actLine ? `<p class="note">Activiteiten in budget: ${nzd(actLine.price * actLine.qty)}.${picked.length ? ` Gekozen in de planner: ${nzd(pickedNzd)} (${picked.length}).` : " Vul prijzen in bij Activiteiten om te vergelijken."}</p>` : ""}
+      </div>
+      <div><p class="eyebrow">Wanneer betalen</p>${bar(whenParts, total, "Verdeling naar betaalmoment")}</div>
+      <div style="grid-column:1 / -1"><p class="eyebrow">Per categorie</p>${bar(catParts, total, "Verdeling per categorie")}</div>`;
+
+    const f = [["all","Alles"],["paid","Betaald"],["before","Voor vertrek"],["during","Tijdens reis"]];
+    $("whenFilter").innerHTML = f.map(([k,l]) => `<button type="button" data-when="${k}" aria-pressed="${whenFilter === k}">${l}</button>`).join("");
+    $("whoFilter").innerHTML = [["all","Iedereen"],["shared","Gedeeld"],["pim","Pim"],["sterre","Sterre"]].map(([k,l]) => `<button type="button" data-who="${k}" aria-pressed="${whoFilter === k}">${l}</button>`).join("");
+    const vis = rows.filter(([,c]) => (whenFilter === "all" || c.when === whenFilter) && (whoFilter === "all" || c.paidBy === whoFilter));
+    let h = "";
+    for (const cat of cats) {
+      const r = vis.filter(([,c]) => c.cat === cat); if (!r.length) continue;
+      h += `<tr class="cat-row"><td colspan="2"><span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:${catColor(cat)};margin-right:8px"></span>${esc(cat)}</td><td class="r">${eur(sum(r))}</td><td colspan="2"></td></tr>`;
+      h += r.map(([id,c]) => {
+        const calc = !c.price ? "gratis" : (c.qty === 1 && c.unit === "total") ? money(c.price, c.cur) : `${num(c.qty)} ${esc(c.unit)} × ${money(c.price, c.cur)}`;
+        const w = WHEN[c.when] || ["?",""];
+        return `<tr data-id="${id}">
+          <td class="lbl-cell">${esc(c.label)}${c.note ? `<span class="note">${esc(c.note)}</span>` : ""}</td>
+          <td class="calc">${calc}</td>
+          <td class="r"><b>${c.price ? eur(toEur(c)) : "–"}</b></td>
+          <td class="tags"><span class="chip">${WHO[c.paidBy] || "Gedeeld"}</span>
+            <button type="button" class="chip chipbtn ${w[1]}" data-cost="when" title="Betaalmoment wijzigen">${w[0]}</button>
+            <button type="button" class="chip chipbtn" data-cost="fixed" title="Vaste prijs of schatting">${c.fixed ? "Vaste prijs" : "Schatting"}</button></td>
+          <td class="r"><button type="button" class="btn small ghost" data-cost="edit">Bewerk</button><button type="button" class="btn small ghost" data-cost="del" aria-label="Verwijder ${esc(c.label)}">×</button></td></tr>`;
+      }).join("");
+    }
+    $("costRows").innerHTML = h || `<tr><td colspan="5" class="note">Geen posten voor dit filter.</td></tr>`;
+
+    const cp = state.costs.camper ? norm(state.costs.camper) : null;
+    $("camperPay").textContent = cp ? (WHEN[cp.when] || ["?"])[0] + (cp.when === "before" ? ", volledig betalen binnen 30 dagen" : "") : "Niet in budget";
   }
 
   // ---------- Open items ----------
   function renderTodo(){
-    const items = [];
+    const before = sortedCosts().filter(([,c]) => c.when === "before");
+    const plan = [];
     const open = DAYS.filter(i => phase(i) === "road" && !placeOf(i)).length;
-    if (open) items.push(["Route plannen", `${open} van de 31 camperdagen hebben nog geen plaats.`]);
-    const txt = (JSON.stringify(state.costs) + JSON.stringify(state.days)).toLowerCase();
-    if (!/ferry|interislander|bluebridge|veerboot|pont/.test(txt)) items.push(["Ferry boeken", "Van Auckland naar Christchurch rij je over de Cook Strait: Wellington → Picton met Interislander of Bluebridge. In december vol, dus op tijd boeken."]);
-    items.push(["Bagage terugvlucht", "In het document staat een vraagteken bij de bagage van de terugvluchten via Flightnetwork (1156-544-075)."]);
+    if (open) plan.push(["Route plannen", `${open} van de 31 camperdagen hebben nog geen plaats in de dagplanner.`]);
+    const txt = JSON.stringify(state.days).toLowerCase();
+    if (!txt.includes("awamutu")) plan.push(["Familie in Te Awamutu inplannen", "3 nachten bij familie staan in het budget, maar nog niet in de dagplanner."]);
+    if (!["2026-12-24","2026-12-25","2026-12-26"].some(placeOf)) plan.push(["Kerst-Airbnb kiezen", "25 en 26 december zijn feestdagen en veel winkels zijn dicht. Zet de plek voor de kerstnachten in de dagplanner."]);
+    plan.push(["Bagage terugvlucht", "In het document staat een vraagteken bij de bagage van de terugvluchten via Flightnetwork (1156-544-075)."]);
     const unplanned = Object.values(state.ideas).filter(a => a.status === "idee").length;
-    if (unplanned) items.push(["Activiteiten kiezen", `${unplanned} ideeën staan nog op status "idee".`]);
-    if (!Object.values(state.costs).some(c => c.cat === "Vluchten")) items.push(["Vluchtkosten invullen", "De prijzen van de vluchten staan nog niet in het budget."]);
-    if (!Object.values(state.days).some(d => /kerst|christmas/i.test(d.note || "")) && !placeOf("2026-12-25")) items.push(["Kerst regelen", "25 en 26 december zijn feestdagen. Zorg voor een camping en boodschappen in huis."]);
-    $("todoList").innerHTML = items.map(([t,d],i) => `<li><span class="chip warn">${i+1}</span><div><b>${esc(t)}</b>${esc(d)}</div></li>`).join("");
+    if (unplanned) plan.push(["Activiteiten kiezen", `${unplanned} ideeën staan nog op status "idee".`]);
+    $("todoList").innerHTML = `
+      <div class="todo-group"><h3>Voor vertrek betalen of regelen · ${eur(sum(before))}</h3>
+        <ul class="todo">${before.map(([id,c]) => `<li class="has-amt"><span class="chip warn">${WHO[c.paidBy] || "Gedeeld"}</span><div><b>${esc(c.label)}</b>${c.note ? `<span class="note">${esc(c.note)}</span>` : ""}</div><span class="amt">${c.price ? eur(toEur(c)) : "–"}</span></li>`).join("") || `<li><span class="chip ok">✓</span><div>Alles voor vertrek is betaald.</div></li>`}</ul></div>
+      <div class="todo-group"><h3>Planning</h3>
+        <ul class="todo">${plan.map(([t,d],i) => `<li><span class="chip">${i+1}</span><div><b>${esc(t)}</b>${esc(d)}</div></li>`).join("")}</ul></div>`;
   }
 
   function renderMe(){ document.querySelectorAll("[data-me]").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.me === me))); }
-  function renderAll(){ renderCal(); renderRoute(); renderActs(); renderBudget(); renderTodo(); }
+  function renderAll(){ renderCal(); renderRoute(); renderActs(); renderBudget(); renderTodo(); renderFlights(); }
 
   let toastT;
   function toast(msg){ const t = $("toast"); t.textContent = msg; t.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => t.hidden = true, 2800); }
@@ -680,26 +790,54 @@ footer{padding-block:48px 40px;color:var(--muted);font-size:13px}
     const el = e.target, card = el.closest("[data-id]"); if (!card) return;
     const id = card.dataset.id, a = clone(state.ideas[id]);
     if (el.dataset.act === "date") { a.date = el.value; if (el.value && a.status === "idee") a.status = "gepland"; put("ideas", id, a); renderPanel(); }
+    if (el.dataset.act === "price") { const v = el.value === "" ? null : Math.max(0, Number(el.value)); if (v !== (a.price ?? null)) { a.price = v; put("ideas", id, a); toast("Prijs opgeslagen"); } }
     if (el.dataset.act === "note" && el.value.trim() !== (a.note || "")) { a.note = el.value.trim(); put("ideas", id, a); toast("Notitie opgeslagen"); }
   });
 
   $("costCat").innerHTML = CATS.map(([c]) => `<option>${c}</option>`).join("");
+  const F = {label:"costLabel", cat:"costCat", qty:"costQty", unit:"costUnit", price:"costAmt", cur:"costCur", paidBy:"costWho", when:"costWhen", note:"costNote"};
+  function resetCostForm(){
+    $("addCost").reset(); $("costId").value = ""; $("costSubmit").textContent = "Toevoegen"; $("costSummary").textContent = "+ Kostenpost toevoegen";
+  }
+  function editCost(id){
+    const c = norm(state.costs[id]); if (!c) return;
+    for (const [k,el] of Object.entries(F)) $(el).value = c[k] ?? "";
+    $("costFixed").checked = !!c.fixed; $("costId").value = id;
+    $("costSubmit").textContent = "Opslaan"; $("costSummary").textContent = "Post bewerken";
+    $("costDetails").open = true; $("costLabel").focus(); $("costDetails").scrollIntoView({block:"nearest", behavior:"smooth"});
+  }
+  $("costCancel").addEventListener("click", () => { resetCostForm(); $("costDetails").open = false; });
   $("addCost").addEventListener("submit", e => {
     e.preventDefault();
-    const amount = Number($("costAmt").value), label = $("costLabel").value.trim();
-    if (!label || !(amount >= 0)) return;
+    const label = $("costLabel").value.trim(), qty = Number($("costQty").value), price = Number($("costAmt").value);
+    if (!label || !(qty >= 0) || !(price >= 0)) return;
+    const id = $("costId").value, prev = id && state.costs[id];
     const max = Math.max(0, ...Object.values(state.costs).map(c => c.order || 0));
-    put("costs", newId("c"), {label, cat:$("costCat").value, amount:Math.round(amount*100)/100, cur:$("costCur").value, paid:false, order:max+1});
-    $("costLabel").value = ""; $("costAmt").value = ""; toast("Kostenpost toegevoegd");
+    const data = {label, cat:$("costCat").value, qty, unit:$("costUnit").value.trim() || "total", price:Math.round(price*100)/100, cur:$("costCur").value,
+      paidBy:$("costWho").value, when:$("costWhen").value, fixed:$("costFixed").checked, note:$("costNote").value.trim(), order: prev ? (prev.order || 0) : max + 1};
+    put("costs", id || newId("c"), data);
+    toast(id ? "Post bijgewerkt" : "Kostenpost toegevoegd"); resetCostForm(); $("costDetails").open = false;
   });
   $("costRows").addEventListener("click", e => {
     const b = e.target.closest("[data-cost]"), row = e.target.closest("[data-id]"); if (!b || !row) return;
-    const id = row.dataset.id;
-    if (b.dataset.cost === "paid") { const c = clone(state.costs[id]); c.paid = !c.paid; put("costs", id, c); }
+    const id = row.dataset.id, c = norm(clone(state.costs[id]));
+    delete c.amount; delete c.paid;
+    if (b.dataset.cost === "when") { const ks = Object.keys(WHEN); c.when = ks[(ks.indexOf(c.when) + 1) % ks.length]; put("costs", id, c); }
+    if (b.dataset.cost === "fixed") { c.fixed = !c.fixed; put("costs", id, c); }
+    if (b.dataset.cost === "edit") editCost(id);
     if (b.dataset.cost === "del") {
       if (b.dataset.confirm) { del("costs", id); toast("Verwijderd"); }
       else { b.dataset.confirm = "1"; b.textContent = "Zeker?"; setTimeout(() => { if (b.isConnected) { delete b.dataset.confirm; b.textContent = "×"; } }, 3000); }
     }
+  });
+  $("whenFilter").addEventListener("click", e => { const b = e.target.closest("[data-when]"); if (b) { whenFilter = b.dataset.when; renderBudget(); } });
+  $("whoFilter").addEventListener("click", e => { const b = e.target.closest("[data-who]"); if (b) { whoFilter = b.dataset.who; renderBudget(); } });
+  $("totals").addEventListener("change", e => {
+    if (e.target.id !== "setRate" && e.target.id !== "setBuf") return;
+    const cur = settings(), rate = Number($("setRate").value), buffer = Number($("setBuf").value);
+    if (!(rate > 0) || !(buffer >= 0)) { toast("Vul een geldige koers en buffer in."); renderBudget(); return; }
+    if (rate === cur.rate && buffer === cur.buffer) return;
+    put("settings", "budget", {rate, buffer}); toast("Instellingen opgeslagen");
   });
 
   // Nav highlight
@@ -713,7 +851,7 @@ footer{padding-block:48px 40px;color:var(--muted);font-size:13px}
   addEventListener("scroll", onScroll, {passive:true});
 
   // ---------- Boot ----------
-  loadLocal(); renderMe(); renderFlights(); renderAll(); renderPanel(); renderCount(); drawRidges(); onScroll();
+  loadLocal(); renderMe(); renderAll(); renderPanel(); renderCount(); drawRidges(); onScroll();
   setInterval(renderCount, 30000);
   let rT; addEventListener("resize", () => { clearTimeout(rT); rT = setTimeout(drawRidges, 150); });
   matchMedia("(prefers-color-scheme: dark)").addEventListener?.("change", drawRidges);
